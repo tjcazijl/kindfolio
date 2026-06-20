@@ -1,0 +1,19 @@
+node_modules
+dist
+dist-ssr
+*.local
+.DS_Store
+.env
+.env.local
+*.log
+
+# Lokale ontwikkel-/tooling-config en build-artefacten
+.dev-auth
+.claude/
+tsconfig.tsbuildinfo
+
+# Los Frans-leerspelletje — niet onderdeel van de publieke repo
+franse-les/
+
+# Server-runtime data (nooit committen)
+server/data/
