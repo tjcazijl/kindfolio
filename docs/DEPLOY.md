@@ -1,8 +1,11 @@
 # Deploy & architectuur
 
-De app draait op een Linux-server (bijv. Ubuntu 24.04) achter nginx, met
+Kindfolio draait op een Linux-server (bijv. Ubuntu 24.04) achter nginx, met
 cloud-sync via een eigen backend. Vervang hieronder `your-server` door je eigen
 host (een SSH-alias in `~/.ssh/config` werkt prettig).
+
+> De paden en servicenaam (`portfolio-api`, `/var/www/portfolio`, `/opt/portfolio-api`)
+> zijn voorbeelden uit de referentie-deployment — kies gerust je eigen namen.
 
 ## Onderdelen
 
