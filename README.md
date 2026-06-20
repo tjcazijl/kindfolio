@@ -1,100 +1,99 @@
-# Thuisonderwijs Portfolio
+# Kindfolio
 
-Een mobiele webapp (PWA) om per kind dagelijks een memo te loggen — met **tekst**, **foto's** en **ingesproken tekst** (spraak-naar-tekst) — en om per **week / maand / kwartaal** een AI-samenvatting te maken voor het portfolio.
+Een mobiele webapp (PWA) voor thuisonderwijs: leg per kind dagelijks een memo vast — met **tekst**, **foto's** en **ingesproken tekst** (spraak-naar-tekst) — en stel optioneel per **week / maand / kwartaal** een samenvatting samen voor het portfolio.
 
-De app draait live met **cloud-sync**: alle memo's en foto's staan centraal in een database op de eigen server en synchroniseren tussen apparaten (beide ouders zien dezelfde data). Zie [`docs/DEPLOY.md`](docs/DEPLOY.md) voor de server-architectuur en redeploy-stappen. De Claude API-sleutel voor samenvattingen staat **server-side** (omgevingsvariabele); de frontend ziet die nooit.
+Kindfolio is **open source** en **zelf te hosten**. De app draait met **cloud-sync**: memo's en foto's staan centraal in een database op de server die je zelf beheert, en synchroniseren tussen apparaten (zo zien beide ouders dezelfde gegevens). Zie [`docs/DEPLOY.md`](docs/DEPLOY.md) voor de server-architectuur en deploy-stappen.
 
 ## Functies
 
-- 👧 Meerdere kinderen beheren
-- 📝 Dagelijkse memo per kind met datum en vakgebied-labels
+- 👧 Meerdere kinderen beheren, met eigen kleur, geboortedatum en vakgebieden
+- 📝 Dagelijkse memo per kind met datum en vakgebied-labels (in één keer voor meerdere kinderen kan ook)
 - 📷 Foto's toevoegen (camera of galerij), automatisch verkleind voor compacte opslag
 - 🎤 Inspreken: spraak wordt omgezet naar tekst (Web Speech API, werkt het best in Chrome op Android)
-- ✨ AI-samenvatting per week/maand/kwartaal via Claude (optioneel foto's meesturen)
-- ⬇️ Export / ⬆️ import als back-up
+- ✨ **Optionele** AI-samenvatting per periode — uit te zetten in de instellingen; staat het uit, dan zie je gewoon alle memo's onder elkaar
+- 👨‍👩‍👧 Samen werken: een medeouder kan meebewerken, een begeleider/lerares kan meelezen en reageren
+- ⬇️ Tekstgegevens exporteren als back-up
 - 📱 Installeerbaar als app-icoon op je telefoon (PWA), werkt offline
 
 ## Vereisten
 
-Je hebt **Node.js 18+** nodig om de app te bouwen/draaien. Er staat nog geen Node op deze Mac. Installeer het op één van deze manieren:
+Je hebt **Node.js 18+** nodig om de app te bouwen en te draaien:
 
-- **Makkelijkst:** download de installer van <https://nodejs.org> (kies de LTS-versie) en doorloop de setup.
-- **Of met Homebrew** (als je dat installeert via <https://brew.sh>): `brew install node`
+- **Makkelijkst:** download de installer van <https://nodejs.org> (kies de LTS-versie).
+- **Of met Homebrew:** `brew install node`
 
 Controleer daarna in een nieuwe terminal:
 
 ```bash
-node --version   # bijv. v20.x
+node --version
 npm --version
 ```
 
 ## Lokaal draaien
 
 ```bash
-cd ~/portfolio
+git clone https://github.com/tjcazijl/kindfolio.git
+cd kindfolio
 npm install
 npm run dev
 ```
 
-Vite toont een URL (bijv. `http://localhost:5173`). Open die op je computer, of op je telefoon via je lokale netwerk:
+Vite toont een URL (bijv. `http://localhost:5173`). De frontend praat met `/api`; zet
+de omgevingsvariabele `API_TARGET` naar je eigen backend, of draai de backend lokaal
+(zie [`docs/DEPLOY.md`](docs/DEPLOY.md)).
+
+Om de app op een telefoon in hetzelfde wifi-netwerk te openen:
 
 ```bash
 npm run dev -- --host
 ```
 
-Dan staat er ook een "Network"-adres (bijv. `http://192.168.1.20:5173`) dat je op je telefoon in de browser kunt openen (telefoon en computer op hetzelfde wifi).
+Dan verschijnt er ook een "Network"-adres (bijv. `http://192.168.1.20:5173`).
 
-## Op je telefoon testen (met microfoon)
+## Op een telefoon testen (met microfoon)
 
-De **microfoon/inspreken** werkt alleen via een beveiligde verbinding (https). Daarvoor is er een apart script dat een zelfondertekend certificaat gebruikt:
+De **microfoon/inspreken** werkt alleen via een beveiligde verbinding (https). Daarvoor is er een apart script met een zelfondertekend certificaat:
 
 ```bash
 npm run dev:telefoon
 ```
 
-Dit toont een **Network**-adres met `https://`, bijv. `https://192.168.68.56:5173/`.
+Dit toont een **Network**-adres met `https://`. Open dat op de telefoon (zelfde wifi).
+Je krijgt een certificaatwaarschuwing (zelfondertekend); doorgaan is hier veilig:
 
-1. Zorg dat je telefoon op **hetzelfde wifi** zit als deze computer.
-2. Open dat https-adres in de browser van je telefoon.
-3. Je krijgt een **certificaatwaarschuwing** (omdat het certificaat zelfondertekend is). Dat is hier veilig:
-   - **iPhone (Safari):** tik op *Details tonen* → *Deze website bezoeken* → *Bezoeken*.
-   - **Android (Chrome):** tik op *Geavanceerd* → *Doorgaan naar … (onveilig)*.
-4. Geef toestemming voor de microfoon wanneer je voor het eerst op *Inspreken* tikt.
+- **iPhone (Safari):** *Details tonen* → *Deze website bezoeken* → *Bezoeken*.
+- **Android (Chrome):** *Geavanceerd* → *Doorgaan naar … (onveilig)*.
 
-> macOS kan bij de eerste keer vragen of "node" inkomende verbindingen mag accepteren — klik op **Sta toe**.
->
-> Voor een echte app op je beginscherm (zonder waarschuwing) host je de app op een gratis https-adres — zie *Bouwen & publiceren* hieronder.
+Geef daarna toestemming voor de microfoon bij de eerste keer *Inspreken*.
 
-## Bouwen & publiceren
+## Bouwen
 
 ```bash
-npm run build      # output in dist/
-npm run preview    # lokaal de productieversie bekijken
+npm run build      # statische frontend in dist/
+npm run preview    # lokaal de productiebuild bekijken
 ```
 
-De map `dist/` is een statische site. Je kunt die gratis hosten op bijv. **Netlify**, **Vercel** of **Cloudflare Pages** (sleep de `dist`-map erin, of koppel een Git-repo). Eenmaal op een https-adres kun je de app op je telefoon openen en via het browsermenu **"Toevoegen aan beginscherm"** als app installeren.
-
-## AI-samenvattingen instellen
-
-De samenvattingen draaien **server-side**: de backend roept Anthropic aan met de
-sleutel uit de omgevingsvariabele `PORTFOLIO_ANTHROPIC_KEY`. De frontend bevat dus
-geen sleutel. Zie [`docs/DEPLOY.md`](docs/DEPLOY.md) voor het instellen. Houd er
-rekening mee dat API-gebruik kosten met zich meebrengt.
+`dist/` is de statische frontend; daarnaast draait de zero-dependency backend
+(`server/server.js`). De volledige hostingopzet (nginx, systemd, HTTPS) staat in
+[`docs/DEPLOY.md`](docs/DEPLOY.md).
 
 ## Techniek
 
 - **Frontend:** React + TypeScript + Vite, `vite-plugin-pwa` (offline/installeerbaar)
 - **Backend:** zero-dependency Node (`node:http` + ingebouwde `node:sqlite`), cookie-sessies
 - **Spraak:** Web Speech API (spraak-naar-tekst, in de browser)
-- **AI:** Claude Messages API, server-side aangeroepen
+- **AI (optioneel):** Claude Messages API, server-side aangeroepen
 
 ## Privacy
 
-De gegevens staan op je **eigen server** (in dit project binnen de EU) en zijn per
-account gescheiden. Alleen wanneer er een samenvatting wordt gemaakt, gaan de
-memo's van de gekozen periode naar Anthropic om die te genereren.
+Kindfolio is zelf te hosten: de gegevens staan op de server die je zelf beheert (in
+de referentie-deployment binnen de EU) en zijn per account gescheiden. De
+AI-samenvatting is **optioneel** en uit te zetten. Staat die aan, dan gaan alleen de
+**notitieteksten** van de gekozen periode naar Anthropic om de samenvatting te
+genereren — **geen foto's** en geen accountgegevens. De API-sleutel staat uitsluitend
+**server-side** (omgevingsvariabele); de frontend ziet die nooit.
 
 ## Licentie
 
-[GNU AGPL-3.0](LICENSE) — vrij te gebruiken en aan te passen, mits afgeleide
-werken (ook als netwerkdienst) onder dezelfde licentie beschikbaar blijven.
+[GNU AGPL-3.0](LICENSE) — vrij te gebruiken en aan te passen, mits afgeleide werken
+(ook als netwerkdienst) onder dezelfde licentie beschikbaar blijven.
