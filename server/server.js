@@ -303,6 +303,23 @@ const FROM_NAME = process.env.PORTFOLIO_FROM_NAME || 'Kindfolio'
 const APP_URL = process.env.PORTFOLIO_APP_URL || 'https://app.kindfolio.nl'
 const REQUIRE_VERIFY = process.env.PORTFOLIO_REQUIRE_VERIFY === 'true'
 
+// Eenvoudige HTML→tekst voor de platte-tekst-variant van de mail.
+function htmlToText(html) {
+  return String(html)
+    .replace(/<style[\s\S]*?<\/style>/gi, '')
+    .replace(/<a [^>]*href="([^"]*)"[^>]*>(.*?)<\/a>/gi, '$2 ($1)')
+    .replace(/<br\s*\/?>(?=)/gi, '\n')
+    .replace(/<\/(p|div|h\d|li|blockquote)>/gi, '\n')
+    .replace(/<[^>]+>/g, '')
+    .replace(/&nbsp;/g, ' ')
+    .replace(/&amp;/g, '&')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&quot;/g, '"')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim()
+}
+
 async function sendEmail(to, subject, html) {
   if (!SENDGRID_KEY) throw new Error('SendGrid niet geconfigureerd')
   const r = await fetch('https://api.sendgrid.com/v3/mail/send', {
@@ -314,8 +331,18 @@ async function sendEmail(to, subject, html) {
     body: JSON.stringify({
       personalizations: [{ to: [{ email: to }] }],
       from: { email: FROM_EMAIL, name: FROM_NAME },
+      reply_to: { email: FROM_EMAIL, name: FROM_NAME },
       subject,
-      content: [{ type: 'text/html', value: html }],
+      // Plain-text vóór HTML (multipart) — beter voor spamfilters.
+      content: [
+        { type: 'text/plain', value: htmlToText(html) },
+        { type: 'text/html', value: html },
+      ],
+      // Transactionele mail: geen link-rewriting (sendgrid.net) of trackingpixel.
+      tracking_settings: {
+        click_tracking: { enable: false, enable_text: false },
+        open_tracking: { enable: false },
+      },
     }),
   })
   if (!r.ok) throw new Error('SendGrid-fout: ' + (await r.text()).slice(0, 200))
