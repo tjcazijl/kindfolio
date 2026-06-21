@@ -361,6 +361,32 @@ function inviteNewHtml(owner, email) {
   </div>`
 }
 
+// Escapeert tekst voor veilige weergave in een HTML-mail.
+function esc(s) {
+  return String(s == null ? '' : s).replace(
+    /[&<>"]/g,
+    (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c],
+  )
+}
+
+function feedbackDoneHtml(message) {
+  return `<div style="font-family:sans-serif;max-width:480px;margin:auto">
+    <h2 style="color:#2f6f4f">Je feedback is verwerkt ✅</h2>
+    <p>Bedankt voor je feedback in Kindfolio! Je suggestie is meegenomen in een nieuwe update:</p>
+    <blockquote style="border-left:3px solid #2f6f4f;margin:0;padding:8px 14px;color:#333;background:#f3f6f3">${esc(message)}</blockquote>
+    <p style="margin-top:16px"><a href="${APP_URL}/#/feedback" style="background:#2f6f4f;color:#fff;padding:12px 20px;border-radius:8px;text-decoration:none;display:inline-block">Naar Kindfolio</a></p>
+  </div>`
+}
+
+function newCommentHtml(author, context, text) {
+  return `<div style="font-family:sans-serif;max-width:480px;margin:auto">
+    <h2 style="color:#2f6f4f">Nieuwe reactie 💬</h2>
+    <p><strong>${esc(author)}</strong> heeft gereageerd ${esc(context)}:</p>
+    <blockquote style="border-left:3px solid #2f6f4f;margin:0;padding:8px 14px;color:#333;background:#f3f6f3">${esc(text)}</blockquote>
+    <p style="margin-top:16px"><a href="${APP_URL}" style="background:#2f6f4f;color:#fff;padding:12px 20px;border-radius:8px;text-decoration:none;display:inline-block">Open Kindfolio</a></p>
+  </div>`
+}
+
 // ---- http helpers ----
 function sendJson(res, status, obj) {
   res.writeHead(status, {
@@ -716,10 +742,15 @@ add('POST', /^\/api\/feedback\/([^/]+)\/comments$/, async (req, res, m) => {
 // Beheerder: feedback markeren als verwerkt (of heropenen).
 add('POST', /^\/api\/feedback\/([^/]+)\/status$/, async (req, res, m) => {
   if (!isAdminUser(req.userId)) return sendJson(res, 403, { error: 'Geen toegang' })
+  const fb = db.prepare('SELECT email, status, message FROM feedback WHERE id = ?').get(m[1])
+  if (!fb) return sendJson(res, 404, { error: 'niet gevonden' })
   const body = await readJson(req)
   const status = body.status === 'done' ? 'done' : 'open'
-  const r = db.prepare('UPDATE feedback SET status = ? WHERE id = ?').run(status, m[1])
-  if (!r.changes) return sendJson(res, 404, { error: 'niet gevonden' })
+  db.prepare('UPDATE feedback SET status = ? WHERE id = ?').run(status, m[1])
+  // Bij overgang naar 'verwerkt': de indiener een mailtje sturen.
+  if (status === 'done' && fb.status !== 'done' && fb.email) {
+    sendEmail(fb.email, 'Je feedback is verwerkt — Kindfolio ✅', feedbackDoneHtml(fb.message)).catch(() => {})
+  }
   sendJson(res, 200, { status })
 })
 
@@ -945,10 +976,13 @@ add('POST', /^\/api\/summary$/, async (req, res) => {
   if (!child) return sendJson(res, 404, { error: 'Kind niet gevonden' })
   const start = String(body.start || '')
   const end = String(body.end || '')
-  const memos = db
+  const subject = String(body.subject || '').trim()
+  let memos = db
     .prepare('SELECT * FROM memos WHERE child_id = ? AND account_id = ? AND date >= ? AND date <= ? ORDER BY date ASC')
     .all(body.childId, req.accountId, start, end)
     .map(mapMemo)
+  // Optioneel filteren op één vakgebied.
+  if (subject) memos = memos.filter((mm) => mm.subjects.includes(subject))
   if (memos.length === 0) return sendJson(res, 400, { error: "Geen memo's in deze periode" })
 
   const periodLabel = String(body.periodLabel || `${start} t/m ${end}`)
@@ -1070,6 +1104,23 @@ add('POST', /^\/api\/comments$/, async (req, res) => {
   }
   db.prepare('INSERT INTO comments (id,account_id,target_type,target_id,user_id,author_email,text,created_at) VALUES (?,?,?,?,?,?,?,?)')
     .run(c.id, c.account_id, c.target_type, c.target_id, c.user_id, c.author_email, c.text, c.created_at)
+
+  // Mail de accounteigenaar bij een nieuwe reactie (niet als die zelf reageert).
+  const ownerEmail = userEmail(req.accountId)
+  if (ownerEmail && req.userId !== req.accountId) {
+    let context
+    if (type === 'summary') {
+      const s = db.prepare('SELECT child_id, period_label FROM summaries WHERE id = ?').get(targetId)
+      const cn = s ? db.prepare('SELECT name FROM children WHERE id = ?').get(s.child_id)?.name : ''
+      context = `op de samenvatting van ${cn || 'een kind'} (${s?.period_label || ''})`
+    } else {
+      const mm = db.prepare('SELECT child_id, date FROM memos WHERE id = ?').get(targetId)
+      const cn = mm ? db.prepare('SELECT name FROM children WHERE id = ?').get(mm.child_id)?.name : ''
+      context = `op de memo van ${cn || 'een kind'} (${mm?.date || ''})`
+    }
+    sendEmail(ownerEmail, 'Nieuwe reactie in Kindfolio 💬', newCommentHtml(c.author_email, context, text)).catch(() => {})
+  }
+
   sendJson(res, 201, mapComment(c))
 })
 

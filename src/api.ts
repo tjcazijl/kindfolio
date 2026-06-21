@@ -359,6 +359,7 @@ export interface SummaryParams {
   period: string
   periodLabel: string
   includePhotos: boolean
+  subject?: string
 }
 
 export async function generateSummary(params: SummaryParams): Promise<Summary> {

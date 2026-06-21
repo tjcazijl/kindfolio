@@ -22,13 +22,21 @@ function formatMoment(ts: number): string {
 }
 
 export function Summary() {
-  const { children, memos, summaries, removeSummary, reload, canEdit, aiEnabled } =
-    useData()
+  const {
+    children,
+    memos,
+    summaries,
+    removeSummary,
+    reload,
+    canEdit,
+    aiEnabled,
+  } = useData()
   const [available, setAvailable] = useState<boolean | null>(null)
 
   const [childId, setChildId] = useState<string>('')
   const [period, setPeriod] = useState<Period>('week')
   const [refDate, setRefDate] = useState<Date>(new Date())
+  const [subject, setSubject] = useState<string>('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [expandedId, setExpandedId] = useState<string | null>(null)
@@ -55,13 +63,29 @@ export function Summary() {
     [memos, effectiveChildId, range.start, range.end],
   )
 
+  // Vakgebieden die in deze periode voorkomen (opties voor het filter).
+  const subjectsInPeriod = useMemo(
+    () => [...new Set(periodMemos.flatMap((m) => m.subjects))].sort(),
+    [periodMemos],
+  )
+  // Filter het filter weg zodra het niet meer van toepassing is (ander kind/periode).
+  useEffect(() => {
+    if (subject && !subjectsInPeriod.includes(subject)) setSubject('')
+  }, [subjectsInPeriod, subject])
+
+  const filteredMemos = useMemo(
+    () =>
+      subject ? periodMemos.filter((m) => m.subjects.includes(subject)) : periodMemos,
+    [periodMemos, subject],
+  )
+
   const childSummaries = useMemo(
     () => summaries.filter((s) => s.childId === effectiveChildId),
     [summaries, effectiveChildId],
   )
 
   async function run() {
-    if (!child || periodMemos.length === 0) return
+    if (!child || filteredMemos.length === 0) return
     setLoading(true)
     setError(null)
     try {
@@ -70,8 +94,9 @@ export function Summary() {
         start: range.start,
         end: range.end,
         period,
-        periodLabel: range.label,
+        periodLabel: subject ? `${subject} · ${range.label}` : range.label,
         includePhotos: false,
+        subject: subject || undefined,
       })
       await reload()
       setExpandedId(saved.id)
@@ -90,16 +115,19 @@ export function Summary() {
   // Memo's onder elkaar als platte tekst voor PDF / afdrukken.
   function printOverview() {
     if (!child) return
-    const body = periodMemos
+    const body = filteredMemos
       .map((m) => {
         const head = `## ${formatDateLong(m.date)}`
         const tags = m.subjects.length ? `*${m.subjects.join(', ')}*\n\n` : ''
         return `${head}\n\n${tags}${m.text || ''}`
       })
       .join('\n\n')
+    const title = subject
+      ? `${child.name} — ${subject} — ${range.label}`
+      : `${child.name} — ${range.label}`
     openSummaryPrint(
-      `${child.name} — ${range.label}`,
-      `${child.name} · ${periodMemos.length} memo${periodMemos.length === 1 ? '' : "'s"}`,
+      title,
+      `${child.name} · ${filteredMemos.length} memo${filteredMemos.length === 1 ? '' : "'s"}`,
       body,
     )
   }
@@ -148,9 +176,28 @@ export function Summary() {
         </button>
       </div>
 
+      {subjectsInPeriod.length > 0 && (
+        <label className="field">
+          <span className="field-label">Vakgebied</span>
+          <select
+            className="input"
+            value={subject}
+            onChange={(e) => setSubject(e.target.value)}
+          >
+            <option value="">Alle vakgebieden</option>
+            {subjectsInPeriod.map((s) => (
+              <option key={s} value={s}>
+                {s}
+              </option>
+            ))}
+          </select>
+        </label>
+      )}
+
       <p className="count-line">
-        {periodMemos.length} memo
-        {periodMemos.length === 1 ? '' : "'s"} in deze periode
+        {filteredMemos.length} memo
+        {filteredMemos.length === 1 ? '' : "'s"}
+        {subject ? ` voor ${subject}` : ' in deze periode'}
       </p>
     </>
   )
@@ -189,13 +236,13 @@ export function Summary() {
       {!aiEnabled && (
         <>
           {periodControls}
-          {periodMemos.length > 0 ? (
+          {filteredMemos.length > 0 ? (
             <>
               <button className="btn outline full" onClick={printOverview}>
                 📄 PDF / Afdrukken
               </button>
               <div className="timeline">
-                {periodMemos.map((m) => (
+                {filteredMemos.map((m) => (
                   <div key={m.id} className="memo-card static">
                     <div className="memo-date">{formatDateLong(m.date)}</div>
                     {m.subjects.length > 0 && (
@@ -213,7 +260,11 @@ export function Summary() {
               </div>
             </>
           ) : (
-            <p className="empty-note">Geen memo's in deze periode.</p>
+            <p className="empty-note">
+              {subject
+                ? `Geen memo's voor ${subject} in deze periode.`
+                : "Geen memo's in deze periode."}
+            </p>
           )}
         </>
       )}
@@ -227,11 +278,15 @@ export function Summary() {
               <button
                 className="btn primary full big"
                 disabled={
-                  loading || available === false || periodMemos.length === 0
+                  loading || available === false || filteredMemos.length === 0
                 }
                 onClick={run}
               >
-                {loading ? 'Samenvatting maken…' : '✨ Samenvatting maken'}
+                {loading
+                  ? 'Samenvatting maken…'
+                  : subject
+                    ? `✨ Samenvatting maken (${subject})`
+                    : '✨ Samenvatting maken'}
               </button>
               {error && <p className="error-text">{error}</p>}
             </>

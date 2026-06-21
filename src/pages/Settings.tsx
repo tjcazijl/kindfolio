@@ -8,7 +8,7 @@ import {
   type Share,
   type ShareRole,
 } from '../api'
-import { SUBJECTS } from '../types'
+import { SUBJECTS, type Child } from '../types'
 import { isStandalone } from '../utils/pwaInstall'
 import { SubjectsEditor } from '../components/SubjectsEditor'
 
@@ -24,10 +24,29 @@ export function Settings() {
     subjects,
     aiEnabled,
     saveSettings,
+    children,
+    removeChild,
   } = useData()
   const [confirmStage, setConfirmStage] = useState<0 | 1 | 2>(0)
   const [typed, setTyped] = useState('')
   const [wiping, setWiping] = useState(false)
+  const [childToDelete, setChildToDelete] = useState<Child | null>(null)
+  const [childTyped, setChildTyped] = useState('')
+  const [deletingChild, setDeletingChild] = useState(false)
+
+  async function doDeleteChild() {
+    if (!childToDelete) return
+    setDeletingChild(true)
+    try {
+      await removeChild(childToDelete.id)
+      setChildToDelete(null)
+      setChildTyped('')
+    } catch (e: any) {
+      alert(e?.message || 'Verwijderen mislukt')
+    } finally {
+      setDeletingChild(false)
+    }
+  }
 
   // Delen
   const [shares, setShares] = useState<Share[]>([])
@@ -228,6 +247,40 @@ export function Settings() {
         </section>
       )}
 
+      {canEdit && children.length > 0 && (
+        <section className="card-section">
+          <h2>Kinderen beheren</h2>
+          <p className="hint">
+            Hier verwijder je een kind. <strong>Let op:</strong> alle memo's,
+            foto's en samenvattingen van dat kind gaan dan permanent weg.
+          </p>
+          <div className="share-list">
+            {children.map((c) => (
+              <div key={c.id} className="share-row">
+                <span>
+                  <span
+                    className="avatar xs"
+                    style={{ background: c.color, marginRight: 8 }}
+                  >
+                    {c.name.charAt(0).toUpperCase()}
+                  </span>
+                  {c.name}
+                </span>
+                <button
+                  className="link-btn danger"
+                  onClick={() => {
+                    setChildToDelete(c)
+                    setChildTyped('')
+                  }}
+                >
+                  Verwijderen
+                </button>
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
+
       <section className="card-section">
         <h2>Gegevens</h2>
         <p className="hint">
@@ -280,6 +333,46 @@ export function Settings() {
       <p className="version-note">
         Kindfolio v{__APP_VERSION__} · {__BUILD_DATE__}
       </p>
+
+      {childToDelete && (
+        <div className="modal-overlay" onClick={() => setChildToDelete(null)}>
+          <div className="modal" onClick={(e) => e.stopPropagation()}>
+            <h2>{childToDelete.name} verwijderen?</h2>
+            <p>
+              Alle memo's, foto's en samenvattingen van{' '}
+              <strong>{childToDelete.name}</strong> worden permanent verwijderd.
+              Dit kan niet ongedaan worden gemaakt.
+            </p>
+            <p className="hint">
+              Typ <strong>{childToDelete.name}</strong> om te bevestigen.
+            </p>
+            <input
+              className="input"
+              value={childTyped}
+              onChange={(e) => setChildTyped(e.target.value)}
+              placeholder={childToDelete.name}
+              autoFocus
+            />
+            <div className="modal-actions">
+              <button
+                className="btn ghost"
+                onClick={() => setChildToDelete(null)}
+              >
+                Annuleren
+              </button>
+              <button
+                className="btn danger-solid"
+                disabled={
+                  childTyped.trim() !== childToDelete.name || deletingChild
+                }
+                onClick={doDeleteChild}
+              >
+                {deletingChild ? 'Verwijderen…' : 'Definitief verwijderen'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {confirmStage > 0 && (
         <div className="modal-overlay" onClick={closeModal}>

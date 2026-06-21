@@ -21,7 +21,6 @@ export function ChildTimeline() {
     memos,
     loading,
     updateChild,
-    removeChild,
     canEdit,
     subjects: accountSubjects,
   } = useData()
@@ -88,18 +87,6 @@ export function ChildTimeline() {
     setEditing(false)
   }
 
-  async function onRemoveChild() {
-    if (!childId) return
-    if (
-      !confirm(
-        `${child!.name} en alle bijbehorende memo's verwijderen? Dit kan niet ongedaan worden gemaakt.`,
-      )
-    )
-      return
-    await removeChild(childId)
-    navigate('/')
-  }
-
   const age = childAge(child)
 
   return (
@@ -133,9 +120,6 @@ export function ChildTimeline() {
               <div className="row gap small-actions">
                 <button className="link-btn" onClick={() => setEditing(true)}>
                   Bewerken
-                </button>
-                <button className="link-btn danger" onClick={onRemoveChild}>
-                  Verwijderen
                 </button>
               </div>
             )}
