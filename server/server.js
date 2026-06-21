@@ -321,6 +321,15 @@ async function sendEmail(to, subject, html) {
   if (!r.ok) throw new Error('SendGrid-fout: ' + (await r.text()).slice(0, 200))
 }
 
+// Verstuurt een niet-kritische mail en logt fouten (maar gooit niet door).
+async function sendEmailSafe(to, subject, html, context) {
+  try {
+    await sendEmail(to, subject, html)
+  } catch (e) {
+    console.error(`[mail] verzenden mislukt (${context}) naar ${to}: ${(e && e.message) || e}`)
+  }
+}
+
 function verifyEmailHtml(link) {
   return `<div style="font-family:sans-serif;max-width:480px;margin:auto">
     <h2 style="color:#2f6f4f">Welkom bij Kindfolio 📚</h2>
@@ -468,7 +477,8 @@ add('POST', /^\/api\/register$/, async (req, res) => {
         'Bevestig je Kindfolio-account',
         verifyEmailHtml(`${APP_URL}/api/verify?token=${token}`),
       )
-    } catch {
+    } catch (e) {
+      console.error(`[mail] verzenden mislukt (verificatie) naar ${email}: ${(e && e.message) || e}`)
       db.prepare('DELETE FROM users WHERE id = ?').run(id)
       return sendJson(res, 502, {
         error: 'Kon de bevestigingsmail niet versturen. Probeer het later opnieuw.',
@@ -537,8 +547,9 @@ add('POST', /^\/api\/forgot$/, async (req, res) => {
         'Wachtwoord opnieuw instellen — Kindfolio',
         resetEmailHtml(`${APP_URL}/#/reset?token=${token}`),
       )
-    } catch {
-      /* stil falen; geen info lekken */
+    } catch (e) {
+      // Naar de gebruiker stil blijven (geen info lekken), maar server-side loggen.
+      console.error(`[mail] verzenden mislukt (wachtwoord-herstel) naar ${email}: ${(e && e.message) || e}`)
     }
   }
   // Altijd 200: verraad niet of een e-mailadres bestaat.
@@ -749,7 +760,7 @@ add('POST', /^\/api\/feedback\/([^/]+)\/status$/, async (req, res, m) => {
   db.prepare('UPDATE feedback SET status = ? WHERE id = ?').run(status, m[1])
   // Bij overgang naar 'verwerkt': de indiener een mailtje sturen.
   if (status === 'done' && fb.status !== 'done' && fb.email) {
-    sendEmail(fb.email, 'Je feedback is verwerkt — Kindfolio ✅', feedbackDoneHtml(fb.message)).catch(() => {})
+    sendEmailSafe(fb.email, 'Je feedback is verwerkt — Kindfolio ✅', feedbackDoneHtml(fb.message), 'feedback-verwerkt')
   }
   sendJson(res, 200, { status })
 })
@@ -1118,7 +1129,7 @@ add('POST', /^\/api\/comments$/, async (req, res) => {
       const cn = mm ? db.prepare('SELECT name FROM children WHERE id = ?').get(mm.child_id)?.name : ''
       context = `op de memo van ${cn || 'een kind'} (${mm?.date || ''})`
     }
-    sendEmail(ownerEmail, 'Nieuwe reactie in Kindfolio 💬', newCommentHtml(c.author_email, context, text)).catch(() => {})
+    sendEmailSafe(ownerEmail, 'Nieuwe reactie in Kindfolio 💬', newCommentHtml(c.author_email, context, text), 'nieuwe-reactie')
   }
 
   sendJson(res, 201, mapComment(c))
@@ -1168,7 +1179,7 @@ add('POST', /^\/api\/invite$/, async (req, res) => {
       // Bestaande deelnemer: rol bijwerken (bv. meelezer → medeouder).
       db.prepare('UPDATE memberships SET role = ? WHERE id = ?').run(role, existing.id)
     }
-    try { await sendEmail(email, 'Je hebt toegang gekregen tot een Kindfolio', inviteExistingHtml(owner)) } catch {}
+    await sendEmailSafe(email, 'Je hebt toegang gekregen tot een Kindfolio', inviteExistingHtml(owner), 'uitnodiging-bestaand')
   } else {
     const inv = db.prepare('SELECT id FROM invites WHERE account_id = ? AND email = ?').get(req.accountId, email)
     if (!inv) {
@@ -1177,7 +1188,7 @@ add('POST', /^\/api\/invite$/, async (req, res) => {
     } else {
       db.prepare('UPDATE invites SET role = ? WHERE id = ?').run(role, inv.id)
     }
-    try { await sendEmail(email, 'Uitnodiging voor Kindfolio', inviteNewHtml(owner, email)) } catch {}
+    await sendEmailSafe(email, 'Uitnodiging voor Kindfolio', inviteNewHtml(owner, email), 'uitnodiging-nieuw')
   }
   sendJson(res, 200, { ok: true })
 })
