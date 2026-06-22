@@ -36,6 +36,7 @@ export function MemoEditor() {
   const [subjects, setSubjects] = useState<string[]>(existing?.subjects || [])
   const [photoIds, setPhotoIds] = useState<string[]>(existing?.photoIds || [])
   const [saving, setSaving] = useState(false)
+  const [confirmDelete, setConfirmDelete] = useState(false)
   const [uploading, setUploading] = useState(false)
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null)
   const [rotating, setRotating] = useState(false)
@@ -130,7 +131,7 @@ export function MemoEditor() {
     await removePhoto(id)
   }
 
-  async function save() {
+  async function save(asDraft = false) {
     if (isNew && selectedChildIds.length === 0) {
       alert('Kies minstens één kind.')
       return
@@ -148,9 +149,16 @@ export function MemoEditor() {
           text: text.trim(),
           subjects,
           photoIds,
+          draft: asDraft,
         })
       } else if (memoId) {
-        await editMemo(memoId, { date, text: text.trim(), subjects, photoIds })
+        await editMemo(memoId, {
+          date,
+          text: text.trim(),
+          subjects,
+          photoIds,
+          draft: asDraft,
+        })
       }
       stagedPhotos.current.clear()
       navigate(
@@ -180,7 +188,6 @@ export function MemoEditor() {
 
   async function remove() {
     if (!memoId) return
-    if (!confirm('Deze memo verwijderen?')) return
     await removeMemo(memoId)
     navigate(`/kind/${childId}`)
   }
@@ -352,15 +359,52 @@ export function MemoEditor() {
       </div>
 
       <div className="sticky-actions">
-        <button className="btn primary full big" disabled={saving} onClick={save}>
+        <button
+          className="btn primary full big"
+          disabled={saving}
+          onClick={() => save(false)}
+        >
           {saving ? 'Opslaan…' : 'Memo opslaan'}
         </button>
+        <button
+          className="btn outline full"
+          disabled={saving}
+          onClick={() => save(true)}
+        >
+          📝 Opslaan als concept
+        </button>
         {!isNew && (
-          <button className="btn danger-outline full" onClick={remove}>
+          <button
+            className="btn danger-outline full"
+            onClick={() => setConfirmDelete(true)}
+          >
             Memo verwijderen
           </button>
         )}
       </div>
+
+      {confirmDelete && (
+        <div className="modal-overlay" onClick={() => setConfirmDelete(false)}>
+          <div className="modal" onClick={(e) => e.stopPropagation()}>
+            <h2>Memo verwijderen?</h2>
+            <p>
+              Deze memo wordt permanent verwijderd. Dit kan niet ongedaan worden
+              gemaakt.
+            </p>
+            <div className="modal-actions">
+              <button
+                className="btn ghost"
+                onClick={() => setConfirmDelete(false)}
+              >
+                Annuleren
+              </button>
+              <button className="btn danger-solid" onClick={remove}>
+                Verwijderen
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {lightboxIndex != null && (
         <Lightbox

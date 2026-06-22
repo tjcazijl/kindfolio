@@ -56,6 +56,7 @@ export function Summary() {
         .filter(
           (m) =>
             m.childId === effectiveChildId &&
+            !m.draft &&
             m.date >= range.start &&
             m.date <= range.end,
         )

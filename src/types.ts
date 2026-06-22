@@ -16,6 +16,7 @@ export interface Memo {
   text: string
   subjects: string[]
   photoIds: string[]
+  draft?: boolean
   createdAt: number
   updatedAt: number
 }

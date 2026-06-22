@@ -69,7 +69,7 @@ export function Settings() {
       await invite(email, inviteRole)
       setInviteMsg(
         inviteRole === 'editor'
-          ? `${email} is uitgenodigd als medeouder.`
+          ? `${email} is uitgenodigd als gezinslid.`
           : `${email} is uitgenodigd als meelezer.`,
       )
       setInviteEmail('')
@@ -182,10 +182,11 @@ export function Settings() {
         <section className="card-section">
           <h2>Delen &amp; samenwerken</h2>
           <p className="hint">
-            Nodig iemand uit via hun e-mailadres. Een <strong>medeouder</strong>{' '}
-            kan samen met jou kinderen, memo's en samenvattingen toevoegen en
-            bewerken. Een <strong>meelezer</strong> (bijv. een lerares) kan alles
-            lezen en erop reageren, maar niets bewerken.
+            Nodig iemand uit via hun e-mailadres. Een <strong>gezinslid</strong>{' '}
+            (bijv. een medeouder of een ouder kind) kan samen met jou kinderen,
+            memo's en samenvattingen toevoegen en bewerken. Een{' '}
+            <strong>meelezer</strong> (bijv. een lerares) kan alles lezen en erop
+            reageren, maar niets bewerken.
           </p>
           <form onSubmit={sendInvite} className="invite-form">
             <input
@@ -209,7 +210,7 @@ export function Settings() {
                 className={`seg-btn ${inviteRole === 'editor' ? 'on' : ''}`}
                 onClick={() => setInviteRole('editor')}
               >
-                Medeouder
+                Gezinslid
               </button>
             </div>
             <button
@@ -228,7 +229,7 @@ export function Settings() {
                   <span>
                     {s.email}
                     <span className="role-badge">
-                      {s.role === 'editor' ? 'medeouder' : 'meelezer'}
+                      {s.role === 'editor' ? 'gezinslid' : 'meelezer'}
                     </span>
                     {s.status === 'pending' && (
                       <span className="badge-unverified">uitgenodigd</span>

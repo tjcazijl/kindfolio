@@ -232,10 +232,13 @@ export function ChildTimeline() {
         {visible.map((m) => (
           <button
             key={m.id}
-            className="memo-card"
+            className={`memo-card${m.draft ? ' is-draft' : ''}`}
             onClick={() => navigate(`/kind/${child.id}/memo/${m.id}`)}
           >
-            <div className="memo-date">{formatDateShort(m.date)}</div>
+            <div className="memo-date">
+              {formatDateShort(m.date)}
+              {m.draft && <span className="draft-badge">Concept</span>}
+            </div>
             {m.subjects.length > 0 && (
               <div className="tags">
                 {m.subjects.map((s) => (

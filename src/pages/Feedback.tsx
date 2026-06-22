@@ -29,14 +29,24 @@ function sortPosts(list: FeedbackPost[]): FeedbackPost[] {
   )
 }
 
+const NAME_KEY = 'kindfolio-feedback-name'
+
 export function Feedback() {
   const { isAdmin } = useData()
   const [posts, setPosts] = useState<FeedbackPost[] | null>(null)
   const [message, setMessage] = useState('')
+  const [name, setName] = useState(() => localStorage.getItem(NAME_KEY) || '')
   const [busy, setBusy] = useState(false)
   const [openId, setOpenId] = useState<string | null>(null)
   const [comments, setComments] = useState<Record<string, FeedbackComment[]>>({})
   const [commentText, setCommentText] = useState('')
+
+  // Onthoud de gekozen naam voor volgende keer.
+  function updateName(v: string) {
+    setName(v)
+    if (v.trim()) localStorage.setItem(NAME_KEY, v.trim())
+    else localStorage.removeItem(NAME_KEY)
+  }
 
   useEffect(() => {
     fetchFeedback().then(setPosts).catch(() => setPosts([]))
@@ -54,7 +64,7 @@ export function Feedback() {
     if (!msg) return
     setBusy(true)
     try {
-      const created = await postFeedback(msg)
+      const created = await postFeedback(msg, name)
       setPosts((cur) => sortPosts([created, ...(cur || [])]))
       setMessage('')
     } catch (err: any) {
@@ -95,7 +105,7 @@ export function Feedback() {
     e.preventDefault()
     const text = commentText.trim()
     if (!text) return
-    const created = await commentFeedback(p.id, text)
+    const created = await commentFeedback(p.id, text, name)
     setComments((c) => ({ ...c, [p.id]: [...(c[p.id] || []), created] }))
     patch(p.id, { commentCount: p.commentCount + 1 })
     setCommentText('')
@@ -124,6 +134,13 @@ export function Feedback() {
         <p className="subtitle">
           Deel ideeën, stem op wat jij belangrijk vindt en praat mee.
         </p>
+        <p className="hint">
+          Liever mailen? Stuur je feedback of een bug naar{' '}
+          <a href="mailto:info@kindfolio.nl?subject=Feedback%20Kindfolio">
+            info@kindfolio.nl
+          </a>
+          .
+        </p>
       </header>
 
       <form onSubmit={submit} className="card-section">
@@ -133,6 +150,13 @@ export function Feedback() {
           value={message}
           onChange={(e) => setMessage(e.target.value)}
           placeholder="Wat zou je graag anders of beter zien?"
+        />
+        <input
+          className="input"
+          value={name}
+          onChange={(e) => updateName(e.target.value)}
+          placeholder="Je naam (optioneel)"
+          maxLength={80}
         />
         <button
           className="btn primary full"
@@ -203,16 +227,28 @@ export function Feedback() {
                         <span className="fc-text">{c.text}</span>
                       </div>
                     ))}
-                    <form onSubmit={(e) => addComment(e, p)} className="row gap">
+                    <form
+                      onSubmit={(e) => addComment(e, p)}
+                      className="fc-form"
+                    >
                       <input
-                        className="input grow"
-                        value={commentText}
-                        onChange={(e) => setCommentText(e.target.value)}
-                        placeholder="Schrijf een reactie…"
+                        className="input"
+                        value={name}
+                        onChange={(e) => updateName(e.target.value)}
+                        placeholder="Je naam (optioneel)"
+                        maxLength={80}
                       />
-                      <button className="btn primary sm" type="submit">
-                        Plaats
-                      </button>
+                      <div className="row gap">
+                        <input
+                          className="input grow"
+                          value={commentText}
+                          onChange={(e) => setCommentText(e.target.value)}
+                          placeholder="Schrijf een reactie…"
+                        />
+                        <button className="btn primary sm" type="submit">
+                          Plaats
+                        </button>
+                      </div>
                     </form>
                   </div>
                 )}

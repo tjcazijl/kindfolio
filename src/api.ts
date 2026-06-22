@@ -212,10 +212,10 @@ export interface FeedbackComment {
 export const fetchFeedback = () =>
   req<{ feedback: FeedbackPost[] }>('/feedback').then((r) => r.feedback)
 
-export const postFeedback = (message: string) =>
+export const postFeedback = (message: string, name?: string) =>
   req<FeedbackPost>('/feedback', {
     method: 'POST',
-    body: JSON.stringify({ message }),
+    body: JSON.stringify({ message, name }),
   })
 
 export const voteFeedback = (id: string) =>
@@ -228,10 +228,10 @@ export const fetchFeedbackComments = (id: string) =>
     (r) => r.comments,
   )
 
-export const commentFeedback = (id: string, text: string) =>
+export const commentFeedback = (id: string, text: string, name?: string) =>
   req<FeedbackComment>(`/feedback/${id}/comments`, {
     method: 'POST',
-    body: JSON.stringify({ text }),
+    body: JSON.stringify({ text, name }),
   })
 
 export const setFeedbackStatus = (id: string, status: 'open' | 'done') =>
@@ -266,6 +266,7 @@ export interface MemoInput {
   text?: string
   subjects?: string[]
   photoIds?: string[]
+  draft?: boolean
 }
 
 export const createMemo = (data: MemoInput) =>

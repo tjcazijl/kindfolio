@@ -100,6 +100,18 @@ try {
 } catch {
   /* kolom bestaat al */
 }
+// Concept-memo's en eigen naam op het feedbackprikbord.
+for (const sql of [
+  'ALTER TABLE memos ADD COLUMN draft INTEGER DEFAULT 0',
+  'ALTER TABLE feedback ADD COLUMN author_name TEXT',
+  'ALTER TABLE feedback_comments ADD COLUMN author_name TEXT',
+]) {
+  try {
+    db.exec(sql)
+  } catch {
+    /* kolom bestaat al */
+  }
+}
 // Pre-existing data (van vóór accounts) toewijzen aan een placeholder-account.
 // Wordt na deploy met één UPDATE aan het echte owner-account gekoppeld.
 const LEGACY = 'legacy-account'
@@ -152,6 +164,7 @@ const mapMemo = (r) => ({
   id: r.id, childId: r.child_id, date: r.date, text: r.text || '',
   subjects: r.subjects ? JSON.parse(r.subjects) : [],
   photoIds: r.photo_ids ? JSON.parse(r.photo_ids) : [],
+  draft: !!r.draft,
   createdAt: r.created_at, updatedAt: r.updated_at,
 })
 const mapSummary = (r) => ({
@@ -683,14 +696,18 @@ add('GET', /^\/api\/admin\/users$/, (req, res) => {
   })
 })
 
-// Toon alleen het deel vóór de @ als publieke naam (privacy op het prikbord).
+// Eigen naam als die is ingevuld, anders het deel vóór de @ (privacy).
 function displayName(email) {
   return String(email || '').split('@')[0] || 'iemand'
+}
+function pickName(name, email) {
+  const n = String(name || '').trim()
+  return n || displayName(email)
 }
 function mapFeedbackRow(r, userId) {
   return {
     id: r.id,
-    author: displayName(r.email),
+    author: pickName(r.author_name, r.email),
     message: r.message,
     status: r.status || 'open',
     votes: r.votes,
@@ -701,7 +718,7 @@ function mapFeedbackRow(r, userId) {
   }
 }
 const FEEDBACK_SELECT = `
-  SELECT f.id, f.user_id, f.email, f.message, f.status, f.created_at,
+  SELECT f.id, f.user_id, f.email, f.author_name, f.message, f.status, f.created_at,
     (SELECT COUNT(*) FROM feedback_votes v WHERE v.feedback_id = f.id) AS votes,
     (SELECT COUNT(*) FROM feedback_votes v WHERE v.feedback_id = f.id AND v.user_id = ?) AS voted,
     (SELECT COUNT(*) FROM feedback_comments c WHERE c.feedback_id = f.id) AS comment_count
@@ -722,9 +739,10 @@ add('POST', /^\/api\/feedback$/, async (req, res) => {
   const message = (body.message || '').trim()
   if (!message) return sendJson(res, 400, { error: 'Schrijf eerst een bericht.' })
   const id = uid()
+  const authorName = String(body.name || '').trim().slice(0, 80) || null
   db.prepare(
-    "INSERT INTO feedback (id,account_id,user_id,email,message,page,status,created_at) VALUES (?,?,?,?,?,?,'open',?)",
-  ).run(id, req.accountId, req.userId, userEmail(req.userId), message.slice(0, 4000), (body.page || '').slice(0, 200), now())
+    "INSERT INTO feedback (id,account_id,user_id,email,author_name,message,page,status,created_at) VALUES (?,?,?,?,?,?,?,'open',?)",
+  ).run(id, req.accountId, req.userId, userEmail(req.userId), authorName, message.slice(0, 4000), (body.page || '').slice(0, 200), now())
   const row = db.prepare(`${FEEDBACK_SELECT} WHERE f.id = ?`).get(req.userId, id)
   sendJson(res, 201, mapFeedbackRow(row, req.userId))
 })
@@ -746,12 +764,12 @@ add('POST', /^\/api\/feedback\/([^/]+)\/vote$/, (req, res, m) => {
 
 add('GET', /^\/api\/feedback\/([^/]+)\/comments$/, (req, res, m) => {
   const rows = db
-    .prepare('SELECT id, user_id, email, text, created_at FROM feedback_comments WHERE feedback_id = ? ORDER BY created_at ASC')
+    .prepare('SELECT id, user_id, email, author_name, text, created_at FROM feedback_comments WHERE feedback_id = ? ORDER BY created_at ASC')
     .all(m[1])
   sendJson(res, 200, {
     comments: rows.map((r) => ({
       id: r.id,
-      author: displayName(r.email),
+      author: pickName(r.author_name, r.email),
       text: r.text,
       mine: r.user_id === req.userId,
       createdAt: r.created_at,
@@ -766,11 +784,12 @@ add('POST', /^\/api\/feedback\/([^/]+)\/comments$/, async (req, res, m) => {
   const text = (body.text || '').trim()
   if (!text) return sendJson(res, 400, { error: 'Schrijf eerst een reactie.' })
   const c = { id: uid(), email: userEmail(req.userId), created_at: now() }
-  db.prepare('INSERT INTO feedback_comments (id,feedback_id,user_id,email,text,created_at) VALUES (?,?,?,?,?,?)')
-    .run(c.id, m[1], req.userId, c.email, text.slice(0, 2000), c.created_at)
+  const authorName = String(body.name || '').trim().slice(0, 80) || null
+  db.prepare('INSERT INTO feedback_comments (id,feedback_id,user_id,email,author_name,text,created_at) VALUES (?,?,?,?,?,?,?)')
+    .run(c.id, m[1], req.userId, c.email, authorName, text.slice(0, 2000), c.created_at)
   sendJson(res, 201, {
     id: c.id,
-    author: displayName(c.email),
+    author: pickName(authorName, c.email),
     text: text.slice(0, 2000),
     mine: true,
     createdAt: c.created_at,
@@ -894,6 +913,7 @@ add('POST', /^\/api\/memos$/, async (req, res) => {
   const text = (body.text || '').trim()
   const subjects = JSON.stringify(Array.isArray(body.subjects) ? body.subjects : [])
   const basePhotos = Array.isArray(body.photoIds) ? body.photoIds : []
+  const draft = body.draft ? 1 : 0
 
   const created = []
   childIds.forEach((cid, i) => {
@@ -901,11 +921,11 @@ add('POST', /^\/api\/memos$/, async (req, res) => {
     const photoIds = i === 0 ? basePhotos : copyPhotos(basePhotos, req.accountId)
     const memo = {
       id: uid(), child_id: cid, date, text, subjects,
-      photo_ids: JSON.stringify(photoIds),
+      photo_ids: JSON.stringify(photoIds), draft,
       created_at: now(), updated_at: now(),
     }
-    db.prepare('INSERT INTO memos (id,account_id,child_id,date,text,subjects,photo_ids,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?,?)')
-      .run(memo.id, req.accountId, memo.child_id, memo.date, memo.text, memo.subjects, memo.photo_ids, memo.created_at, memo.updated_at)
+    db.prepare('INSERT INTO memos (id,account_id,child_id,date,text,subjects,photo_ids,draft,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?,?,?)')
+      .run(memo.id, req.accountId, memo.child_id, memo.date, memo.text, memo.subjects, memo.photo_ids, memo.draft, memo.created_at, memo.updated_at)
     created.push(mapMemo(memo))
   })
 
@@ -930,10 +950,11 @@ add('PATCH', /^\/api\/memos\/([^/]+)$/, async (req, res, m) => {
   const after = body.photoIds != null ? body.photoIds : before
   const removed = before.filter((p) => !after.includes(p))
   if (removed.length) deletePhotoFiles(removed)
+  const draft = body.draft !== undefined ? (body.draft ? 1 : 0) : existing.draft
   const updated_at = now()
-  db.prepare('UPDATE memos SET date=?, text=?, subjects=?, photo_ids=?, updated_at=? WHERE id=?')
-    .run(date, text, subjects, photoIds, updated_at, m[1])
-  sendJson(res, 200, mapMemo({ ...existing, date, text, subjects, photo_ids: photoIds, updated_at }))
+  db.prepare('UPDATE memos SET date=?, text=?, subjects=?, photo_ids=?, draft=?, updated_at=? WHERE id=?')
+    .run(date, text, subjects, photoIds, draft, updated_at, m[1])
+  sendJson(res, 200, mapMemo({ ...existing, date, text, subjects, photo_ids: photoIds, draft, updated_at }))
 })
 
 add('DELETE', /^\/api\/memos\/([^/]+)$/, (req, res, m) => {
@@ -1016,7 +1037,7 @@ add('POST', /^\/api\/summary$/, async (req, res) => {
   const end = String(body.end || '')
   const subject = String(body.subject || '').trim()
   let memos = db
-    .prepare('SELECT * FROM memos WHERE child_id = ? AND account_id = ? AND date >= ? AND date <= ? ORDER BY date ASC')
+    .prepare('SELECT * FROM memos WHERE child_id = ? AND account_id = ? AND date >= ? AND date <= ? AND (draft IS NULL OR draft = 0) ORDER BY date ASC')
     .all(body.childId, req.accountId, start, end)
     .map(mapMemo)
   // Optioneel filteren op één vakgebied.
