@@ -367,6 +367,7 @@ export interface SummaryParams {
   periodLabel: string
   includePhotos: boolean
   subject?: string
+  ai?: boolean
 }
 
 export async function generateSummary(params: SummaryParams): Promise<Summary> {

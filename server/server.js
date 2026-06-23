@@ -1179,10 +1179,11 @@ add('GET', /^\/api\/summary\/available$/, (req, res) =>
 
 add('POST', /^\/api\/summary$/, async (req, res) => {
   if (!requireEditor(req, res)) return
-  if (!ANTHROPIC_KEY) {
+  const body = await readJson(req)
+  const useAi = body.ai !== false
+  if (useAi && !ANTHROPIC_KEY) {
     return sendJson(res, 400, { error: 'Er is op de server nog geen Claude API-sleutel ingesteld.' })
   }
-  const body = await readJson(req)
   const child = db.prepare('SELECT * FROM children WHERE id = ? AND account_id = ?').get(body.childId, req.accountId)
   if (!child) return sendJson(res, 404, { error: 'Kind niet gevonden' })
   const start = String(body.start || '')
@@ -1199,6 +1200,17 @@ add('POST', /^\/api\/summary$/, async (req, res) => {
   const periodLabel = String(body.periodLabel || `${start} t/m ${end}`)
   const period = String(body.period || 'periode')
 
+  let text
+  if (!useAi) {
+    // Zonder AI: alle memo's chronologisch onder elkaar (geen Anthropic-aanroep).
+    text = `# ${child.name} — ${periodLabel}\n`
+    for (const memo of memos) {
+      text += `\n## ${formatDateLong(memo.date)}\n`
+      if (memo.subjects.length) text += `*${memo.subjects.join(', ')}*\n\n`
+      text += `${memo.text || '(geen tekst)'}\n`
+      if (memo.photoIds.length) text += `\n_(${memo.photoIds.length} foto${memo.photoIds.length > 1 ? "'s" : ''})_\n`
+    }
+  } else {
   let memoText = ''
   for (const memo of memos) {
     memoText += `\n## ${formatDateLong(memo.date)}\n`
@@ -1262,7 +1274,8 @@ ${memoText}`
     return sendJson(res, 502, { error: 'AI-fout: ' + t.slice(0, 200) })
   }
   const json = await aiRes.json()
-  const text = (json.content || []).filter((b) => b.type === 'text').map((b) => b.text).join('\n')
+  text = (json.content || []).filter((b) => b.type === 'text').map((b) => b.text).join('\n')
+  }
 
   const saved = {
     id: uid(), child_id: child.id, period, period_label: periodLabel,

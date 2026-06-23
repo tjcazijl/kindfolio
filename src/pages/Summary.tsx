@@ -98,6 +98,7 @@ export function Summary() {
         periodLabel: subject ? `${subject} · ${range.label}` : range.label,
         includePhotos: false,
         subject: subject || undefined,
+        ai: aiEnabled,
       })
       await reload()
       setExpandedId(saved.id)
@@ -233,70 +234,77 @@ export function Summary() {
         </select>
       </label>
 
-      {/* AI uit: gewoon alle memo's onder elkaar tonen. */}
-      {!aiEnabled && (
+      {(!aiEnabled || canEdit) && periodControls}
+
+      {/* Samenvatting maken — met of zonder AI (chronologisch). */}
+      {canEdit && (
         <>
-          {periodControls}
-          {filteredMemos.length > 0 ? (
-            <>
-              <button className="btn outline full" onClick={printOverview}>
-                📄 PDF / Afdrukken
-              </button>
-              <div className="timeline">
-                {filteredMemos.map((m) => (
-                  <div key={m.id} className="memo-card static">
-                    <div className="memo-date">{formatDateLong(m.date)}</div>
-                    {m.subjects.length > 0 && (
-                      <div className="tags">
-                        {m.subjects.map((s) => (
-                          <span key={s} className="tag">
-                            {s}
-                          </span>
-                        ))}
-                      </div>
-                    )}
-                    {m.text && <p className="memo-text">{m.text}</p>}
-                  </div>
-                ))}
-              </div>
-            </>
-          ) : (
-            <p className="empty-note">
-              {subject
-                ? `Geen memo's voor ${subject} in deze periode.`
-                : "Geen memo's in deze periode."}
+          <button
+            className="btn primary full big"
+            disabled={
+              loading ||
+              filteredMemos.length === 0 ||
+              (aiEnabled && available === false)
+            }
+            onClick={run}
+          >
+            {loading
+              ? 'Samenvatting maken…'
+              : aiEnabled
+                ? subject
+                  ? `✨ Samenvatting maken (${subject})`
+                  : '✨ Samenvatting maken'
+                : subject
+                  ? `Samenvatting maken (${subject})`
+                  : 'Samenvatting maken'}
+          </button>
+          {!aiEnabled && (
+            <p className="hint">
+              Zonder AI: alle memo's chronologisch onder elkaar.
             </p>
           )}
+          {error && <p className="error-text">{error}</p>}
         </>
       )}
 
-      {/* AI aan: generator + bewaarde samenvattingen. */}
-      {aiEnabled && (
-        <>
-          {canEdit && (
-            <>
-              {periodControls}
-              <button
-                className="btn primary full big"
-                disabled={
-                  loading || available === false || filteredMemos.length === 0
-                }
-                onClick={run}
-              >
-                {loading
-                  ? 'Samenvatting maken…'
-                  : subject
-                    ? `✨ Samenvatting maken (${subject})`
-                    : '✨ Samenvatting maken'}
-              </button>
-              {error && <p className="error-text">{error}</p>}
-            </>
-          )}
+      {/* Zonder AI: voorbeeld van de memo's + losse PDF-knop. */}
+      {!aiEnabled &&
+        (filteredMemos.length > 0 ? (
+          <>
+            <button className="btn outline full" onClick={printOverview}>
+              📄 PDF / Afdrukken
+            </button>
+            <div className="timeline">
+              {filteredMemos.map((m) => (
+                <div key={m.id} className="memo-card static">
+                  <div className="memo-date">{formatDateLong(m.date)}</div>
+                  {m.subjects.length > 0 && (
+                    <div className="tags">
+                      {m.subjects.map((s) => (
+                        <span key={s} className="tag">
+                          {s}
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                  {m.text && <p className="memo-text">{m.text}</p>}
+                </div>
+              ))}
+            </div>
+          </>
+        ) : (
+          <p className="empty-note">
+            {subject
+              ? `Geen memo's voor ${subject} in deze periode.`
+              : "Geen memo's in deze periode."}
+          </p>
+        ))}
 
-          {childSummaries.length > 0 && (
-            <section className="saved-summaries">
-              <h2 className="saved-title">Bewaarde samenvattingen</h2>
-              {childSummaries.map((s) => {
+      {/* Bewaarde samenvattingen — in beide modi. */}
+      {childSummaries.length > 0 && (
+        <section className="saved-summaries">
+          <h2 className="saved-title">Bewaarde samenvattingen</h2>
+          {childSummaries.map((s) => {
                 const open = expandedId === s.id
                 return (
                   <div key={s.id} className="summary-item">
@@ -351,8 +359,6 @@ export function Summary() {
               })}
             </section>
           )}
-        </>
-      )}
     </div>
   )
 }
