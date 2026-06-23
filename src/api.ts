@@ -292,6 +292,12 @@ export const photoUrl = (id: string) => {
   return `/api/photos/${id}` + (acct ? `?account=${encodeURIComponent(acct)}` : '')
 }
 
+// Volledige ZIP-export (data + foto's) van het actieve account.
+export const exportUrl = () => {
+  const acct = getActiveAccount()
+  return '/api/export' + (acct ? `?account=${encodeURIComponent(acct)}` : '')
+}
+
 export async function uploadBlob(blob: Blob): Promise<string> {
   const acct = getActiveAccount()
   const res = await fetch('/api/photos', {

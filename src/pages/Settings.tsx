@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useData } from '../store'
 import {
+  exportUrl,
   fetchShares,
   invite,
   revokeShare,
@@ -293,6 +294,24 @@ export function Settings() {
         <button className="btn outline full" onClick={downloadBackup}>
           ⬇ Tekstgegevens downloaden (JSON)
         </button>
+        {canEdit && (
+          <>
+            <button
+              className="btn outline full"
+              onClick={() => {
+                const a = document.createElement('a')
+                a.href = exportUrl()
+                a.click()
+              }}
+            >
+              🖼️ Alles exporteren incl. foto's (ZIP)
+            </button>
+            <p className="hint">
+              De ZIP bevat je gegevens (JSON) én alle foto's, geordend per kind en
+              datum. Bij veel foto's kan de download even duren.
+            </p>
+          </>
+        )}
         {isOwner && (
           <button
             className="btn danger-outline full"

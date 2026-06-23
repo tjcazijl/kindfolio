@@ -1007,6 +1007,158 @@ add('DELETE', /^\/api\/photos\/([^/]+)$/, (req, res, m) => {
   sendJson(res, 200, { ok: true })
 })
 
+// ---- Volledige export als ZIP (streaming, geen compressie = licht) ----
+const CRC_TABLE = (() => {
+  const t = new Uint32Array(256)
+  for (let n = 0; n < 256; n++) {
+    let c = n
+    for (let k = 0; k < 8; k++) c = c & 1 ? 0xedb88320 ^ (c >>> 1) : c >>> 1
+    t[n] = c >>> 0
+  }
+  return t
+})()
+function crc32(buf) {
+  let c = 0xffffffff
+  for (let i = 0; i < buf.length; i++) c = CRC_TABLE[(c ^ buf[i]) & 0xff] ^ (c >>> 8)
+  return (c ^ 0xffffffff) >>> 0
+}
+function mimeExt(mime) {
+  return {
+    'image/jpeg': '.jpg', 'image/png': '.png', 'image/webp': '.webp',
+    'image/gif': '.gif', 'image/heic': '.heic', 'image/heif': '.heif',
+  }[mime] || '.jpg'
+}
+function safeName(s) {
+  return (
+    String(s || '').replace(/[^\p{L}\p{N} _-]/gu, '').trim().replace(/\s+/g, ' ') ||
+    'kind'
+  )
+}
+// Schrijf met respect voor backpressure → laag, constant geheugengebruik.
+function writeChunk(res, buf) {
+  return new Promise((resolve) => {
+    if (res.write(buf)) resolve()
+    else res.once('drain', resolve)
+  })
+}
+// entries: [{ name, data?: Buffer, file?: pad }] — één bestand tegelijk in geheugen.
+async function streamZip(res, entries) {
+  const central = []
+  let offset = 0
+  for (const e of entries) {
+    let data
+    try {
+      data = e.data || (await fs.promises.readFile(e.file))
+    } catch {
+      continue
+    }
+    const nameBuf = Buffer.from(e.name, 'utf8')
+    const crc = crc32(data)
+    const size = data.length
+    const local = Buffer.alloc(30)
+    local.writeUInt32LE(0x04034b50, 0)
+    local.writeUInt16LE(20, 4)
+    local.writeUInt16LE(0x0800, 6) // UTF-8 bestandsnamen
+    local.writeUInt16LE(0, 8) // method 0 = stored
+    local.writeUInt16LE(0, 10)
+    local.writeUInt16LE(0x21, 12) // datum 1980-01-01
+    local.writeUInt32LE(crc, 14)
+    local.writeUInt32LE(size, 18)
+    local.writeUInt32LE(size, 22)
+    local.writeUInt16LE(nameBuf.length, 26)
+    local.writeUInt16LE(0, 28)
+    const localOffset = offset
+    await writeChunk(res, local); offset += local.length
+    await writeChunk(res, nameBuf); offset += nameBuf.length
+    await writeChunk(res, data); offset += data.length
+    central.push({ nameBuf, crc, size, localOffset })
+  }
+  const cdStart = offset
+  for (const c of central) {
+    const h = Buffer.alloc(46)
+    h.writeUInt32LE(0x02014b50, 0)
+    h.writeUInt16LE(20, 4)
+    h.writeUInt16LE(20, 6)
+    h.writeUInt16LE(0x0800, 8)
+    h.writeUInt16LE(0, 10)
+    h.writeUInt16LE(0, 12)
+    h.writeUInt16LE(0x21, 14)
+    h.writeUInt32LE(c.crc, 16)
+    h.writeUInt32LE(c.size, 20)
+    h.writeUInt32LE(c.size, 24)
+    h.writeUInt16LE(c.nameBuf.length, 28)
+    h.writeUInt16LE(0, 30)
+    h.writeUInt16LE(0, 32)
+    h.writeUInt16LE(0, 34)
+    h.writeUInt16LE(0, 36)
+    h.writeUInt32LE(0, 38)
+    h.writeUInt32LE(c.localOffset, 42)
+    await writeChunk(res, h); offset += h.length
+    await writeChunk(res, c.nameBuf); offset += c.nameBuf.length
+  }
+  const cdSize = offset - cdStart
+  const eocd = Buffer.alloc(22)
+  eocd.writeUInt32LE(0x06054b50, 0)
+  eocd.writeUInt16LE(0, 4)
+  eocd.writeUInt16LE(0, 6)
+  eocd.writeUInt16LE(central.length, 8)
+  eocd.writeUInt16LE(central.length, 10)
+  eocd.writeUInt32LE(cdSize, 12)
+  eocd.writeUInt32LE(cdStart, 16)
+  eocd.writeUInt16LE(0, 20)
+  await writeChunk(res, eocd)
+  res.end()
+}
+
+add('GET', /^\/api\/export$/, async (req, res) => {
+  if (!requireEditor(req, res)) return
+  const acc = req.accountId
+  const children = db.prepare('SELECT * FROM children WHERE account_id = ? ORDER BY created_at ASC').all(acc).map(mapChild)
+  const memos = db.prepare('SELECT * FROM memos WHERE account_id = ? ORDER BY date ASC, created_at ASC').all(acc).map(mapMemo)
+  const summaries = db.prepare('SELECT * FROM summaries WHERE account_id = ? ORDER BY created_at DESC').all(acc).map(mapSummary)
+  const comments = db.prepare('SELECT * FROM comments WHERE account_id = ? ORDER BY created_at ASC').all(acc).map(mapComment)
+  const dataJson = Buffer.from(JSON.stringify({ children, memos, summaries, comments }, null, 2), 'utf8')
+
+  const nameById = {}
+  for (const c of children) nameById[c.id] = c.name
+  const entries = [{ name: 'kindfolio-export/data.json', data: dataJson }]
+  const used = new Set()
+  const counters = {}
+  for (const m of memos) {
+    for (const pid of m.photoIds) {
+      const row = db.prepare('SELECT mime FROM photos WHERE id = ? AND account_id = ?').get(pid, acc)
+      if (!row) continue
+      used.add(pid)
+      const folder = safeName(nameById[m.childId] || 'kind')
+      const key = `${folder}/${m.date}`
+      counters[key] = (counters[key] || 0) + 1
+      entries.push({
+        name: `kindfolio-export/fotos/${folder}/${m.date}_${counters[key]}${mimeExt(row.mime)}`,
+        file: path.join(PHOTO_DIR, pid),
+      })
+    }
+  }
+  // Foto's die niet (meer) aan een memo hangen.
+  let orphan = 0
+  for (const p of db.prepare('SELECT id, mime FROM photos WHERE account_id = ?').all(acc)) {
+    if (used.has(p.id)) continue
+    orphan++
+    entries.push({ name: `kindfolio-export/fotos/overig/${orphan}${mimeExt(p.mime)}`, file: path.join(PHOTO_DIR, p.id) })
+  }
+
+  res.writeHead(200, {
+    'Content-Type': 'application/zip',
+    'Content-Disposition': `attachment; filename="kindfolio-export-${new Date().toISOString().slice(0, 10)}.zip"`,
+    'Cache-Control': 'no-store',
+  })
+  try {
+    await streamZip(res, entries)
+  } catch (e) {
+    console.error('[export] mislukt:', (e && e.message) || e)
+    try { res.end() } catch {}
+  }
+})
+
 // --- AI-samenvatting (server-side) ---
 const ANTHROPIC_KEY = process.env.PORTFOLIO_ANTHROPIC_KEY || ''
 const ANTHROPIC_MODEL = process.env.PORTFOLIO_MODEL || 'claude-sonnet-4-6'
