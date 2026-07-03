@@ -17,6 +17,63 @@ const MAX_JSON_BYTES = 1 * 1024 * 1024
 
 fs.mkdirSync(PHOTO_DIR, { recursive: true })
 
+// ---- foto-versleuteling op schijf (AES-256-GCM) ----
+// Sleutel: PORTFOLIO_PHOTO_KEY (64 hex-tekens). Zonder sleutel blijven foto's
+// onversleuteld (met waarschuwing); bestaande onversleutelde foto's worden bij
+// opstarten met sleutel automatisch alsnog versleuteld.
+const PHOTO_KEY = (() => {
+  const hex = (process.env.PORTFOLIO_PHOTO_KEY || '').trim()
+  if (!hex) return null
+  const buf = Buffer.from(hex, 'hex')
+  return buf.length === 32 ? buf : null
+})()
+if (!PHOTO_KEY) {
+  console.warn("[foto] PORTFOLIO_PHOTO_KEY ontbreekt of is ongeldig — foto's worden ONVERSLEUTELD opgeslagen")
+}
+const ENC_MAGIC = Buffer.from('KFENC1')
+
+function encryptPhoto(buf) {
+  if (!PHOTO_KEY) return buf
+  const iv = crypto.randomBytes(12)
+  const cipher = crypto.createCipheriv('aes-256-gcm', PHOTO_KEY, iv)
+  const ct = Buffer.concat([cipher.update(buf), cipher.final()])
+  return Buffer.concat([ENC_MAGIC, iv, cipher.getAuthTag(), ct])
+}
+// Onversleutelde (legacy) bestanden passeren ongewijzigd.
+function decryptPhoto(buf) {
+  if (buf.length < 34 || !buf.subarray(0, 6).equals(ENC_MAGIC)) return buf
+  if (!PHOTO_KEY) throw new Error('foto is versleuteld maar PORTFOLIO_PHOTO_KEY ontbreekt')
+  const iv = buf.subarray(6, 18)
+  const tag = buf.subarray(18, 34)
+  const de = crypto.createDecipheriv('aes-256-gcm', PHOTO_KEY, iv)
+  de.setAuthTag(tag)
+  return Buffer.concat([de.update(buf.subarray(34)), de.final()])
+}
+// Versleutel bestaande onversleutelde foto's, één voor één, atomair (tmp+rename).
+async function migratePhotoEncryption() {
+  if (!PHOTO_KEY) return
+  let n = 0
+  for (const name of await fs.promises.readdir(PHOTO_DIR)) {
+    const p = path.join(PHOTO_DIR, name)
+    try {
+      if (name.endsWith('.enc-tmp')) {
+        await fs.promises.unlink(p)
+        continue
+      }
+      const buf = await fs.promises.readFile(p)
+      if (buf.subarray(0, 6).equals(ENC_MAGIC)) continue
+      const tmp = p + '.enc-tmp'
+      await fs.promises.writeFile(tmp, encryptPhoto(buf))
+      await fs.promises.rename(tmp, p)
+      n++
+    } catch (e) {
+      console.error('[foto] versleutelen van bestaand bestand mislukt:', name, (e && e.message) || e)
+    }
+  }
+  if (n) console.log(`[foto] ${n} bestaande foto's versleuteld op schijf`)
+}
+migratePhotoEncryption()
+
 const CHILD_COLORS = [
   '#2f6f4f', '#c2553b', '#3b6fc2', '#9b51b0',
   '#d59a18', '#2a9d8f', '#e76f51', '#5a6f9b',
@@ -214,7 +271,10 @@ function sessionUserId(req) {
   const payload = c.slice(0, i)
   const sig = c.slice(i + 1)
   if (!timingEqual(sig, sign(payload))) return null
-  const userId = payload.split('.')[0]
+  const [userId, ts] = payload.split('.')
+  // Server-side vervaldatum: een gelekte cookie blijft niet eeuwig geldig.
+  const issued = Number(ts || 0)
+  if (!issued || Date.now() - issued > COOKIE_MAX_AGE * 1000) return null
   const user = db.prepare('SELECT id FROM users WHERE id = ?').get(userId)
   return user ? userId : null
 }
@@ -542,6 +602,10 @@ add('POST', /^\/api\/login$/, async (req, res) => {
   const body = await readJson(req)
   const email = String(body.email || '').trim().toLowerCase()
   const password = String(body.password || '')
+  // Ook per account beperken (naast per IP): remt verspreide brute force.
+  if (!rateLimit('login-email:' + email, 20, 15 * 60 * 1000)) {
+    return sendJson(res, 429, { error: 'Te veel inlogpogingen. Probeer het over een paar minuten opnieuw.' })
+  }
   const user = db.prepare('SELECT * FROM users WHERE email = ?').get(email)
   if (!user || !verifyPassword(password, user.pw_salt, user.pw_hash)) {
     return sendJson(res, 401, { error: 'E-mailadres of wachtwoord onjuist.' })
@@ -735,6 +799,9 @@ add('GET', /^\/api\/feedback$/, (req, res) => {
 })
 
 add('POST', /^\/api\/feedback$/, async (req, res) => {
+  if (!rateLimit('fb:' + req.userId, 15, 60 * 60 * 1000)) {
+    return sendJson(res, 429, { error: 'Rustig aan — probeer het over een uurtje weer.' })
+  }
   const body = await readJson(req)
   const message = (body.message || '').trim()
   if (!message) return sendJson(res, 400, { error: 'Schrijf eerst een bericht.' })
@@ -778,6 +845,9 @@ add('GET', /^\/api\/feedback\/([^/]+)\/comments$/, (req, res, m) => {
 })
 
 add('POST', /^\/api\/feedback\/([^/]+)\/comments$/, async (req, res, m) => {
+  if (!rateLimit('cmt:' + req.userId, 60, 60 * 60 * 1000)) {
+    return sendJson(res, 429, { error: 'Te veel reacties achter elkaar. Probeer het zo weer.' })
+  }
   const fb = db.prepare('SELECT id FROM feedback WHERE id = ?').get(m[1])
   if (!fb) return sendJson(res, 404, { error: 'niet gevonden' })
   const body = await readJson(req)
@@ -974,12 +1044,15 @@ const ALLOWED_IMAGE_MIME = new Set([
 ])
 add('POST', /^\/api\/photos$/, async (req, res) => {
   if (!requireEditor(req, res)) return
+  if (!rateLimit('upload:' + req.userId, 300, 10 * 60 * 1000)) {
+    return sendJson(res, 429, { error: 'Te veel uploads achter elkaar. Probeer het zo weer.' })
+  }
   const rawMime = (req.headers['content-type'] || '').split(';')[0].trim().toLowerCase()
   const mime = ALLOWED_IMAGE_MIME.has(rawMime) ? rawMime : 'image/jpeg'
   const buf = await readBody(req, MAX_PHOTO_BYTES)
   if (!buf.length) return sendJson(res, 400, { error: 'lege upload' })
   const id = uid()
-  fs.writeFileSync(path.join(PHOTO_DIR, id), buf)
+  fs.writeFileSync(path.join(PHOTO_DIR, id), encryptPhoto(buf))
   db.prepare('INSERT INTO photos (id,account_id,mime,created_at) VALUES (?,?,?,?)').run(id, req.accountId, mime, now())
   sendJson(res, 201, { id })
 })
@@ -992,12 +1065,21 @@ add('GET', /^\/api\/photos\/([^/]+)$/, (req, res, m) => {
     return res.end()
   }
   const mime = ALLOWED_IMAGE_MIME.has(row.mime) ? row.mime : 'image/jpeg'
+  let data
+  try {
+    data = decryptPhoto(fs.readFileSync(file))
+  } catch (e) {
+    console.error('[foto] ontsleutelen mislukt:', m[1], (e && e.message) || e)
+    res.writeHead(500)
+    return res.end()
+  }
   res.writeHead(200, {
     'Content-Type': mime,
+    'Content-Length': data.length,
     'X-Content-Type-Options': 'nosniff',
     'Cache-Control': 'private, max-age=31536000, immutable',
   })
-  fs.createReadStream(file).pipe(res)
+  res.end(data)
 })
 
 add('DELETE', /^\/api\/photos\/([^/]+)$/, (req, res, m) => {
@@ -1048,7 +1130,8 @@ async function streamZip(res, entries) {
   for (const e of entries) {
     let data
     try {
-      data = e.data || (await fs.promises.readFile(e.file))
+      // Bestanden uit de fotomap staan versleuteld op schijf.
+      data = e.data || decryptPhoto(await fs.promises.readFile(e.file))
     } catch {
       continue
     }
@@ -1314,6 +1397,9 @@ add('DELETE', /^\/api\/account\/data$/, (req, res) => {
 
 // ---- Reacties (memo's en samenvattingen) ----
 add('POST', /^\/api\/comments$/, async (req, res) => {
+  if (!rateLimit('cmt:' + req.userId, 60, 60 * 60 * 1000)) {
+    return sendJson(res, 429, { error: 'Te veel reacties achter elkaar. Probeer het zo weer.' })
+  }
   const body = await readJson(req)
   const type = body.targetType === 'summary' ? 'summary' : 'memo'
   const targetId = String(body.targetId || '')

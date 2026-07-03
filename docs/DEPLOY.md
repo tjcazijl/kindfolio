@@ -34,6 +34,7 @@ systemd-unit, `chmod 600`). **Commit deze nooit.**
 | `PORT` | Poort van de backend (default 3017) |
 | `DATA_DIR` | Map voor database + foto's |
 | `PORTFOLIO_SECRET` | Sleutel om sessiecookies te ondertekenen (lange random string) |
+| `PORTFOLIO_PHOTO_KEY` | 64 hex-tekens (32 bytes) — versleutelt foto's op schijf (AES-256-GCM). Bewaar deze sleutel óók buiten de server: zonder sleutel zijn de foto's onleesbaar. Bestaande onversleutelde foto's worden bij opstarten automatisch versleuteld. |
 | `PORTFOLIO_ANTHROPIC_KEY` | Anthropic API-sleutel voor samenvattingen |
 | `PORTFOLIO_MODEL` | Claude-model (default `claude-sonnet-4-6`) |
 | `PORTFOLIO_SENDGRID_KEY` | SendGrid-sleutel voor verificatie-/uitnodigingsmails |
@@ -73,7 +74,21 @@ die backend achter basic auth, maak dan een (gitignored) bestand `.dev-auth` met
 ## Back-up
 
 Maak periodiek een consistente kopie met `sqlite3 .backup` plus de fotomap,
-bijvoorbeeld via een nachtelijke systemd-timer die een `.tar.gz` wegschrijft en
-de laatste N stuks bewaart. Houd er rekening mee dat back-ups op dezelfde server
-niet beschermen tegen totaal serververlies — haal er af en toe een offsite kopie
-van op.
+bijvoorbeeld via een nachtelijke systemd-timer. Versleutel de back-up direct
+(de database bevat memo-teksten):
+
+```bash
+tar czf - -C "$TMP" portfolio.db -C "$DATA" photos \
+  | openssl enc -aes-256-cbc -pbkdf2 -pass file:backup.key -out backup.tar.gz.enc
+```
+
+Terugzetten/uitlezen:
+
+```bash
+openssl enc -d -aes-256-cbc -pbkdf2 -pass file:backup.key -in backup.tar.gz.enc | tar xz
+```
+
+Bewaar `backup.key` (en `PORTFOLIO_PHOTO_KEY`) óók buiten de server, bijv. in een
+wachtwoordmanager — anders is een back-up na serververlies onbruikbaar. Back-ups
+op dezelfde server beschermen niet tegen totaal serververlies; haal er af en toe
+een offsite kopie van op.

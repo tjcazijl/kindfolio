@@ -87,8 +87,10 @@ npm run preview    # lokaal de productiebuild bekijken
 ## Privacy
 
 Kindfolio is zelf te hosten: de gegevens staan op de server die je zelf beheert (in
-de referentie-deployment binnen de EU) en zijn per account gescheiden. De
-AI-samenvatting is **optioneel** en uit te zetten. Staat die aan, dan gaan alleen de
+de referentie-deployment binnen de EU) en zijn per account gescheiden. Foto's worden
+**versleuteld op schijf opgeslagen** (AES-256-GCM) en bij het uploaden wordt
+EXIF-metadata (zoals GPS-locatie) al in de browser gestript. De AI-samenvatting is
+**optioneel** en uit te zetten. Staat die aan, dan gaan alleen de
 **notitieteksten** van de gekozen periode naar Anthropic om de samenvatting te
 genereren — **geen foto's** en geen accountgegevens. De API-sleutel staat uitsluitend
 **server-side** (omgevingsvariabele); de frontend ziet die nooit.
