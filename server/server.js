@@ -1270,7 +1270,7 @@ function execFileP(cmd, args, opts) {
 let transcribeBusy = 0
 let transcribeChain = Promise.resolve()
 
-async function transcribeOne(audio) {
+async function transcribeOne(audio, prompt) {
   const base = path.join(os.tmpdir(), 'kf-stt-' + uid())
   const inPath = base + '.in'
   const wavPath = base + '.wav'
@@ -1278,16 +1278,24 @@ async function transcribeOne(audio) {
     await fs.promises.writeFile(inPath, audio)
     // Naar 16kHz mono WAV (whisper-eis).
     await execFileP('ffmpeg', ['-nostdin', '-y', '-i', inPath, '-ar', '16000', '-ac', '1', '-f', 'wav', wavPath], { timeout: 30000 })
-    const stdout = await execFileP(
-      WHISPER_BIN,
-      ['-m', WHISPER_MODEL, '-f', wavPath, '-l', 'nl', '-nt', '-np', '-t', '2'],
-      { timeout: 180000, maxBuffer: 4 * 1024 * 1024 },
-    )
+    const args = ['-m', WHISPER_MODEL, '-f', wavPath, '-l', 'nl', '-nt', '-np', '-t', '2']
+    // Prompt met namen + vakgebieden verbetert eigennamen sterk.
+    if (prompt) args.push('--prompt', prompt.slice(0, 400))
+    const stdout = await execFileP(WHISPER_BIN, args, { timeout: 180000, maxBuffer: 4 * 1024 * 1024 })
     return String(stdout).split('\n').map((s) => s.trim()).filter(Boolean).join(' ')
   } finally {
     fs.promises.unlink(inPath).catch(() => {})
     fs.promises.unlink(wavPath).catch(() => {})
   }
+}
+// Bouwt een NL-prompt uit de namen van de kinderen + vakgebieden van dit account.
+function transcribePrompt(accountId) {
+  const kids = db.prepare('SELECT name FROM children WHERE account_id = ?').all(accountId).map((r) => r.name).filter(Boolean)
+  const subs = accountSettings(accountId).subjects || []
+  let p = 'Een memo over thuisonderwijs in het Nederlands.'
+  if (kids.length) p += ` Kinderen: ${kids.slice(0, 15).join(', ')}.`
+  if (subs.length) p += ` Vakgebieden: ${subs.slice(0, 20).join(', ')}.`
+  return p
 }
 
 add('GET', /^\/api\/transcribe\/available$/, (req, res) =>
@@ -1312,7 +1320,8 @@ add('POST', /^\/api\/transcribe$/, async (req, res) => {
   if (!audio.length) return sendJson(res, 400, { error: 'Lege opname.' })
 
   transcribeBusy++
-  const job = transcribeChain.then(() => transcribeOne(audio))
+  const prompt = transcribePrompt(req.accountId)
+  const job = transcribeChain.then(() => transcribeOne(audio, prompt))
   transcribeChain = job.catch(() => {})
   try {
     const text = await job
