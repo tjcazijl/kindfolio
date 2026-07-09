@@ -6,7 +6,9 @@
 const http = require('node:http')
 const fs = require('node:fs')
 const path = require('node:path')
+const os = require('node:os')
 const crypto = require('node:crypto')
+const { execFile } = require('node:child_process')
 const { DatabaseSync } = require('node:sqlite')
 
 const PORT = Number(process.env.PORT || 3017)
@@ -73,6 +75,17 @@ async function migratePhotoEncryption() {
   if (n) console.log(`[foto] ${n} bestaande foto's versleuteld op schijf`)
 }
 migratePhotoEncryption()
+
+// ---- spraak-naar-tekst (whisper.cpp, lokaal — geen externe dienst) ----
+const WHISPER_BIN = process.env.PORTFOLIO_WHISPER_BIN || ''
+const WHISPER_MODEL = process.env.PORTFOLIO_WHISPER_MODEL || ''
+const WHISPER_OK = !!(
+  WHISPER_BIN &&
+  WHISPER_MODEL &&
+  fs.existsSync(WHISPER_BIN) &&
+  fs.existsSync(WHISPER_MODEL)
+)
+if (!WHISPER_OK) console.warn('[stt] whisper niet ingesteld — inspreken uitgeschakeld')
 
 const CHILD_COLORS = [
   '#2f6f4f', '#c2553b', '#3b6fc2', '#9b51b0',
@@ -718,6 +731,7 @@ add('GET', /^\/api\/state$/, (req, res) => {
       email: userEmail(req.userId),
       role: req.role,
       isAdmin: isAdminUser(req.userId),
+      voiceEnabled: WHISPER_OK,
       ...accountSettings(acc),
     },
   })
@@ -1239,6 +1253,75 @@ add('GET', /^\/api\/export$/, async (req, res) => {
   } catch (e) {
     console.error('[export] mislukt:', (e && e.message) || e)
     try { res.end() } catch {}
+  }
+})
+
+// ---- Spraak-naar-tekst (whisper.cpp, lokaal) ----
+const MAX_AUDIO_BYTES = 25 * 1024 * 1024
+function execFileP(cmd, args, opts) {
+  return new Promise((resolve, reject) => {
+    execFile(cmd, args, opts, (err, stdout, stderr) => {
+      if (err) reject(Object.assign(err, { stderr: String(stderr || '').slice(0, 300) }))
+      else resolve(stdout)
+    })
+  })
+}
+// Eén transcriptie tegelijk (beschermt de kleine server).
+let transcribeBusy = 0
+let transcribeChain = Promise.resolve()
+
+async function transcribeOne(audio) {
+  const base = path.join(os.tmpdir(), 'kf-stt-' + uid())
+  const inPath = base + '.in'
+  const wavPath = base + '.wav'
+  try {
+    await fs.promises.writeFile(inPath, audio)
+    // Naar 16kHz mono WAV (whisper-eis).
+    await execFileP('ffmpeg', ['-nostdin', '-y', '-i', inPath, '-ar', '16000', '-ac', '1', '-f', 'wav', wavPath], { timeout: 30000 })
+    const stdout = await execFileP(
+      WHISPER_BIN,
+      ['-m', WHISPER_MODEL, '-f', wavPath, '-l', 'nl', '-nt', '-np', '-t', '2'],
+      { timeout: 180000, maxBuffer: 4 * 1024 * 1024 },
+    )
+    return String(stdout).split('\n').map((s) => s.trim()).filter(Boolean).join(' ')
+  } finally {
+    fs.promises.unlink(inPath).catch(() => {})
+    fs.promises.unlink(wavPath).catch(() => {})
+  }
+}
+
+add('GET', /^\/api\/transcribe\/available$/, (req, res) =>
+  sendJson(res, 200, { available: WHISPER_OK }),
+)
+
+add('POST', /^\/api\/transcribe$/, async (req, res) => {
+  if (!requireEditor(req, res)) return
+  if (!WHISPER_OK) return sendJson(res, 400, { error: 'Spraakherkenning is niet ingesteld op de server.' })
+  if (!rateLimit('stt:' + req.userId, 60, 10 * 60 * 1000)) {
+    return sendJson(res, 429, { error: 'Even wachten met inspreken.' })
+  }
+  if (transcribeBusy > 3) {
+    return sendJson(res, 429, { error: 'Het is nu druk met omzetten. Probeer het zo weer.' })
+  }
+  let audio
+  try {
+    audio = await readBody(req, MAX_AUDIO_BYTES)
+  } catch {
+    return sendJson(res, 413, { error: 'Opname te groot.' })
+  }
+  if (!audio.length) return sendJson(res, 400, { error: 'Lege opname.' })
+
+  transcribeBusy++
+  const job = transcribeChain.then(() => transcribeOne(audio))
+  transcribeChain = job.catch(() => {})
+  try {
+    const text = await job
+    sendJson(res, 200, { text })
+  } catch (e) {
+    console.error('[stt] mislukt:', (e && e.message) || e)
+    sendJson(res, 500, { error: 'Omzetten mislukt. Probeer opnieuw of typ de tekst.' })
+  } finally {
+    transcribeBusy--
   }
 })
 

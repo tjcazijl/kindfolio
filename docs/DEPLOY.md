@@ -41,6 +41,23 @@ systemd-unit, `chmod 600`). **Commit deze nooit.**
 | `PORTFOLIO_ADMIN_EMAIL` | E-mailadres(sen) met beheerrechten (komma-gescheiden) |
 | `PORTFOLIO_INVITE_CODE` | Optionele bèta-code die bij registratie vereist is |
 | `PORTFOLIO_REQUIRE_VERIFY` | `true` om e-mailverificatie te verplichten |
+| `PORTFOLIO_WHISPER_BIN` | Pad naar de `whisper-cli`-binary (spraak-naar-tekst). Leeg = inspreken uit. |
+| `PORTFOLIO_WHISPER_MODEL` | Pad naar het ggml-model, bijv. `ggml-base.bin` (`small` = beter NL maar trager) |
+
+### Spraak-naar-tekst (whisper.cpp, lokaal)
+
+Vereist `ffmpeg` en whisper.cpp op de server (geen externe dienst):
+
+```bash
+apt-get install -y build-essential cmake ffmpeg
+git clone --depth 1 https://github.com/ggerganov/whisper.cpp /opt/whisper.cpp
+cd /opt/whisper.cpp && cmake -B build -DCMAKE_BUILD_TYPE=Release && cmake --build build -j
+sh ./models/download-ggml-model.sh base    # ~142 MB
+```
+
+Zet daarna `PORTFOLIO_WHISPER_BIN`/`PORTFOLIO_WHISPER_MODEL`. De browser neemt op met
+`MediaRecorder`, de server zet om naar 16kHz-WAV (ffmpeg) en transcribeert lokaal
+(één tegelijk); de audio wordt na afloop verwijderd.
 
 ## API (alles onder `/api`, sessie vereist)
 

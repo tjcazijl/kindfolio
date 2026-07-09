@@ -81,7 +81,8 @@ npm run preview    # lokaal de productiebuild bekijken
 
 - **Frontend:** React + TypeScript + Vite, `vite-plugin-pwa` (offline/installeerbaar)
 - **Backend:** zero-dependency Node (`node:http` + ingebouwde `node:sqlite`), cookie-sessies
-- **Spraak:** Web Speech API (spraak-naar-tekst, in de browser)
+- **Spraak:** opname met `MediaRecorder` (alle browsers) → transcriptie met
+  whisper.cpp op de eigen server (geen externe dienst)
 - **AI (optioneel):** Claude Messages API, server-side aangeroepen
 
 ## Privacy
@@ -89,7 +90,9 @@ npm run preview    # lokaal de productiebuild bekijken
 Kindfolio is zelf te hosten: de gegevens staan op de server die je zelf beheert (in
 de referentie-deployment binnen de EU) en zijn per account gescheiden. Foto's worden
 **versleuteld op schijf opgeslagen** (AES-256-GCM) en bij het uploaden wordt
-EXIF-metadata (zoals GPS-locatie) al in de browser gestript. De AI-samenvatting is
+EXIF-metadata (zoals GPS-locatie) al in de browser gestript. Ingesproken audio wordt
+op de eigen server omgezet naar tekst (whisper.cpp) en daarna **direct verwijderd** —
+er komt geen externe transcriptiedienst aan te pas. De AI-samenvatting is
 **optioneel** en uit te zetten. Staat die aan, dan gaan alleen de
 **notitieteksten** van de gekozen periode naar Anthropic om de samenvatting te
 genereren — **geen foto's** en geen accountgegevens. De API-sleutel staat uitsluitend

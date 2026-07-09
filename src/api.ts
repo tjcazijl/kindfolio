@@ -127,6 +127,7 @@ export interface AppState {
     email: string
     role: 'owner' | 'editor' | 'commenter'
     isAdmin?: boolean
+    voiceEnabled?: boolean
     subjects: string[]
     aiEnabled: boolean
   }
@@ -317,6 +318,26 @@ export async function uploadBlob(blob: Blob): Promise<string> {
 export async function uploadPhoto(file: File): Promise<string> {
   const blob = await downscaleImage(file)
   return uploadBlob(blob)
+}
+
+// Spraak-naar-tekst: audio-opname naar de server, transcriptie terug.
+export async function transcribeAudio(blob: Blob): Promise<string> {
+  const acct = getActiveAccount()
+  const res = await fetch('/api/transcribe', {
+    method: 'POST',
+    headers: {
+      'Content-Type': blob.type || 'application/octet-stream',
+      ...(acct ? { 'X-Account-Id': acct } : {}),
+    },
+    credentials: 'same-origin',
+    body: blob,
+  })
+  if (!res.ok) {
+    const j = await res.json().catch(() => ({}) as { error?: string })
+    throw new Error(j.error || `Omzetten mislukt (${res.status})`)
+  }
+  const { text } = (await res.json()) as { text: string }
+  return text || ''
 }
 
 /** Draait een afbeelding 90° (positief = met de klok mee) en geeft een nieuwe JPEG-blob. */

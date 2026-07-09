@@ -10,7 +10,7 @@ import {
 } from '../api'
 import { PhotoThumb } from '../components/PhotoThumb'
 import { Lightbox } from '../components/Lightbox'
-import { useSpeechRecognition } from '../hooks/useSpeechRecognition'
+import { useVoiceRecorder } from '../hooks/useVoiceRecorder'
 import { todayISO } from '../utils/dates'
 
 export function MemoEditor() {
@@ -23,6 +23,7 @@ export function MemoEditor() {
     addMemoMulti,
     removeMemo,
     subjects: accountSubjects,
+    voiceEnabled,
   } = useData()
   const isNew = !memoId
   const existing = memoId ? memos.find((m) => m.id === memoId) : undefined
@@ -45,9 +46,11 @@ export function MemoEditor() {
   const cameraInput = useRef<HTMLInputElement>(null)
   const libraryInput = useRef<HTMLInputElement>(null)
 
-  const speech = useSpeechRecognition((chunk) => {
+  const voice = useVoiceRecorder((chunk) => {
     setText((prev) => (prev ? `${prev} ${chunk}` : chunk).trim())
   })
+  const fmtSec = (s: number) =>
+    `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`
 
   // Als de memo's later binnenkomen, vul het formulier alsnog.
   useEffect(() => {
@@ -140,7 +143,7 @@ export function MemoEditor() {
       alert('Voeg tekst of minstens één foto toe.')
       return
     }
-    if (speech.listening) speech.stop()
+    if (voice.recording) voice.cancel()
     setSaving(true)
     try {
       if (isNew) {
@@ -173,7 +176,7 @@ export function MemoEditor() {
   }
 
   async function cancel() {
-    if (speech.listening) speech.stop()
+    if (voice.recording) voice.cancel()
     if (stagedPhotos.current.size) {
       await Promise.all([...stagedPhotos.current].map((id) => deletePhoto(id)))
     }
@@ -285,25 +288,32 @@ export function MemoEditor() {
         <textarea
           className="input textarea"
           rows={6}
-          value={text + (speech.interim ? ` ${speech.interim}` : '')}
+          value={text}
           onChange={(e) => setText(e.target.value)}
           placeholder="Wat heeft je kind vandaag gedaan en geleerd?"
         />
-        {speech.supported ? (
-          <button
-            type="button"
-            className={`btn ${speech.listening ? 'recording' : 'outline'} full`}
-            onClick={() => (speech.listening ? speech.stop() : speech.start())}
-          >
-            {speech.listening ? '⏹ Stop opname' : '🎤 Inspreken'}
-          </button>
-        ) : (
-          <p className="hint">
-            Spraakherkenning wordt niet ondersteund in deze browser. Gebruik bij
-            voorkeur Chrome op Android, of typ de tekst.
-          </p>
+        {voiceEnabled && voice.supported && (
+          <>
+            <button
+              type="button"
+              className={`btn ${voice.recording ? 'recording' : 'outline'} full`}
+              disabled={voice.transcribing}
+              onClick={() => (voice.recording ? voice.stop() : voice.start())}
+            >
+              {voice.transcribing
+                ? '⏳ Bezig met omzetten…'
+                : voice.recording
+                  ? `⏹ Stop opname (${fmtSec(voice.seconds)})`
+                  : '🎤 Inspreken'}
+            </button>
+            {voice.recording && (
+              <p className="hint">
+                Spreek rustig in; tik op stop, dan verschijnt de tekst.
+              </p>
+            )}
+          </>
         )}
-        {speech.error && <p className="error-text">{speech.error}</p>}
+        {voice.error && <p className="error-text">{voice.error}</p>}
       </div>
 
       <div className="field">
