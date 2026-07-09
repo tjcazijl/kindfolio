@@ -127,6 +127,10 @@ body {
   border: 1.5px solid var(--line);
   color: var(--ink);
 }
+/* Ondoorzichtige achtergrond zodat scrollende content niet door de knop schijnt. */
+.btn.white-bg {
+  background: #fff;
+}
 .btn.ghost {
   background: transparent;
   color: var(--muted);

@@ -11,6 +11,7 @@ import {
 import { PhotoThumb } from '../components/PhotoThumb'
 import { Lightbox } from '../components/Lightbox'
 import { useVoiceRecorder } from '../hooks/useVoiceRecorder'
+import { useLiveSpeech } from '../hooks/useLiveSpeech'
 import { todayISO } from '../utils/dates'
 
 export function MemoEditor() {
@@ -46,11 +47,15 @@ export function MemoEditor() {
   const cameraInput = useRef<HTMLInputElement>(null)
   const libraryInput = useRef<HTMLInputElement>(null)
 
+  // Twee manieren van inspreken: server-transcriptie (nauwkeurig) en live
+  // (Web Speech, direct meelezen in Chrome/Safari).
   const voice = useVoiceRecorder((chunk) => {
     setText((prev) => (prev ? `${prev} ${chunk}` : chunk).trim())
   })
+  const live = useLiveSpeech((full) => setText(full))
   const fmtSec = (s: number) =>
     `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`
+  const voiceBusy = voice.recording || voice.transcribing
 
   // Als de memo's later binnenkomen, vul het formulier alsnog.
   useEffect(() => {
@@ -144,6 +149,7 @@ export function MemoEditor() {
       return
     }
     if (voice.recording) voice.cancel()
+    if (live.listening) live.stop()
     setSaving(true)
     try {
       if (isNew) {
@@ -177,6 +183,7 @@ export function MemoEditor() {
 
   async function cancel() {
     if (voice.recording) voice.cancel()
+    if (live.listening) live.stop()
     if (stagedPhotos.current.size) {
       await Promise.all([...stagedPhotos.current].map((id) => deletePhoto(id)))
     }
@@ -293,27 +300,40 @@ export function MemoEditor() {
           placeholder="Wat heeft je kind vandaag gedaan en geleerd?"
         />
         {voiceEnabled && voice.supported && (
-          <>
-            <button
-              type="button"
-              className={`btn ${voice.recording ? 'recording' : 'outline'} full`}
-              disabled={voice.transcribing}
-              onClick={() => (voice.recording ? voice.stop() : voice.start())}
-            >
-              {voice.transcribing
-                ? '⏳ Bezig met omzetten…'
-                : voice.recording
-                  ? `⏹ Stop opname (${fmtSec(voice.seconds)})`
-                  : '🎤 Inspreken'}
-            </button>
-            {voice.recording && (
-              <p className="hint">
-                Spreek rustig in; tik op stop, dan verschijnt de tekst.
-              </p>
-            )}
-          </>
+          <button
+            type="button"
+            className={`btn ${voice.recording ? 'recording' : 'outline white-bg'} full`}
+            disabled={voice.transcribing || live.listening}
+            onClick={() => (voice.recording ? voice.stop() : voice.start())}
+          >
+            {voice.transcribing
+              ? '⏳ Bezig met omzetten…'
+              : voice.recording
+                ? `⏹ Stop opname (${fmtSec(voice.seconds)})`
+                : '🎤 Inspreken (nauwkeurig)'}
+          </button>
         )}
+        {live.supported && (
+          <button
+            type="button"
+            className={`btn ${live.listening ? 'recording' : 'outline white-bg'} full`}
+            disabled={voiceBusy}
+            onClick={() => (live.listening ? live.stop() : live.start(text))}
+          >
+            {live.listening ? '⏹ Stop live' : '⚡ Live inspreken (direct)'}
+          </button>
+        )}
+        {(voiceEnabled && voice.supported) || live.supported ? (
+          <p className="hint">
+            {voice.recording
+              ? 'Spreek rustig in; tik op stop, dan verschijnt de tekst.'
+              : live.listening
+                ? 'Je ziet de tekst live verschijnen. Tik op stop als je klaar bent.'
+                : 'Twee manieren: “nauwkeurig” (even wachten na stop) of “live” (direct meelezen, in Chrome/Safari).'}
+          </p>
+        ) : null}
         {voice.error && <p className="error-text">{voice.error}</p>}
+        {live.error && <p className="error-text">{live.error}</p>}
       </div>
 
       <div className="field">
@@ -377,7 +397,7 @@ export function MemoEditor() {
           {saving ? 'Opslaan…' : 'Memo opslaan'}
         </button>
         <button
-          className="btn outline full"
+          className="btn outline full white-bg"
           disabled={saving}
           onClick={() => save(true)}
         >
@@ -385,7 +405,7 @@ export function MemoEditor() {
         </button>
         {!isNew && (
           <button
-            className="btn danger-outline full"
+            className="btn danger-outline full white-bg"
             onClick={() => setConfirmDelete(true)}
           >
             Memo verwijderen
