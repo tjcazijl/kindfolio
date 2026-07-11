@@ -12,6 +12,7 @@ import {
 import { SUBJECTS, type Child } from '../types'
 import { isStandalone } from '../utils/pwaInstall'
 import { SubjectsEditor } from '../components/SubjectsEditor'
+import { openTimelinePrint } from '../utils/timelinePrint'
 
 export function Settings() {
   const navigate = useNavigate()
@@ -27,6 +28,7 @@ export function Settings() {
     aiEnabled,
     saveSettings,
     children,
+    memos,
     removeChild,
   } = useData()
   const [confirmStage, setConfirmStage] = useState<0 | 1 | 2>(0)
@@ -314,6 +316,16 @@ export function Settings() {
             <p className="hint">
               De ZIP bevat je gegevens (JSON) én alle foto's, geordend per kind en
               datum. Bij veel foto's kan de download even duren.
+            </p>
+            <button
+              className="btn outline full"
+              onClick={() => openTimelinePrint(children, memos)}
+            >
+              📄 Portfolio als PDF (tijdlijn met foto's)
+            </button>
+            <p className="hint">
+              Opent een printbare tijdlijn per kind; kies daar “Opslaan als PDF”.
+              Dit gebeurt volledig op je eigen apparaat.
             </p>
           </>
         )}

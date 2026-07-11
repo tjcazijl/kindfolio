@@ -1,10 +1,59 @@
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import type { Child, Memo } from '../types'
 import { useData } from '../store'
 import { Comments } from './Comments'
 import { PhotoCarousel } from './PhotoCarousel'
 import { formatDateShort } from '../utils/dates'
+
+// Kapt lange memo-tekst af: 4 zinnen als er foto's zijn, anders 10 regels.
+function MemoText({ text, hasPhotos }: { text: string; hasPhotos: boolean }) {
+  const [expanded, setExpanded] = useState(false)
+  const ref = useRef<HTMLParagraphElement>(null)
+  const [overflow, setOverflow] = useState(false)
+
+  useEffect(() => {
+    if (hasPhotos || expanded) return
+    const el = ref.current
+    if (el) setOverflow(el.scrollHeight > el.clientHeight + 2)
+  }, [text, hasPhotos, expanded])
+
+  if (hasPhotos) {
+    const sentences = text.match(/[^.!?]+[.!?]*\s*/g) || [text]
+    const needsTrunc = sentences.length > 4
+    const shown =
+      needsTrunc && !expanded ? sentences.slice(0, 4).join('').trim() : text
+    return (
+      <p className="post-text">
+        {shown}
+        {needsTrunc && !expanded && (
+          <>
+            {'… '}
+            <button className="link-btn" onClick={() => setExpanded(true)}>
+              Meer weergeven
+            </button>
+          </>
+        )}
+      </p>
+    )
+  }
+
+  return (
+    <>
+      <p ref={ref} className={`post-text${expanded ? '' : ' clamp-10'}`}>
+        {text}
+      </p>
+      {overflow && !expanded && (
+        <button
+          className="link-btn post-more"
+          onClick={() => setExpanded(true)}
+        >
+          Meer weergeven
+        </button>
+      )}
+    </>
+  )
+}
 
 interface Props {
   memo: Memo
@@ -59,7 +108,9 @@ export function MemoCard({ memo, child, canEdit }: Props) {
         </div>
       )}
 
-      {memo.text && <p className="post-text">{memo.text}</p>}
+      {memo.text && (
+        <MemoText text={memo.text} hasPhotos={memo.photoIds.length > 0} />
+      )}
 
       {memo.photoIds.length > 0 && <PhotoCarousel photoIds={memo.photoIds} />}
 
