@@ -13,6 +13,7 @@ import { SUBJECTS, type Child } from '../types'
 import { isStandalone } from '../utils/pwaInstall'
 import { SubjectsEditor } from '../components/SubjectsEditor'
 import { openTimelinePrint } from '../utils/timelinePrint'
+import { formatDateLong, todayISO } from '../utils/dates'
 
 export function Settings() {
   const navigate = useNavigate()
@@ -37,6 +38,33 @@ export function Settings() {
   const [childToDelete, setChildToDelete] = useState<Child | null>(null)
   const [childTyped, setChildTyped] = useState('')
   const [deletingChild, setDeletingChild] = useState(false)
+  // PDF-export opties
+  const [pdfOpen, setPdfOpen] = useState(false)
+  const [pdfChildIds, setPdfChildIds] = useState<string[]>([])
+  const [pdfFrom, setPdfFrom] = useState('')
+  const [pdfTo, setPdfTo] = useState('')
+
+  function openPdfModal() {
+    setPdfChildIds(children.map((c) => c.id))
+    setPdfFrom('')
+    setPdfTo('')
+    setPdfOpen(true)
+  }
+  function generatePdf() {
+    const chosen = children.filter((c) => pdfChildIds.includes(c.id))
+    const inRange = memos.filter(
+      (m) =>
+        (!pdfFrom || m.date >= pdfFrom) && (!pdfTo || m.date <= pdfTo),
+    )
+    const range =
+      pdfFrom || pdfTo
+        ? `${pdfFrom ? formatDateLong(pdfFrom) : 'begin'} t/m ${
+            pdfTo ? formatDateLong(pdfTo) : 'nu'
+          }`
+        : undefined
+    openTimelinePrint(chosen, inRange, range)
+    setPdfOpen(false)
+  }
 
   async function doDeleteChild() {
     if (!childToDelete) return
@@ -317,10 +345,7 @@ export function Settings() {
               De ZIP bevat je gegevens (JSON) én alle foto's, geordend per kind en
               datum. Bij veel foto's kan de download even duren.
             </p>
-            <button
-              className="btn outline full"
-              onClick={() => openTimelinePrint(children, memos)}
-            >
+            <button className="btn outline full" onClick={openPdfModal}>
               📄 Portfolio als PDF (tijdlijn met foto's)
             </button>
             <p className="hint">
@@ -370,6 +395,82 @@ export function Settings() {
       <p className="version-note">
         Kindfolio v{__APP_VERSION__} · {__BUILD_DATE__}
       </p>
+
+      {pdfOpen && (
+        <div className="modal-overlay" onClick={() => setPdfOpen(false)}>
+          <div className="modal" onClick={(e) => e.stopPropagation()}>
+            <h2>Portfolio als PDF</h2>
+            <p className="hint">Kies welke kinderen en welke periode.</p>
+
+            <span className="field-label">Kinderen</span>
+            <div className="chips" style={{ marginBottom: 6 }}>
+              {children.map((c) => {
+                const on = pdfChildIds.includes(c.id)
+                return (
+                  <button
+                    key={c.id}
+                    type="button"
+                    className={`chip child-chip ${on ? 'on' : ''}`}
+                    onClick={() =>
+                      setPdfChildIds((prev) =>
+                        on ? prev.filter((x) => x !== c.id) : [...prev, c.id],
+                      )
+                    }
+                  >
+                    <span
+                      className="avatar xs"
+                      style={{
+                        background: on ? '#fff' : c.color,
+                        color: on ? c.color : '#fff',
+                      }}
+                    >
+                      {c.name.charAt(0).toUpperCase()}
+                    </span>
+                    {c.name}
+                  </button>
+                )
+              })}
+            </div>
+
+            <div className="row gap">
+              <label className="field grow" style={{ margin: 0 }}>
+                <span className="field-label">Van (optioneel)</span>
+                <input
+                  type="date"
+                  className="input"
+                  value={pdfFrom}
+                  max={pdfTo || todayISO()}
+                  onChange={(e) => setPdfFrom(e.target.value)}
+                />
+              </label>
+              <label className="field grow" style={{ margin: 0 }}>
+                <span className="field-label">Tot (optioneel)</span>
+                <input
+                  type="date"
+                  className="input"
+                  value={pdfTo}
+                  min={pdfFrom || undefined}
+                  max={todayISO()}
+                  onChange={(e) => setPdfTo(e.target.value)}
+                />
+              </label>
+            </div>
+
+            <div className="modal-actions">
+              <button className="btn ghost" onClick={() => setPdfOpen(false)}>
+                Annuleren
+              </button>
+              <button
+                className="btn primary"
+                disabled={pdfChildIds.length === 0}
+                onClick={generatePdf}
+              >
+                PDF openen
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {childToDelete && (
         <div className="modal-overlay" onClick={() => setChildToDelete(null)}>

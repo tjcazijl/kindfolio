@@ -13,7 +13,11 @@ function esc(s: string): string {
     .replace(/>/g, '&gt;')
 }
 
-export function openTimelinePrint(children: Child[], memos: Memo[]): void {
+export function openTimelinePrint(
+  children: Child[],
+  memos: Memo[],
+  subtitle?: string,
+): void {
   const w = window.open('', '_blank')
   if (!w) {
     alert('Sta pop-ups toe om de PDF-weergave te openen.')
@@ -103,7 +107,7 @@ export function openTimelinePrint(children: Child[], memos: Memo[]): void {
 <body>
   <div class="toolbar"><button id="printbtn" onclick="window.print()">📄 Opslaan als PDF / Afdrukken</button></div>
   <h1>Kindfolio — portfolio</h1>
-  <p class="sub">Gemaakt op ${esc(new Date().toLocaleDateString('nl-NL', { day: 'numeric', month: 'long', year: 'numeric' }))}</p>
+  <p class="sub">${subtitle ? esc(subtitle) + ' · ' : ''}Gemaakt op ${esc(new Date().toLocaleDateString('nl-NL', { day: 'numeric', month: 'long', year: 'numeric' }))}</p>
   ${empty ? '<p>Nog geen memo’s om te exporteren.</p>' : sections}
   <script>
     (function () {
