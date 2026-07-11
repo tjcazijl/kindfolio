@@ -509,6 +509,15 @@ function newFeedbackHtml(author, message) {
   </div>`
 }
 
+function feedbackReplyHtml(author, text) {
+  return `<div style="font-family:sans-serif;max-width:480px;margin:auto">
+    <h2 style="color:#2f6f4f">Reactie op je feedback 💬</h2>
+    <p><strong>${esc(author)}</strong> heeft gereageerd op jouw feedback:</p>
+    <blockquote style="border-left:3px solid #2f6f4f;margin:0;padding:8px 14px;color:#333;background:#f3f6f3">${esc(text)}</blockquote>
+    <p style="margin-top:16px"><a href="${APP_URL}/#/feedback" style="background:#2f6f4f;color:#fff;padding:12px 20px;border-radius:8px;text-decoration:none;display:inline-block">Bekijk feedback</a></p>
+  </div>`
+}
+
 function newCommentHtml(author, context, text) {
   return `<div style="font-family:sans-serif;max-width:480px;margin:auto">
     <h2 style="color:#2f6f4f">Nieuwe reactie 💬</h2>
@@ -876,7 +885,7 @@ add('POST', /^\/api\/feedback\/([^/]+)\/comments$/, async (req, res, m) => {
   if (!rateLimit('cmt:' + req.userId, 60, 60 * 60 * 1000)) {
     return sendJson(res, 429, { error: 'Te veel reacties achter elkaar. Probeer het zo weer.' })
   }
-  const fb = db.prepare('SELECT id FROM feedback WHERE id = ?').get(m[1])
+  const fb = db.prepare('SELECT id, user_id, email FROM feedback WHERE id = ?').get(m[1])
   if (!fb) return sendJson(res, 404, { error: 'niet gevonden' })
   const body = await readJson(req)
   const text = (body.text || '').trim()
@@ -885,6 +894,12 @@ add('POST', /^\/api\/feedback\/([^/]+)\/comments$/, async (req, res, m) => {
   const authorName = String(body.name || '').trim().slice(0, 80) || null
   db.prepare('INSERT INTO feedback_comments (id,feedback_id,user_id,email,author_name,text,created_at) VALUES (?,?,?,?,?,?,?)')
     .run(c.id, m[1], req.userId, c.email, authorName, text.slice(0, 2000), c.created_at)
+
+  // Mail de indiener van het feedbackpunt (niet als die zelf reageert).
+  if (fb.email && fb.user_id !== req.userId) {
+    sendEmailSafe(fb.email, 'Nieuwe reactie op je feedback — Kindfolio 💬', feedbackReplyHtml(pickName(authorName, c.email), text), 'feedback-reactie')
+  }
+
   sendJson(res, 201, {
     id: c.id,
     author: pickName(authorName, c.email),
