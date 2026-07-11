@@ -34,7 +34,7 @@ export function Home() {
     <div className="page">
       <header className="page-head with-action">
         <div>
-          <h1>Portfolio</h1>
+          <h1>Kindfolio</h1>
           <p className="subtitle">
             {role === 'commenter'
               ? `Je kijkt mee in het portfolio van ${ownerEmail}`
