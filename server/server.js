@@ -145,6 +145,10 @@ db.exec(`
     id TEXT PRIMARY KEY, feedback_id TEXT, user_id TEXT, email TEXT,
     text TEXT, created_at INTEGER
   );
+  CREATE TABLE IF NOT EXISTS memo_likes (
+    memo_id TEXT, user_id TEXT, created_at INTEGER,
+    PRIMARY KEY (memo_id, user_id)
+  );
 `)
 
 // --- Migratie: account_id-kolom toevoegen aan bestaande DB's + oude data koppelen ---
@@ -238,6 +242,8 @@ const mapMemo = (r) => ({
   subjects: r.subjects ? JSON.parse(r.subjects) : [],
   photoIds: r.photo_ids ? JSON.parse(r.photo_ids) : [],
   draft: !!r.draft,
+  likeCount: r.like_count ?? 0,
+  likedByMe: !!r.liked,
   createdAt: r.created_at, updatedAt: r.updated_at,
 })
 const mapSummary = (r) => ({
@@ -735,7 +741,12 @@ add('GET', /^\/api\/me$/, (req, res) => {
 add('GET', /^\/api\/state$/, (req, res) => {
   const acc = req.accountId
   const children = db.prepare('SELECT * FROM children WHERE account_id = ? ORDER BY created_at ASC').all(acc).map(mapChild)
-  const memos = db.prepare('SELECT * FROM memos WHERE account_id = ? ORDER BY date DESC, created_at DESC').all(acc).map(mapMemo)
+  const memos = db.prepare(
+    `SELECT *,
+       (SELECT COUNT(*) FROM memo_likes l WHERE l.memo_id = memos.id) AS like_count,
+       (SELECT COUNT(*) FROM memo_likes l WHERE l.memo_id = memos.id AND l.user_id = ?) AS liked
+     FROM memos WHERE account_id = ? ORDER BY date DESC, created_at DESC`,
+  ).all(req.userId, acc).map(mapMemo)
   const summaries = db.prepare('SELECT * FROM summaries WHERE account_id = ? ORDER BY created_at DESC').all(acc).map(mapSummary)
   const comments = db
     .prepare('SELECT * FROM comments WHERE account_id = ? ORDER BY created_at ASC')
@@ -1089,8 +1100,23 @@ add('DELETE', /^\/api\/memos\/([^/]+)$/, (req, res, m) => {
   if (existing) {
     deletePhotoFiles(existing.photo_ids ? JSON.parse(existing.photo_ids) : [])
     db.prepare('DELETE FROM memos WHERE id = ?').run(m[1])
+    db.prepare('DELETE FROM memo_likes WHERE memo_id = ?').run(m[1])
   }
   sendJson(res, 200, { ok: true })
+})
+
+// Like/duimpje op een memo (ook meelezers mogen liken).
+add('POST', /^\/api\/memos\/([^/]+)\/like$/, (req, res, m) => {
+  const memo = db.prepare('SELECT id FROM memos WHERE id = ? AND account_id = ?').get(m[1], req.accountId)
+  if (!memo) return sendJson(res, 404, { error: 'niet gevonden' })
+  const existing = db.prepare('SELECT 1 FROM memo_likes WHERE memo_id = ? AND user_id = ?').get(m[1], req.userId)
+  if (existing) {
+    db.prepare('DELETE FROM memo_likes WHERE memo_id = ? AND user_id = ?').run(m[1], req.userId)
+  } else {
+    db.prepare('INSERT INTO memo_likes (memo_id,user_id,created_at) VALUES (?,?,?)').run(m[1], req.userId, now())
+  }
+  const likes = db.prepare('SELECT COUNT(*) AS c FROM memo_likes WHERE memo_id = ?').get(m[1]).c
+  sendJson(res, 200, { likes, likedByMe: !existing })
 })
 
 // Alleen afbeeldingen toestaan; voorkomt dat een geüpload HTML-bestand later

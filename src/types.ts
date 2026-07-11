@@ -17,6 +17,8 @@ export interface Memo {
   subjects: string[]
   photoIds: string[]
   draft?: boolean
+  likeCount?: number
+  likedByMe?: boolean
   createdAt: number
   updatedAt: number
 }

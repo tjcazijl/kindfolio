@@ -16,6 +16,7 @@ import {
   deleteChild,
   deleteComment as apiDeleteComment,
   deleteMemo,
+  likeMemo as apiLikeMemo,
   deleteAllData as apiDeleteAllData,
   deleteSummary as apiDeleteSummary,
   fetchAccounts,
@@ -78,6 +79,7 @@ interface DataContextValue {
   addMemoMulti: (childIds: string[], data: MemoInput) => Promise<Memo[]>
   editMemo: (id: string, data: MemoInput) => Promise<Memo>
   removeMemo: (id: string) => Promise<void>
+  likeMemo: (id: string) => Promise<void>
   removeSummary: (id: string) => Promise<void>
   wipeData: () => Promise<void>
 }
@@ -243,6 +245,30 @@ export function DataProvider({ children }: { children: ReactNode }) {
     removeMemo: async (id) => {
       await deleteMemo(id)
       await reload()
+    },
+    likeMemo: async (id) => {
+      // Optimistisch togglen; bij fout terugdraaien via reload.
+      setMemos((prev) =>
+        prev.map((m) =>
+          m.id === id
+            ? {
+                ...m,
+                likedByMe: !m.likedByMe,
+                likeCount: (m.likeCount ?? 0) + (m.likedByMe ? -1 : 1),
+              }
+            : m,
+        ),
+      )
+      try {
+        const r = await apiLikeMemo(id)
+        setMemos((prev) =>
+          prev.map((m) =>
+            m.id === id ? { ...m, likedByMe: r.likedByMe, likeCount: r.likes } : m,
+          ),
+        )
+      } catch {
+        await reload()
+      }
     },
     removeSummary: async (id) => {
       await apiDeleteSummary(id)

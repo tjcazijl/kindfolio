@@ -1,15 +1,10 @@
 import { useMemo, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { useData } from '../store'
-import { PhotoThumb } from '../components/PhotoThumb'
+import { MemoCard } from '../components/MemoCard'
 import { ChildForm } from '../components/ChildForm'
 import { SubjectsEditor } from '../components/SubjectsEditor'
-import {
-  childAge,
-  formatDateShort,
-  periodRange,
-  shiftPeriod,
-} from '../utils/dates'
+import { childAge, periodRange, shiftPeriod } from '../utils/dates'
 
 type Filter = 'week' | 'maand' | 'alles'
 
@@ -228,38 +223,9 @@ export function ChildTimeline() {
             : ' in totaal'}
       </p>
 
-      <div className="timeline">
+      <div className="timeline feed">
         {visible.map((m) => (
-          <button
-            key={m.id}
-            className={`memo-card${m.draft ? ' is-draft' : ''}`}
-            onClick={() => navigate(`/kind/${child.id}/memo/${m.id}`)}
-          >
-            <div className="memo-date">
-              {formatDateShort(m.date)}
-              {m.draft && <span className="draft-badge">Concept</span>}
-            </div>
-            {m.subjects.length > 0 && (
-              <div className="tags">
-                {m.subjects.map((s) => (
-                  <span key={s} className="tag">
-                    {s}
-                  </span>
-                ))}
-              </div>
-            )}
-            {m.text && <p className="memo-text">{m.text}</p>}
-            {m.photoIds.length > 0 && (
-              <div className="thumb-row">
-                {m.photoIds.slice(0, 4).map((pid) => (
-                  <PhotoThumb key={pid} photoId={pid} />
-                ))}
-                {m.photoIds.length > 4 && (
-                  <span className="more">+{m.photoIds.length - 4}</span>
-                )}
-              </div>
-            )}
-          </button>
+          <MemoCard key={m.id} memo={m} child={child} canEdit={canEdit} />
         ))}
       </div>
     </div>
