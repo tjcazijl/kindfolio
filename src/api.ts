@@ -130,12 +130,14 @@ export interface AppState {
     voiceEnabled?: boolean
     subjects: string[]
     aiEnabled: boolean
+    subcategories?: Record<string, string[]>
   }
 }
 
 export const saveSettings = (data: {
   subjects?: string[]
   aiEnabled?: boolean
+  subcategories?: Record<string, string[]>
 }) =>
   req<{ subjects: string[]; aiEnabled: boolean }>('/settings', {
     method: 'POST',

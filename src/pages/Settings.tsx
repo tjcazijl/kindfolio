@@ -23,6 +23,7 @@ export function Settings() {
     canEdit,
     isOwner,
     subjects,
+    subcategories,
     aiEnabled,
     saveSettings,
     children,
@@ -161,12 +162,16 @@ export function Settings() {
         <section className="card-section">
           <h2>Vakgebieden</h2>
           <p className="hint">
-            De standaardlijst voor alle kinderen. Je kunt per kind een eigen
-            lijst instellen op de pagina van dat kind.
+            De standaardlijst voor alle kinderen. Tik op een vakgebied om er
+            subcategorieën aan toe te voegen (bijv. Taal → woordenschat,
+            spelling). Je kunt per kind een eigen lijst instellen op de pagina
+            van dat kind.
           </p>
           <SubjectsEditor
             subjects={subjects}
             onChange={(next) => saveSettings({ subjects: next })}
+            subcats={subcategories}
+            onSubcatsChange={(next) => saveSettings({ subcategories: next })}
             reset={
               subjects.length !== SUBJECTS.length
                 ? {

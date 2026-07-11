@@ -12,7 +12,7 @@ import { PhotoThumb } from '../components/PhotoThumb'
 import { Lightbox } from '../components/Lightbox'
 import { useVoiceRecorder } from '../hooks/useVoiceRecorder'
 import { useLiveSpeech } from '../hooks/useLiveSpeech'
-import { todayISO } from '../utils/dates'
+import { formatDateLong, todayISO } from '../utils/dates'
 
 export function MemoEditor() {
   const { childId, memoId } = useParams()
@@ -24,6 +24,7 @@ export function MemoEditor() {
     addMemoMulti,
     removeMemo,
     subjects: accountSubjects,
+    subcategories,
     voiceEnabled,
   } = useData()
   const isNew = !memoId
@@ -221,6 +222,11 @@ export function MemoEditor() {
     subjects.forEach((s) => set.add(s))
     return [...set]
   })()
+  // Subcategorie-waarden niet ook als hoofd-chip tonen (voorkomt dubbeling).
+  const subcatValues = new Set<string>()
+  for (const s of availableSubjects)
+    (subcategories[s] || []).forEach((v) => subcatValues.add(v))
+  const topSubjects = availableSubjects.filter((s) => !subcatValues.has(s))
 
   return (
     <div className="page">
@@ -272,12 +278,13 @@ export function MemoEditor() {
           max={todayISO()}
           onChange={(e) => setDate(e.target.value)}
         />
+        {date && <p className="hint date-readout">{formatDateLong(date)}</p>}
       </label>
 
       <div className="field">
         <span className="field-label">Vakgebieden</span>
         <div className="chips">
-          {availableSubjects.map((s) => (
+          {topSubjects.map((s) => (
             <button
               key={s}
               type="button"
@@ -288,6 +295,25 @@ export function MemoEditor() {
             </button>
           ))}
         </div>
+        {topSubjects
+          .filter((s) => subjects.includes(s) && (subcategories[s]?.length ?? 0) > 0)
+          .map((s) => (
+            <div key={s} className="subcat-row">
+              <span className="subcat-label">{s}:</span>
+              <div className="chips">
+                {subcategories[s].map((sub) => (
+                  <button
+                    key={sub}
+                    type="button"
+                    className={`chip sm ${subjects.includes(sub) ? 'on' : ''}`}
+                    onClick={() => toggleSubject(sub)}
+                  >
+                    {sub}
+                  </button>
+                ))}
+              </div>
+            </div>
+          ))}
       </div>
 
       <div className="field">

@@ -131,6 +131,10 @@ body {
 .btn.white-bg {
   background: #fff;
 }
+.date-readout {
+  margin-top: 4px;
+  text-transform: capitalize;
+}
 .btn.ghost {
   background: transparent;
   color: var(--muted);
@@ -408,6 +412,62 @@ body {
   background: var(--green);
   border-color: var(--green);
   color: #fff;
+}
+.chip.sm {
+  padding: 5px 11px;
+  font-size: 13px;
+}
+.subcat-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin-top: 8px;
+  padding-left: 6px;
+  border-left: 2px solid var(--line);
+}
+.subcat-label {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--muted);
+  padding-top: 7px;
+  white-space: nowrap;
+}
+
+/* Vakgebieden-beheer met subcategorieën (Instellingen) */
+.subj-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.subj-item {
+  border: 1.5px solid var(--line);
+  border-radius: 12px;
+  padding: 8px 12px;
+  background: #fff;
+}
+.subj-item-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+.subj-expand {
+  background: none;
+  border: none;
+  padding: 4px 0;
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--ink);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  text-align: left;
+}
+.subj-subs {
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid var(--line);
 }
 .chip.editable {
   display: inline-flex;

@@ -175,6 +175,7 @@ for (const sql of [
   'ALTER TABLE memos ADD COLUMN draft INTEGER DEFAULT 0',
   'ALTER TABLE feedback ADD COLUMN author_name TEXT',
   'ALTER TABLE feedback_comments ADD COLUMN author_name TEXT',
+  'ALTER TABLE account_settings ADD COLUMN subcategories TEXT',
 ]) {
   try {
     db.exec(sql)
@@ -224,10 +225,12 @@ const DEFAULT_SUBJECTS = [
   'Bewegen', 'Sociaal', 'Uitstapje', 'Overig',
 ]
 function accountSettings(accId) {
-  const row = db.prepare('SELECT subjects, ai_enabled FROM account_settings WHERE account_id = ?').get(accId)
+  const row = db.prepare('SELECT subjects, ai_enabled, subcategories FROM account_settings WHERE account_id = ?').get(accId)
   return {
     subjects: row && row.subjects ? JSON.parse(row.subjects) : DEFAULT_SUBJECTS,
     aiEnabled: row ? row.ai_enabled !== 0 : true,
+    // { "Taal": ["Woordenschat","Spelling"], ... }
+    subcategories: row && row.subcategories ? JSON.parse(row.subcategories) : {},
   }
 }
 const mapMemo = (r) => ({
@@ -763,10 +766,20 @@ add('POST', /^\/api\/settings$/, async (req, res) => {
     ? [...new Set(body.subjects.map((s) => String(s).trim()).filter(Boolean))]
     : cur.subjects
   const aiEnabled = body.aiEnabled !== undefined ? (body.aiEnabled ? 1 : 0) : cur.aiEnabled ? 1 : 0
+  // Subcategorieën: object subject -> lijst (opgeschoond en ontdubbeld).
+  let subcategories = cur.subcategories
+  if (body.subcategories && typeof body.subcategories === 'object') {
+    subcategories = {}
+    for (const [k, v] of Object.entries(body.subcategories)) {
+      if (!Array.isArray(v)) continue
+      const cleaned = [...new Set(v.map((s) => String(s).trim()).filter(Boolean))]
+      if (cleaned.length) subcategories[String(k)] = cleaned
+    }
+  }
   db.prepare(
-    'INSERT INTO account_settings (account_id,subjects,ai_enabled) VALUES (?,?,?) ON CONFLICT(account_id) DO UPDATE SET subjects=excluded.subjects, ai_enabled=excluded.ai_enabled',
-  ).run(req.accountId, JSON.stringify(subjects), aiEnabled)
-  sendJson(res, 200, { subjects, aiEnabled: !!aiEnabled })
+    'INSERT INTO account_settings (account_id,subjects,ai_enabled,subcategories) VALUES (?,?,?,?) ON CONFLICT(account_id) DO UPDATE SET subjects=excluded.subjects, ai_enabled=excluded.ai_enabled, subcategories=excluded.subcategories',
+  ).run(req.accountId, JSON.stringify(subjects), aiEnabled, JSON.stringify(subcategories))
+  sendJson(res, 200, { subjects, aiEnabled: !!aiEnabled, subcategories })
 })
 
 add('GET', /^\/api\/admin\/users$/, (req, res) => {

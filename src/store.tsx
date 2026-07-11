@@ -50,9 +50,11 @@ interface DataContextValue {
   subjects: string[]
   aiEnabled: boolean
   voiceEnabled: boolean
+  subcategories: Record<string, string[]>
   saveSettings: (data: {
     subjects?: string[]
     aiEnabled?: boolean
+    subcategories?: Record<string, string[]>
   }) => Promise<void>
   switchAccount: (id: string) => Promise<void>
   addComment: (
@@ -99,6 +101,9 @@ export function DataProvider({ children }: { children: ReactNode }) {
   const [subjects, setSubjects] = useState<string[]>([])
   const [aiEnabled, setAiEnabled] = useState(true)
   const [voiceEnabled, setVoiceEnabled] = useState(false)
+  const [subcategories, setSubcategories] = useState<Record<string, string[]>>(
+    {},
+  )
 
   const reload = useCallback(async () => {
     try {
@@ -115,6 +120,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
       setSubjects(state.account?.subjects ?? [])
       setAiEnabled(state.account?.aiEnabled ?? true)
       setVoiceEnabled(!!state.account?.voiceEnabled)
+      setSubcategories(state.account?.subcategories ?? {})
       fetchAccounts()
         .then(setAccounts)
         .catch(() => {})
@@ -196,6 +202,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
     subjects,
     aiEnabled,
     voiceEnabled,
+    subcategories,
     saveSettings: async (data) => {
       await apiSaveSettings(data)
       await reload()
