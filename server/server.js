@@ -500,6 +500,15 @@ function feedbackDoneHtml(message) {
   </div>`
 }
 
+function newFeedbackHtml(author, message) {
+  return `<div style="font-family:sans-serif;max-width:480px;margin:auto">
+    <h2 style="color:#2f6f4f">Nieuwe feedback in Kindfolio 📝</h2>
+    <p><strong>${esc(author)}</strong> heeft feedback geplaatst:</p>
+    <blockquote style="border-left:3px solid #2f6f4f;margin:0;padding:8px 14px;color:#333;background:#f3f6f3">${esc(message)}</blockquote>
+    <p style="margin-top:16px"><a href="${APP_URL}/#/feedback" style="background:#2f6f4f;color:#fff;padding:12px 20px;border-radius:8px;text-decoration:none;display:inline-block">Bekijk feedback</a></p>
+  </div>`
+}
+
 function newCommentHtml(author, context, text) {
   return `<div style="font-family:sans-serif;max-width:480px;margin:auto">
     <h2 style="color:#2f6f4f">Nieuwe reactie 💬</h2>
@@ -825,6 +834,11 @@ add('POST', /^\/api\/feedback$/, async (req, res) => {
     "INSERT INTO feedback (id,account_id,user_id,email,author_name,message,page,status,created_at) VALUES (?,?,?,?,?,?,?,'open',?)",
   ).run(id, req.accountId, req.userId, userEmail(req.userId), authorName, message.slice(0, 4000), (body.page || '').slice(0, 200), now())
   const row = db.prepare(`${FEEDBACK_SELECT} WHERE f.id = ?`).get(req.userId, id)
+  // Beheerder(s) op de hoogte stellen van nieuwe feedback.
+  const author = pickName(authorName, userEmail(req.userId))
+  for (const adminEmail of ADMIN_EMAILS) {
+    sendEmailSafe(adminEmail, 'Nieuwe feedback in Kindfolio 📝', newFeedbackHtml(author, message), 'nieuwe-feedback')
+  }
   sendJson(res, 201, mapFeedbackRow(row, req.userId))
 })
 
