@@ -33,6 +33,7 @@ export function Settings() {
     removeChild,
   } = useData()
   const [confirmStage, setConfirmStage] = useState<0 | 1 | 2>(0)
+  const [dangerOpen, setDangerOpen] = useState(false)
   const [typed, setTyped] = useState('')
   const [wiping, setWiping] = useState(false)
   const [childToDelete, setChildToDelete] = useState<Child | null>(null)
@@ -354,14 +355,6 @@ export function Settings() {
             </p>
           </>
         )}
-        {isOwner && (
-          <button
-            className="btn danger-outline full"
-            onClick={() => setConfirmStage(1)}
-          >
-            🗑 Alle gegevens verwijderen
-          </button>
-        )}
       </section>
 
       {!isStandalone() && (
@@ -391,6 +384,39 @@ export function Settings() {
           Uitloggen
         </button>
       </section>
+
+      {isOwner && (
+        <section className="card-section">
+          <button
+            className="collapse-head"
+            onClick={() => setDangerOpen((v) => !v)}
+          >
+            <span>
+              <strong>Gevaarlijke acties</strong>
+            </span>
+            <span className="chevron">{dangerOpen ? '▾' : '▸'}</span>
+          </button>
+          {dangerOpen && (
+            <div style={{ marginTop: 12 }}>
+              <p className="hint">
+                Dit wist <strong>je hele account</strong> — álle kinderen,
+                memo's, foto's en samenvattingen tegelijk. Wil je maar één kind
+                weg? Gebruik dan hierboven <strong>Kinderen beheren</strong>.
+                Verwijderen kan niet ongedaan worden gemaakt.
+              </p>
+              <button
+                className="btn danger-outline full"
+                onClick={() => {
+                  setTyped('')
+                  setConfirmStage(1)
+                }}
+              >
+                🗑 Alle gegevens verwijderen
+              </button>
+            </div>
+          )}
+        </section>
+      )}
 
       <p className="version-note">
         Kindfolio v{__APP_VERSION__} · {__BUILD_DATE__}
@@ -517,12 +543,15 @@ export function Settings() {
           <div className="modal" onClick={(e) => e.stopPropagation()}>
             {confirmStage === 1 ? (
               <>
-                <h2>Weet je het zeker?</h2>
+                <h2>Je hele account wissen?</h2>
                 <p>
-                  Al je <strong>kinderen, memo's, foto's en samenvattingen</strong>{' '}
-                  worden permanent verwijderd. Je account zelf blijft bestaan.
+                  <strong>Alle kinderen samen</strong> — met al hun memo's, foto's
+                  en samenvattingen — worden permanent verwijderd.
                 </p>
-                <p className="hint">Dit kan niet ongedaan worden gemaakt.</p>
+                <p className="hint">
+                  Wil je maar één kind weg? Annuleer dit en gebruik “Kinderen
+                  beheren”. Dit kan niet ongedaan worden gemaakt.
+                </p>
                 <div className="modal-actions">
                   <button className="btn ghost" onClick={closeModal}>
                     Annuleren
@@ -539,14 +568,15 @@ export function Settings() {
               <>
                 <h2>Laatste bevestiging</h2>
                 <p>
-                  Typ <strong>VERWIJDER</strong> om definitief al je gegevens te
-                  wissen.
+                  Typ je e-mailadres <strong>{accountEmail}</strong> om definitief
+                  je hele account te wissen.
                 </p>
                 <input
                   className="input"
                   value={typed}
                   onChange={(e) => setTyped(e.target.value)}
-                  placeholder="VERWIJDER"
+                  placeholder={accountEmail || 'e-mailadres'}
+                  autoComplete="off"
                   autoFocus
                 />
                 <div className="modal-actions">
@@ -555,7 +585,10 @@ export function Settings() {
                   </button>
                   <button
                     className="btn danger-solid"
-                    disabled={typed.trim().toUpperCase() !== 'VERWIJDER' || wiping}
+                    disabled={
+                      typed.trim().toLowerCase() !==
+                        (accountEmail || '').toLowerCase() || wiping
+                    }
                     onClick={doWipe}
                   >
                     {wiping ? 'Verwijderen…' : 'Definitief verwijderen'}
