@@ -2,7 +2,13 @@ import { useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useData } from '../store'
 import { ChildForm } from '../components/ChildForm'
-import { childAge } from '../utils/dates'
+import { childAge, formatDateLong } from '../utils/dates'
+import {
+  CHANGELOG,
+  LATEST_UPDATE_ID,
+  latestSeenUpdate,
+  markUpdatesSeen,
+} from '../data/changelog'
 
 export function Home() {
   const navigate = useNavigate()
@@ -16,6 +22,9 @@ export function Home() {
   }, [memos])
 
   const [adding, setAdding] = useState(false)
+  const [updateSeen, setUpdateSeen] = useState(latestSeenUpdate())
+  const latestUpdate = CHANGELOG[0]
+  const hasUpdate = !!LATEST_UPDATE_ID && updateSeen !== LATEST_UPDATE_ID
 
   async function onAdd(data: { name: string; birthDate?: string; color: string }) {
     try {
@@ -54,6 +63,35 @@ export function Home() {
           </button>
         )}
       </header>
+
+      {hasUpdate && latestUpdate && (
+        <div
+          className="update-banner"
+          role="button"
+          tabIndex={0}
+          onClick={() => navigate('/updates')}
+          onKeyDown={(e) => e.key === 'Enter' && navigate('/updates')}
+        >
+          <span className="update-emoji">✨</span>
+          <div className="update-banner-text">
+            <strong>Nieuwe update</strong>
+            <span className="update-banner-sub">
+              {latestUpdate.title} · {formatDateLong(latestUpdate.date)}
+            </span>
+          </div>
+          <button
+            className="update-banner-x"
+            aria-label="Melding verbergen"
+            onClick={(e) => {
+              e.stopPropagation()
+              markUpdatesSeen()
+              setUpdateSeen(LATEST_UPDATE_ID)
+            }}
+          >
+            ×
+          </button>
+        </div>
+      )}
 
       {loading && <p className="empty-note">Laden…</p>}
       {error && <div className="banner warn">Verbinden mislukt: {error}</div>}

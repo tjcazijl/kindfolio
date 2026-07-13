@@ -419,6 +419,10 @@ export function Settings() {
       )}
 
       <p className="version-note">
+        <button className="link-btn" onClick={() => navigate('/updates')}>
+          ✨ Wat is er nieuw
+        </button>
+        <br />
         Kindfolio v{__APP_VERSION__} · {__BUILD_DATE__}
       </p>
 

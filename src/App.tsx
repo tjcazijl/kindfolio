@@ -5,6 +5,7 @@ import { MemoView } from './pages/MemoView'
 import { MemoEditor } from './pages/MemoEditor'
 import { Summary } from './pages/Summary'
 import { Feedback } from './pages/Feedback'
+import { Updates } from './pages/Updates'
 import { Settings } from './pages/Settings'
 import { Admin } from './pages/Admin'
 import { Login } from './pages/Login'
@@ -53,6 +54,7 @@ export function App() {
           />
           <Route path="/samenvatting" element={<Summary />} />
           <Route path="/feedback" element={<Feedback />} />
+          <Route path="/updates" element={<Updates />} />
           <Route path="/instellingen" element={<Settings />} />
           <Route path="/beheer" element={<Admin />} />
         </Routes>

@@ -541,6 +541,83 @@ body {
   text-transform: none;
 }
 
+/* ---- Update-melding + changelog ---- */
+.update-banner {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: #eaf1ec;
+  border: 1.5px solid #cfe0d4;
+  border-radius: 14px;
+  padding: 12px 14px;
+  margin-bottom: 16px;
+  cursor: pointer;
+}
+.update-emoji {
+  font-size: 22px;
+  line-height: 1;
+}
+.update-banner-text {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-width: 0;
+}
+.update-banner-text strong {
+  color: var(--green-dark);
+  font-size: 15px;
+}
+.update-banner-sub {
+  font-size: 13px;
+  color: var(--muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.update-banner-x {
+  flex-shrink: 0;
+  background: none;
+  border: none;
+  color: var(--muted);
+  font-size: 22px;
+  line-height: 1;
+  padding: 2px 4px;
+  cursor: pointer;
+}
+.changelog {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  margin-top: 8px;
+}
+.changelog-item {
+  background: var(--card);
+  border: 1.5px solid var(--line);
+  border-radius: var(--radius);
+  padding: 14px 16px;
+}
+.changelog-date {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--green);
+  text-transform: capitalize;
+}
+.changelog-title {
+  font-size: 17px;
+  margin: 4px 0 8px;
+}
+.changelog-list {
+  margin: 0;
+  padding-left: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.changelog-list li {
+  font-size: 14px;
+  line-height: 1.5;
+}
+
 /* ---- Tijdlijn in social-stijl (feed) ---- */
 .feed {
   gap: 16px;
