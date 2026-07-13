@@ -170,6 +170,11 @@ try {
   /* kolom bestaat al */
 }
 try {
+  db.exec('ALTER TABLE children ADD COLUMN subcategories TEXT')
+} catch {
+  /* kolom bestaat al */
+}
+try {
   db.exec("ALTER TABLE feedback ADD COLUMN status TEXT DEFAULT 'open'")
 } catch {
   /* kolom bestaat al */
@@ -220,6 +225,7 @@ const mapChild = (r) => ({
   id: r.id, name: r.name, color: r.color,
   birthYear: r.birth_year ?? undefined, birthDate: r.birth_date ?? undefined,
   subjects: r.subjects ? JSON.parse(r.subjects) : undefined,
+  subcategories: r.subcategories ? JSON.parse(r.subcategories) : undefined,
   createdAt: r.created_at,
 })
 
@@ -969,10 +975,14 @@ add('POST', /^\/api\/children$/, async (req, res) => {
     birth_year: body.birthYear ?? null,
     birth_date: body.birthDate ?? null,
     subjects: Array.isArray(body.subjects) ? JSON.stringify(body.subjects) : null,
+    subcategories:
+      body.subcategories && typeof body.subcategories === 'object'
+        ? JSON.stringify(body.subcategories)
+        : null,
     created_at: now(),
   }
-  db.prepare('INSERT INTO children (id,account_id,name,color,birth_year,birth_date,subjects,created_at) VALUES (?,?,?,?,?,?,?,?)')
-    .run(child.id, req.accountId, child.name, child.color, child.birth_year, child.birth_date, child.subjects, child.created_at)
+  db.prepare('INSERT INTO children (id,account_id,name,color,birth_year,birth_date,subjects,subcategories,created_at) VALUES (?,?,?,?,?,?,?,?,?)')
+    .run(child.id, req.accountId, child.name, child.color, child.birth_year, child.birth_date, child.subjects, child.subcategories, child.created_at)
   sendJson(res, 201, mapChild(child))
 })
 
@@ -987,16 +997,22 @@ add('PATCH', /^\/api\/children\/([^/]+)$/, async (req, res, m) => {
     body.birthYear !== undefined ? body.birthYear : existing.birth_year
   const birthDate =
     body.birthDate !== undefined ? body.birthDate : existing.birth_date
-  // subjects: array = eigen lijst, null = terug naar accountlijst, weglaten = ongewijzigd.
+  // subjects/subcategories: array/object = eigen extra's, null = wissen, weglaten = ongewijzigd.
   const subjects =
     body.subjects !== undefined
       ? Array.isArray(body.subjects)
         ? JSON.stringify(body.subjects)
         : null
       : existing.subjects
-  db.prepare('UPDATE children SET name = ?, color = ?, birth_year = ?, birth_date = ?, subjects = ? WHERE id = ?')
-    .run(name, color, birthYear, birthDate, subjects, m[1])
-  sendJson(res, 200, mapChild({ ...existing, name, color, birth_year: birthYear, birth_date: birthDate, subjects }))
+  const subcategories =
+    body.subcategories !== undefined
+      ? body.subcategories && typeof body.subcategories === 'object'
+        ? JSON.stringify(body.subcategories)
+        : null
+      : existing.subcategories
+  db.prepare('UPDATE children SET name = ?, color = ?, birth_year = ?, birth_date = ?, subjects = ?, subcategories = ? WHERE id = ?')
+    .run(name, color, birthYear, birthDate, subjects, subcategories, m[1])
+  sendJson(res, 200, mapChild({ ...existing, name, color, birth_year: birthYear, birth_date: birthDate, subjects, subcategories }))
 })
 
 add('DELETE', /^\/api\/children\/([^/]+)$/, (req, res, m) => {

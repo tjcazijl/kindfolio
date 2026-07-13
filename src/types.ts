@@ -4,8 +4,10 @@ export interface Child {
   birthYear?: number
   birthDate?: string
   color: string
-  // Eigen vakgebieden-lijst; afwezig = erft de accountlijst.
+  // Extra vakgebieden alleen voor dit kind (bovenop de accountlijst).
   subjects?: string[]
+  // Extra subcategorieën per vakgebied, alleen voor dit kind.
+  subcategories?: Record<string, string[]>
   createdAt: number
 }
 

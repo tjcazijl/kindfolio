@@ -417,6 +417,12 @@ body {
   padding: 5px 11px;
   font-size: 13px;
 }
+/* Van het account geërfde subcategorie (niet hier te verwijderen). */
+.chip.inherited {
+  background: #eef1ec;
+  border-color: var(--line);
+  color: var(--muted);
+}
 .subcat-row {
   display: flex;
   align-items: flex-start;

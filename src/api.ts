@@ -251,8 +251,9 @@ export interface ChildInput {
   color?: string
   birthYear?: number | null
   birthDate?: string | null
-  // array = eigen lijst, null = terug naar accountlijst, weglaten = ongewijzigd.
+  // array/object = eigen extra's, null = wissen, weglaten = ongewijzigd.
   subjects?: string[] | null
+  subcategories?: Record<string, string[]> | null
 }
 export const createChild = (data: ChildInput) =>
   req<Child>('/children', { method: 'POST', body: JSON.stringify(data) })

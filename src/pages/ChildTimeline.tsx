@@ -3,7 +3,7 @@ import { useNavigate, useParams } from 'react-router-dom'
 import { useData } from '../store'
 import { MemoCard } from '../components/MemoCard'
 import { ChildForm } from '../components/ChildForm'
-import { SubjectsEditor } from '../components/SubjectsEditor'
+import { ChildSubjectsEditor } from '../components/ChildSubjectsEditor'
 import { childAge, periodRange, shiftPeriod } from '../utils/dates'
 
 type Filter = 'week' | 'maand' | 'alles'
@@ -18,6 +18,7 @@ export function ChildTimeline() {
     updateChild,
     canEdit,
     subjects: accountSubjects,
+    subcategories: accountSubcats,
   } = useData()
   const [editing, setEditing] = useState(false)
   const [showSubjects, setShowSubjects] = useState(false)
@@ -138,34 +139,28 @@ export function ChildTimeline() {
             onClick={() => setShowSubjects((v) => !v)}
           >
             <span>
-              <strong>Vakgebieden</strong>
-              <span className="hint inline">
-                {' '}
-                {child.subjects
-                  ? `eigen lijst (${child.subjects.length})`
-                  : 'volgt accountlijst'}
-              </span>
+              <strong>Vakgebieden voor {child.name}</strong>
+              {(() => {
+                const extra = (child.subjects ?? []).filter(
+                  (s) => !accountSubjects.includes(s),
+                ).length
+                return extra > 0 ? (
+                  <span className="hint inline"> · {extra} extra</span>
+                ) : null
+              })()}
             </span>
             <span className="chevron">{showSubjects ? '▾' : '▸'}</span>
           </button>
           {showSubjects && (
             <div style={{ marginTop: 12 }}>
-              <p className="hint">
-                Deze vakgebieden kun je bij {child.name} per memo kiezen.{' '}
-                {child.subjects
-                  ? 'Dit is een eigen lijst voor dit kind.'
-                  : 'Nu gelijk aan de accountlijst — pas aan voor een eigen lijst.'}
-              </p>
-              <SubjectsEditor
-                subjects={child.subjects ?? accountSubjects}
-                onChange={(next) => updateChild(child.id, { subjects: next })}
-                reset={
-                  child.subjects
-                    ? {
-                        label: 'Terug naar accountlijst',
-                        onClick: () => updateChild(child.id, { subjects: null }),
-                      }
-                    : undefined
+              <ChildSubjectsEditor
+                childName={child.name}
+                accountSubjects={accountSubjects}
+                accountSubcats={accountSubcats}
+                childSubjects={child.subjects ?? []}
+                childSubcats={child.subcategories ?? {}}
+                onChange={(subjects, subcategories) =>
+                  updateChild(child.id, { subjects, subcategories })
                 }
               />
             </div>

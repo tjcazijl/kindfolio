@@ -13,6 +13,7 @@ import { Lightbox } from '../components/Lightbox'
 import { useVoiceRecorder } from '../hooks/useVoiceRecorder'
 import { useLiveSpeech } from '../hooks/useLiveSpeech'
 import { formatDateLong, todayISO } from '../utils/dates'
+import { effectiveSubcats } from '../utils/subjects'
 
 export function MemoEditor() {
   const { childId, memoId } = useParams()
@@ -205,27 +206,28 @@ export function MemoEditor() {
 
   if (!isNew && !existing) return <div className="page">Laden…</div>
 
-  // Beschikbare vakgebieden: van de gekozen kinderen (eigen lijst of accountlijst),
+  // Beschikbare vakgebieden: accountlijst + extra's van de gekozen kinderen,
   // plus de labels die deze memo al heeft.
   const relevantChildIds = isNew
     ? selectedChildIds
     : existing
       ? [existing.childId]
       : []
+  const relevantChildren = relevantChildIds.map((id) =>
+    children.find((x) => x.id === id),
+  )
   const availableSubjects = (() => {
-    const set = new Set<string>()
-    if (relevantChildIds.length === 0) accountSubjects.forEach((s) => set.add(s))
-    for (const id of relevantChildIds) {
-      const c = children.find((x) => x.id === id)
-      ;(c?.subjects ?? accountSubjects).forEach((s) => set.add(s))
-    }
+    const set = new Set<string>(accountSubjects)
+    for (const c of relevantChildren) (c?.subjects || []).forEach((s) => set.add(s))
     subjects.forEach((s) => set.add(s))
     return [...set]
   })()
+  // Effectieve subcategorieën per vakgebied (account + kind-extra's).
+  const subcatFor = (s: string) =>
+    effectiveSubcats(s, subcategories, relevantChildren)
   // Subcategorie-waarden niet ook als hoofd-chip tonen (voorkomt dubbeling).
   const subcatValues = new Set<string>()
-  for (const s of availableSubjects)
-    (subcategories[s] || []).forEach((v) => subcatValues.add(v))
+  for (const s of availableSubjects) subcatFor(s).forEach((v) => subcatValues.add(v))
   const topSubjects = availableSubjects.filter((s) => !subcatValues.has(s))
 
   return (
@@ -296,12 +298,12 @@ export function MemoEditor() {
           ))}
         </div>
         {topSubjects
-          .filter((s) => subjects.includes(s) && (subcategories[s]?.length ?? 0) > 0)
+          .filter((s) => subjects.includes(s) && subcatFor(s).length > 0)
           .map((s) => (
             <div key={s} className="subcat-row">
               <span className="subcat-label">{s}:</span>
               <div className="chips">
-                {subcategories[s].map((sub) => (
+                {subcatFor(s).map((sub) => (
                   <button
                     key={sub}
                     type="button"
