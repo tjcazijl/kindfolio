@@ -11,6 +11,12 @@ export function toISODate(d: Date): string {
   return `${y}-${m}-${day}`
 }
 
+// YYYY-MM-DD -> DD-MM-YYYY
+export function formatDateNumeric(iso: string): string {
+  const [y, m, d] = (iso || '').split('-')
+  return y && m && d ? `${d}-${m}-${y}` : iso
+}
+
 export function formatDateLong(iso: string): string {
   const d = new Date(iso + 'T00:00:00')
   return d.toLocaleDateString('nl-NL', {

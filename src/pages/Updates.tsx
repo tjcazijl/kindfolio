@@ -1,7 +1,7 @@
 import { useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { CHANGELOG, markUpdatesSeen } from '../data/changelog'
-import { formatDateLong } from '../utils/dates'
+import { formatDateNumeric } from '../utils/dates'
 
 export function Updates() {
   const navigate = useNavigate()
@@ -26,7 +26,7 @@ export function Updates() {
       <div className="changelog">
         {CHANGELOG.map((u) => (
           <article key={u.id} className="changelog-item">
-            <div className="changelog-date">{formatDateLong(u.date)}</div>
+            <div className="changelog-date">{formatDateNumeric(u.date)}</div>
             <h2 className="changelog-title">{u.title}</h2>
             <ul className="changelog-list">
               {u.items.map((it, i) => (

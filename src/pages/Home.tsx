@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useData } from '../store'
 import { ChildForm } from '../components/ChildForm'
-import { childAge, formatDateLong } from '../utils/dates'
+import { childAge, formatDateNumeric } from '../utils/dates'
 import {
   CHANGELOG,
   LATEST_UPDATE_ID,
@@ -76,7 +76,7 @@ export function Home() {
           <div className="update-banner-text">
             <strong>Nieuwe update</strong>
             <span className="update-banner-sub">
-              {latestUpdate.title} · {formatDateLong(latestUpdate.date)}
+              {latestUpdate.title} · {formatDateNumeric(latestUpdate.date)}
             </span>
           </div>
           <button
@@ -152,6 +152,15 @@ export function Home() {
             </button>
           )
         ))}
+
+      <footer className="home-footer">
+        <button className="link-btn" onClick={() => navigate('/updates')}>
+          ✨ Wat is er nieuw
+        </button>
+        <p className="version-note">
+          Kindfolio v{__APP_VERSION__} · bèta
+        </p>
+      </footer>
     </div>
   )
 }

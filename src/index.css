@@ -1086,6 +1086,15 @@ body {
   font-size: 12px;
   margin-top: 20px;
 }
+.home-footer {
+  margin-top: 28px;
+  padding-top: 16px;
+  border-top: 1px solid var(--line);
+  text-align: center;
+}
+.home-footer .version-note {
+  margin-top: 6px;
+}
 
 /* ---- Modal ---- */
 .modal-overlay {
