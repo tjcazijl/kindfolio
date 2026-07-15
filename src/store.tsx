@@ -6,15 +6,24 @@ import {
   useState,
   type ReactNode,
 } from 'react'
-import type { AccountAccess, Child, Comment, Memo, Summary } from './types'
+import type {
+  AccountAccess,
+  AgendaEvent,
+  Child,
+  Comment,
+  Memo,
+  Summary,
+} from './types'
 import {
   AuthError,
   addComment as apiAddComment,
   createChild,
+  createEvent,
   createMemo,
   createMemoForChildren,
   deleteChild,
   deleteComment as apiDeleteComment,
+  deleteEvent,
   deleteMemo,
   likeMemo as apiLikeMemo,
   deleteAllData as apiDeleteAllData,
@@ -27,8 +36,10 @@ import {
   saveSettings as apiSaveSettings,
   setActiveAccount,
   updateChild as apiUpdateChild,
+  updateEvent,
   updateMemo,
   type ChildInput,
+  type EventInput,
   type MemoInput,
 } from './api'
 
@@ -37,6 +48,7 @@ interface DataContextValue {
   memos: Memo[]
   summaries: Summary[]
   comments: Comment[]
+  events: AgendaEvent[]
   loading: boolean
   error: string | null
   authRequired: boolean
@@ -81,6 +93,9 @@ interface DataContextValue {
   removeMemo: (id: string) => Promise<void>
   likeMemo: (id: string) => Promise<void>
   removeSummary: (id: string) => Promise<void>
+  addEvent: (data: EventInput) => Promise<AgendaEvent>
+  editEvent: (id: string, data: EventInput) => Promise<AgendaEvent>
+  removeEvent: (id: string) => Promise<void>
   wipeData: () => Promise<void>
 }
 
@@ -91,6 +106,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
   const [memos, setMemos] = useState<Memo[]>([])
   const [summaries, setSummaries] = useState<Summary[]>([])
   const [comments, setComments] = useState<Comment[]>([])
+  const [events, setEvents] = useState<AgendaEvent[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [authRequired, setAuthRequired] = useState(false)
@@ -114,6 +130,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
       setMemos(state.memos)
       setSummaries(state.summaries || [])
       setComments(state.comments || [])
+      setEvents(state.events || [])
       setAccountEmail(state.account?.email ?? null)
       setIsAdmin(!!state.account?.isAdmin)
       setRole(state.account?.role ?? 'owner')
@@ -190,6 +207,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
     memos,
     summaries,
     comments,
+    events,
     loading,
     error,
     authRequired,
@@ -272,6 +290,20 @@ export function DataProvider({ children }: { children: ReactNode }) {
     },
     removeSummary: async (id) => {
       await apiDeleteSummary(id)
+      await reload()
+    },
+    addEvent: async (data) => {
+      const ev = await createEvent(data)
+      await reload()
+      return ev
+    },
+    editEvent: async (id, data) => {
+      const ev = await updateEvent(id, data)
+      await reload()
+      return ev
+    },
+    removeEvent: async (id) => {
+      await deleteEvent(id)
       await reload()
     },
     wipeData: async () => {

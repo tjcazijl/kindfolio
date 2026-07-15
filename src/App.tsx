@@ -4,6 +4,9 @@ import { ChildTimeline } from './pages/ChildTimeline'
 import { MemoView } from './pages/MemoView'
 import { MemoEditor } from './pages/MemoEditor'
 import { Summary } from './pages/Summary'
+import { Agenda } from './pages/Agenda'
+import { EventEditor } from './pages/EventEditor'
+import { EventDetail } from './pages/EventDetail'
 import { Feedback } from './pages/Feedback'
 import { Updates } from './pages/Updates'
 import { Settings } from './pages/Settings'
@@ -53,6 +56,10 @@ export function App() {
             element={<MemoEditor />}
           />
           <Route path="/samenvatting" element={<Summary />} />
+          <Route path="/agenda" element={<Agenda />} />
+          <Route path="/agenda/nieuw" element={<EventEditor />} />
+          <Route path="/agenda/:eventId" element={<EventDetail />} />
+          <Route path="/agenda/:eventId/bewerken" element={<EventEditor />} />
           <Route path="/feedback" element={<Feedback />} />
           <Route path="/updates" element={<Updates />} />
           <Route path="/instellingen" element={<Settings />} />

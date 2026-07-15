@@ -9,6 +9,13 @@
   --danger: #c2553b;
   --radius: 14px;
   --tabbar-h: 64px;
+  /* Agenda: categorie-kleuren (los van het groene accent) */
+  --les: #35618e;
+  --les-bg: #e7eef6;
+  --uitje: #a86a15;
+  --uitje-bg: #f6ecd8;
+  --taak: #b0492f;
+  --taak-bg: #f5e5e0;
 }
 
 * {
@@ -73,6 +80,27 @@ body {
   display: flex;
   align-items: center;
   justify-content: center;
+}
+.head-actions {
+  display: flex;
+  gap: 8px;
+  flex-shrink: 0;
+}
+.icon-btn .icon-cal {
+  font-size: 20px;
+}
+.icon-btn {
+  position: relative;
+}
+.icon-badge {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--danger);
+  border: 2px solid #fff;
 }
 .subtitle {
   margin: 2px 0 16px;
@@ -1722,4 +1750,219 @@ body {
 .tab-icon {
   font-size: 22px;
   line-height: 1;
+}
+
+/* ================= Agenda ================= */
+.fl-opt {
+  font-weight: 400;
+  color: var(--muted);
+}
+.two-fields {
+  display: flex;
+  gap: 10px;
+}
+.two-fields > .field {
+  flex: 1;
+  min-width: 0;
+}
+
+/* Elke N ... */
+.every-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.every-n {
+  width: 84px;
+  flex-shrink: 0;
+}
+.every-unit {
+  color: var(--muted);
+  font-size: 15px;
+}
+
+/* Weekdag-keuze */
+.weekday-row {
+  display: flex;
+  gap: 6px;
+}
+.weekday {
+  flex: 1;
+  padding: 9px 0;
+  border: 1.5px solid var(--line);
+  border-radius: 10px;
+  background: #fff;
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.weekday.on {
+  background: var(--green);
+  border-color: var(--green);
+  color: #fff;
+}
+
+/* Type-icoon (rond vierkantje) */
+.ev-ic {
+  flex-shrink: 0;
+  width: 40px;
+  height: 40px;
+  border-radius: 11px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 19px;
+}
+.ev-ic.les { background: var(--les-bg); }
+.ev-ic.uitje { background: var(--uitje-bg); }
+.ev-ic.taak { background: var(--taak-bg); }
+
+/* Type-badge */
+.ev-badge {
+  font-size: 11px;
+  font-weight: 700;
+  padding: 2px 8px;
+  border-radius: 6px;
+  margin-left: 8px;
+  vertical-align: middle;
+  white-space: nowrap;
+}
+.ev-badge.les { color: var(--les); background: var(--les-bg); }
+.ev-badge.uitje { color: var(--uitje); background: var(--uitje-bg); }
+.ev-badge.taak { color: var(--taak); background: var(--taak-bg); }
+
+/* Agenda-lijst */
+.agenda-group {
+  margin-top: 18px;
+}
+.agenda-group-head {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  padding-bottom: 6px;
+  margin-bottom: 10px;
+  border-bottom: 1px solid var(--line);
+}
+.agenda-item {
+  width: 100%;
+  text-align: left;
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 12px;
+  display: flex;
+  gap: 11px;
+  align-items: center;
+  margin-bottom: 10px;
+  cursor: pointer;
+}
+.agenda-item-main {
+  flex: 1;
+  min-width: 0;
+}
+.agenda-item-title {
+  display: block;
+  font-weight: 650;
+  font-size: 15px;
+  color: var(--ink);
+}
+.agenda-item-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 10px;
+  margin-top: 3px;
+  font-size: 12.5px;
+  color: var(--muted);
+}
+.ev-time {
+  font-weight: 600;
+}
+.ev-kids {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+.ev-dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  display: inline-block;
+  flex-shrink: 0;
+}
+.ev-rep {
+  display: inline-flex;
+  align-items: center;
+}
+.agenda-item .chev {
+  color: var(--muted);
+  font-size: 20px;
+  flex-shrink: 0;
+}
+
+/* Agenda-detail */
+.event-hero {
+  text-align: center;
+  padding: 6px 0 2px;
+}
+.event-hero-ic {
+  width: 58px;
+  height: 58px;
+  border-radius: 16px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 27px;
+}
+.event-hero-ic.les { background: var(--les-bg); }
+.event-hero-ic.uitje { background: var(--uitje-bg); }
+.event-hero-ic.taak { background: var(--taak-bg); }
+.event-hero h1 {
+  margin: 12px 0 6px;
+  font-size: 22px;
+}
+.event-meta {
+  margin-top: 16px;
+}
+.event-meta-row {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  padding: 11px 0;
+  border-bottom: 1px solid var(--line);
+  font-size: 15px;
+}
+.event-meta-row:last-child {
+  border-bottom: 0;
+}
+.emi {
+  width: 22px;
+  text-align: center;
+  flex-shrink: 0;
+}
+.emk {
+  color: var(--muted);
+  flex-shrink: 0;
+}
+.emv {
+  margin-left: auto;
+  text-align: right;
+}
+.event-memo-cta {
+  margin-top: 20px;
+  background: #f3f6f2;
+  border: 1px solid #d9e5dd;
+  border-radius: var(--radius);
+  padding: 14px;
+}
+.event-memo-cta p {
+  margin: 0 0 10px;
+  font-size: 14px;
+  color: var(--muted);
+}
+.stack-actions {
+  margin-top: 16px;
 }

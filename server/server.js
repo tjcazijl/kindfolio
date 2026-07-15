@@ -149,6 +149,17 @@ db.exec(`
     memo_id TEXT, user_id TEXT, created_at INTEGER,
     PRIMARY KEY (memo_id, user_id)
   );
+  CREATE TABLE IF NOT EXISTS events (
+    id TEXT PRIMARY KEY, account_id TEXT, title TEXT NOT NULL,
+    notes TEXT, type TEXT, date TEXT, time TEXT,
+    freq TEXT DEFAULT 'none', every_n INTEGER DEFAULT 1,
+    weekdays TEXT, until_date TEXT,
+    created_at INTEGER, updated_at INTEGER
+  );
+  CREATE TABLE IF NOT EXISTS event_children (
+    event_id TEXT, child_id TEXT,
+    PRIMARY KEY (event_id, child_id)
+  );
 `)
 
 // --- Migratie: account_id-kolom toevoegen aan bestaande DB's + oude data koppelen ---
@@ -259,6 +270,15 @@ const mapSummary = (r) => ({
 const mapComment = (r) => ({
   id: r.id, targetType: r.target_type, targetId: r.target_id,
   authorEmail: r.author_email, text: r.text || '', createdAt: r.created_at,
+})
+const mapEvent = (r, childIds) => ({
+  id: r.id, title: r.title, notes: r.notes || '',
+  type: r.type || 'uitje', date: r.date, time: r.time || undefined,
+  freq: r.freq || 'none', everyN: r.every_n || 1,
+  weekdays: r.weekdays ? String(r.weekdays).split(',').filter(Boolean) : [],
+  until: r.until_date || undefined,
+  childIds: childIds || [],
+  createdAt: r.created_at, updatedAt: r.updated_at,
 })
 
 // ---- auth helpers ----
@@ -758,11 +778,24 @@ add('GET', /^\/api\/state$/, (req, res) => {
     .prepare('SELECT * FROM comments WHERE account_id = ? ORDER BY created_at ASC')
     .all(acc)
     .map(mapComment)
+  const eventLinks = {}
+  for (const l of db
+    .prepare(
+      'SELECT ec.event_id, ec.child_id FROM event_children ec JOIN events e ON e.id = ec.event_id WHERE e.account_id = ?',
+    )
+    .all(acc)) {
+    ;(eventLinks[l.event_id] ||= []).push(l.child_id)
+  }
+  const events = db
+    .prepare('SELECT * FROM events WHERE account_id = ? ORDER BY date ASC, time ASC')
+    .all(acc)
+    .map((r) => mapEvent(r, eventLinks[r.id] || []))
   sendJson(res, 200, {
     children,
     memos,
     summaries,
     comments,
+    events,
     account: {
       id: acc,
       ownerEmail: userEmail(acc),
@@ -1024,6 +1057,110 @@ add('DELETE', /^\/api\/children\/([^/]+)$/, (req, res, m) => {
   db.prepare('DELETE FROM memos WHERE child_id = ? AND account_id = ?').run(m[1], req.accountId)
   db.prepare('DELETE FROM summaries WHERE child_id = ? AND account_id = ?').run(m[1], req.accountId)
   db.prepare('DELETE FROM children WHERE id = ?').run(m[1])
+  sendJson(res, 200, { ok: true })
+})
+
+// --- Agenda (events) ---
+const EVENT_TYPES = new Set(['uitje', 'taak', 'les'])
+const EVENT_FREQ = new Set(['none', 'daily', 'weekly', 'monthly', 'yearly'])
+const WEEKDAYS = new Set(['ma', 'di', 'wo', 'do', 'vr', 'za', 'zo'])
+
+// Valideert childIds tegen het account en ontdubbelt.
+function validChildIds(list, accountId) {
+  if (!Array.isArray(list)) return []
+  return [...new Set(list)].filter((cid) =>
+    db.prepare('SELECT id FROM children WHERE id = ? AND account_id = ?').get(cid, accountId),
+  )
+}
+// Zet de opgegeven weekdagen om naar een opgeschoonde, comma-gescheiden string.
+function cleanWeekdays(freq, list) {
+  if (freq !== 'weekly' || !Array.isArray(list)) return null
+  const days = [...new Set(list.filter((d) => WEEKDAYS.has(d)))]
+  return days.length ? days.join(',') : null
+}
+
+add('POST', /^\/api\/events$/, async (req, res) => {
+  if (!requireEditor(req, res)) return
+  const body = await readJson(req)
+  const title = (body.title || '').trim()
+  if (!title) return sendJson(res, 400, { error: 'titel verplicht' })
+  const type = EVENT_TYPES.has(body.type) ? body.type : 'uitje'
+  const freq = EVENT_FREQ.has(body.freq) ? body.freq : 'none'
+  const ev = {
+    id: uid(),
+    title,
+    notes: (body.notes || '').trim() || null,
+    type,
+    date: body.date || new Date().toISOString().slice(0, 10),
+    time: body.time ? String(body.time).slice(0, 5) : null,
+    freq,
+    every_n: Math.max(1, parseInt(body.everyN, 10) || 1),
+    weekdays: cleanWeekdays(freq, body.weekdays),
+    until_date: freq !== 'none' && body.until ? body.until : null,
+    created_at: now(),
+    updated_at: now(),
+  }
+  db.prepare(
+    'INSERT INTO events (id,account_id,title,notes,type,date,time,freq,every_n,weekdays,until_date,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)',
+  ).run(
+    ev.id, req.accountId, ev.title, ev.notes, ev.type, ev.date, ev.time,
+    ev.freq, ev.every_n, ev.weekdays, ev.until_date, ev.created_at, ev.updated_at,
+  )
+  const childIds = validChildIds(body.childIds, req.accountId)
+  for (const cid of childIds)
+    db.prepare('INSERT OR IGNORE INTO event_children (event_id,child_id) VALUES (?,?)').run(ev.id, cid)
+  sendJson(res, 201, mapEvent(ev, childIds))
+})
+
+add('PATCH', /^\/api\/events\/([^/]+)$/, async (req, res, m) => {
+  if (!requireEditor(req, res)) return
+  const existing = db.prepare('SELECT * FROM events WHERE id = ? AND account_id = ?').get(m[1], req.accountId)
+  if (!existing) return sendJson(res, 404, { error: 'niet gevonden' })
+  const body = await readJson(req)
+  const title = body.title != null ? String(body.title).trim() || existing.title : existing.title
+  const type =
+    body.type !== undefined ? (EVENT_TYPES.has(body.type) ? body.type : existing.type) : existing.type
+  const date = body.date !== undefined ? body.date : existing.date
+  const time =
+    body.time !== undefined ? (body.time ? String(body.time).slice(0, 5) : null) : existing.time
+  const notes = body.notes !== undefined ? (body.notes || '').trim() || null : existing.notes
+  const freq =
+    body.freq !== undefined ? (EVENT_FREQ.has(body.freq) ? body.freq : 'none') : existing.freq
+  const everyN =
+    body.everyN !== undefined ? Math.max(1, parseInt(body.everyN, 10) || 1) : existing.every_n
+  const weekdays =
+    body.weekdays !== undefined || body.freq !== undefined
+      ? cleanWeekdays(freq, body.weekdays !== undefined ? body.weekdays : (existing.weekdays ? String(existing.weekdays).split(',') : []))
+      : existing.weekdays
+  const until =
+    body.until !== undefined ? (freq !== 'none' && body.until ? body.until : null) : existing.until_date
+  db.prepare(
+    'UPDATE events SET title=?,notes=?,type=?,date=?,time=?,freq=?,every_n=?,weekdays=?,until_date=?,updated_at=? WHERE id=?',
+  ).run(title, notes, type, date, time, freq, everyN, weekdays, until, now(), m[1])
+  let childIds
+  if (Array.isArray(body.childIds)) {
+    childIds = validChildIds(body.childIds, req.accountId)
+    db.prepare('DELETE FROM event_children WHERE event_id = ?').run(m[1])
+    for (const cid of childIds)
+      db.prepare('INSERT OR IGNORE INTO event_children (event_id,child_id) VALUES (?,?)').run(m[1], cid)
+  } else {
+    childIds = db.prepare('SELECT child_id FROM event_children WHERE event_id = ?').all(m[1]).map((r) => r.child_id)
+  }
+  sendJson(
+    res, 200,
+    mapEvent(
+      { ...existing, title, notes, type, date, time, freq, every_n: everyN, weekdays, until_date: until },
+      childIds,
+    ),
+  )
+})
+
+add('DELETE', /^\/api\/events\/([^/]+)$/, (req, res, m) => {
+  if (!requireEditor(req, res)) return
+  const ev = db.prepare('SELECT id FROM events WHERE id = ? AND account_id = ?').get(m[1], req.accountId)
+  if (!ev) return sendJson(res, 404, { error: 'niet gevonden' })
+  db.prepare('DELETE FROM event_children WHERE event_id = ?').run(m[1])
+  db.prepare('DELETE FROM events WHERE id = ?').run(m[1])
   sendJson(res, 200, { ok: true })
 })
 

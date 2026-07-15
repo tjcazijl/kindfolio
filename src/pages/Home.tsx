@@ -2,7 +2,8 @@ import { useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useData } from '../store'
 import { ChildForm } from '../components/ChildForm'
-import { childAge, formatDateNumeric } from '../utils/dates'
+import { childAge, formatDateNumeric, todayISO } from '../utils/dates'
+import { expandEvents } from '../utils/recurrence'
 import {
   CHANGELOG,
   LATEST_UPDATE_ID,
@@ -12,14 +13,29 @@ import {
 
 export function Home() {
   const navigate = useNavigate()
-  const { children, memos, loading, error, canEdit, role, ownerEmail, addChild } =
-    useData()
+  const {
+    children,
+    memos,
+    events,
+    loading,
+    error,
+    canEdit,
+    role,
+    ownerEmail,
+    addChild,
+  } = useData()
 
   const memoCounts = useMemo(() => {
     const map: Record<string, number> = {}
     for (const m of memos) map[m.childId] = (map[m.childId] || 0) + 1
     return map
   }, [memos])
+
+  // Bolletje op het agenda-icoon: staat er iets voor vandaag gepland?
+  const hasAgendaToday = useMemo(() => {
+    const t = todayISO()
+    return expandEvents(events, t, t).length > 0
+  }, [events])
 
   const [adding, setAdding] = useState(false)
   const [updateSeen, setUpdateSeen] = useState(latestSeenUpdate())
@@ -52,16 +68,41 @@ export function Home() {
                 : 'Thuisonderwijs logboek'}
           </p>
         </div>
-        {canEdit && children.length > 0 && (
+        <div className="head-actions">
           <button
             className="icon-btn"
-            onClick={() => setAdding(true)}
-            aria-label="Kind toevoegen"
-            title="Kind toevoegen"
+            onClick={() => navigate('/agenda')}
+            aria-label="Agenda"
+            title="Agenda"
           >
-            +
+            <span className="icon-cal">📅</span>
+            {hasAgendaToday && <span className="icon-badge" />}
           </button>
-        )}
+          {canEdit && children.length > 0 && (
+            <button
+              className="icon-btn"
+              onClick={() => setAdding(true)}
+              aria-label="Kind toevoegen"
+              title="Kind toevoegen"
+            >
+              <svg
+                viewBox="0 0 24 24"
+                width="22"
+                height="22"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                aria-hidden="true"
+              >
+                <circle cx="9" cy="7.5" r="3.4" />
+                <path d="M3.6 20c0-3.4 2.4-5.8 5.4-5.8 1.1 0 2.1.3 3 .85" />
+                <path d="M18 14.5v5M15.5 17h5" />
+              </svg>
+            </button>
+          )}
+        </div>
       </header>
 
       {hasUpdate && latestUpdate && (

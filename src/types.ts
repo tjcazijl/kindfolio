@@ -30,6 +30,25 @@ export interface Photo {
   blob: Blob
 }
 
+export type EventType = 'uitje' | 'taak' | 'les'
+export type EventFreq = 'none' | 'daily' | 'weekly' | 'monthly' | 'yearly'
+
+export interface AgendaEvent {
+  id: string
+  title: string
+  notes?: string
+  type: EventType
+  date: string // YYYY-MM-DD (ankerdatum / eerste keer)
+  time?: string // HH:MM (optioneel)
+  freq: EventFreq
+  everyN: number // elke N dagen/weken/…
+  weekdays: string[] // ['ma','wo'] — alleen bij freq 'weekly'
+  until?: string // YYYY-MM-DD, herhaal t/m (optioneel)
+  childIds: string[] // leeg = gezinsbreed
+  createdAt: number
+  updatedAt: number
+}
+
 export interface Summary {
   id: string
   childId: string

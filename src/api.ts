@@ -1,7 +1,10 @@
 import type {
   AccountAccess,
+  AgendaEvent,
   Child,
   Comment,
+  EventFreq,
+  EventType,
   Memo,
   Summary,
 } from './types'
@@ -121,6 +124,7 @@ export interface AppState {
   memos: Memo[]
   summaries: Summary[]
   comments: Comment[]
+  events: AgendaEvent[]
   account: {
     id: string
     ownerEmail: string
@@ -263,6 +267,27 @@ export const updateChild = (id: string, data: ChildInput) =>
 
 export const deleteChild = (id: string) =>
   req<{ ok: boolean }>(`/children/${id}`, { method: 'DELETE' })
+
+export interface EventInput {
+  title?: string
+  notes?: string
+  type?: EventType
+  date?: string
+  time?: string | null
+  freq?: EventFreq
+  everyN?: number
+  weekdays?: string[]
+  until?: string | null
+  childIds?: string[]
+}
+export const createEvent = (data: EventInput) =>
+  req<AgendaEvent>('/events', { method: 'POST', body: JSON.stringify(data) })
+
+export const updateEvent = (id: string, data: EventInput) =>
+  req<AgendaEvent>(`/events/${id}`, { method: 'PATCH', body: JSON.stringify(data) })
+
+export const deleteEvent = (id: string) =>
+  req<{ ok: boolean }>(`/events/${id}`, { method: 'DELETE' })
 
 export interface MemoInput {
   childId?: string

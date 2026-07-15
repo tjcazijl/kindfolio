@@ -10,6 +10,18 @@ export interface Update {
 
 export const CHANGELOG: Update[] = [
   {
+    id: '2026-07-15',
+    date: '2026-07-15',
+    title: 'Agenda toegevoegd 📅',
+    items: [
+      'Plan uitjes, taken en lessen in de nieuwe agenda — te openen via het kalender-icoon rechtsboven op je beginscherm.',
+      'Herhalingen: dagelijks, wekelijks (met keuze van weekdagen, bijv. elke woensdag en vrijdag), maandelijks of jaarlijks, met een optionele einddatum.',
+      'Koppel een item aan één of meer kinderen, of laat het gezinsbreed.',
+      'Vanuit een gepland item maak je met één tik een memo — datum en kind staan al ingevuld.',
+      'Bij het maken van een memo staan de foto’s nu in een raster dat je kunt slepen om te herordenen.',
+    ],
+  },
+  {
     id: '2026-07-13',
     date: '2026-07-13',
     title: 'Vakgebieden slimmer & extra veilig',

@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { useNavigate, useParams } from 'react-router-dom'
+import { useLocation, useNavigate, useParams } from 'react-router-dom'
 import { useData } from '../store'
 import {
   deletePhoto,
@@ -33,12 +33,26 @@ export function MemoEditor() {
   const isNew = !memoId
   const existing = memoId ? memos.find((m) => m.id === memoId) : undefined
 
+  // Voorgevulde waarden wanneer je vanuit een agenda-item een memo maakt.
+  const location = useLocation()
+  const prefill = (location.state as any)?.eventPrefill as
+    | { title?: string; date?: string; childIds?: string[] }
+    | undefined
+
   // Bij een nieuwe memo kun je één of meerdere kinderen kiezen.
   const [selectedChildIds, setSelectedChildIds] = useState<string[]>(
-    childId ? [childId] : children.length === 1 ? [children[0].id] : [],
+    childId
+      ? [childId]
+      : prefill?.childIds?.length
+        ? prefill.childIds
+        : children.length === 1
+          ? [children[0].id]
+          : [],
   )
-  const [date, setDate] = useState(existing?.date || todayISO())
-  const [text, setText] = useState(existing?.text || '')
+  const [date, setDate] = useState(existing?.date || prefill?.date || todayISO())
+  const [text, setText] = useState(
+    existing?.text || (prefill?.title ? `${prefill.title}: ` : ''),
+  )
   const [subjects, setSubjects] = useState<string[]>(existing?.subjects || [])
   const [photoIds, setPhotoIds] = useState<string[]>(existing?.photoIds || [])
   const [saving, setSaving] = useState(false)
