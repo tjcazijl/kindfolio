@@ -5,8 +5,10 @@ import { Markdown } from '../components/Markdown'
 import { Comments } from '../components/Comments'
 import {
   formatDateLong,
+  formatDateNumeric,
   periodRange,
   shiftPeriod,
+  todayISO,
   type Period,
 } from '../utils/dates'
 import { openSummaryPrint } from '../utils/summaryPrint'
@@ -36,6 +38,11 @@ export function Summary() {
   const [childId, setChildId] = useState<string>('')
   const [period, setPeriod] = useState<Period>('week')
   const [refDate, setRefDate] = useState<Date>(new Date())
+  const [custom, setCustom] = useState(false)
+  const [customStart, setCustomStart] = useState<string>(
+    () => periodRange('week').start,
+  )
+  const [customEnd, setCustomEnd] = useState<string>(() => todayISO())
   const [subject, setSubject] = useState<string>('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -45,7 +52,18 @@ export function Summary() {
     if (aiEnabled) summaryAvailable().then(setAvailable)
   }, [aiEnabled])
 
-  const range = useMemo(() => periodRange(period, refDate), [period, refDate])
+  const customValid = !!customStart && !!customEnd && customStart <= customEnd
+  const range = useMemo(
+    () =>
+      custom
+        ? {
+            start: customStart,
+            end: customEnd,
+            label: `${formatDateNumeric(customStart)} – ${formatDateNumeric(customEnd)}`,
+          }
+        : periodRange(period, refDate),
+    [custom, customStart, customEnd, period, refDate],
+  )
 
   const effectiveChildId = childId || children[0]?.id || ''
   const child = children.find((c) => c.id === effectiveChildId)
@@ -153,30 +171,69 @@ export function Summary() {
           {PERIODS.map((p) => (
             <button
               key={p}
-              className={`seg-btn ${period === p ? 'on' : ''}`}
-              onClick={() => setPeriod(p)}
+              className={`seg-btn ${!custom && period === p ? 'on' : ''}`}
+              onClick={() => {
+                setCustom(false)
+                setPeriod(p)
+              }}
             >
               {p.charAt(0).toUpperCase() + p.slice(1)}
             </button>
           ))}
+          <button
+            className={`seg-btn ${custom ? 'on' : ''}`}
+            onClick={() => setCustom(true)}
+          >
+            Eigen
+          </button>
         </div>
       </div>
 
-      <div className="period-nav">
-        <button
-          className="link-btn"
-          onClick={() => setRefDate((d) => shiftPeriod(period, d, -1))}
-        >
-          ‹ Vorige
-        </button>
-        <span className="period-label">{range.label}</span>
-        <button
-          className="link-btn"
-          onClick={() => setRefDate((d) => shiftPeriod(period, d, 1))}
-        >
-          Volgende ›
-        </button>
-      </div>
+      {custom ? (
+        <div className="row gap">
+          <label className="field">
+            <span className="field-label">Van</span>
+            <input
+              type="date"
+              className="input"
+              value={customStart}
+              max={customEnd || todayISO()}
+              onChange={(e) => setCustomStart(e.target.value)}
+            />
+          </label>
+          <label className="field">
+            <span className="field-label">Tot en met</span>
+            <input
+              type="date"
+              className="input"
+              value={customEnd}
+              min={customStart}
+              max={todayISO()}
+              onChange={(e) => setCustomEnd(e.target.value)}
+            />
+          </label>
+        </div>
+      ) : (
+        <div className="period-nav">
+          <button
+            className="link-btn"
+            onClick={() => setRefDate((d) => shiftPeriod(period, d, -1))}
+          >
+            ‹ Vorige
+          </button>
+          <span className="period-label">{range.label}</span>
+          <button
+            className="link-btn"
+            onClick={() => setRefDate((d) => shiftPeriod(period, d, 1))}
+          >
+            Volgende ›
+          </button>
+        </div>
+      )}
+
+      {custom && !customValid && (
+        <p className="hint">Kies een begindatum die vóór de einddatum ligt.</p>
+      )}
 
       {subjectsInPeriod.length > 0 && (
         <label className="field">
@@ -244,6 +301,7 @@ export function Summary() {
             disabled={
               loading ||
               filteredMemos.length === 0 ||
+              (custom && !customValid) ||
               (aiEnabled && available === false)
             }
             onClick={run}

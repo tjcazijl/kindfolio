@@ -1092,6 +1092,21 @@ body {
   border-top: 1px solid var(--line);
   text-align: center;
 }
+/* Twee knoppen naast elkaar (opslaan/concept, inspreek-opties) */
+.save-row,
+.voice-row {
+  display: flex;
+  gap: 10px;
+}
+.save-row > .btn,
+.voice-row > .btn {
+  flex: 1;
+  min-width: 0;
+}
+.voice-row {
+  gap: 8px;
+  margin-top: 4px;
+}
 .home-footer .version-note {
   margin-top: 6px;
 }

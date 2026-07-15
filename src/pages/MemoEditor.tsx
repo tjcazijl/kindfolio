@@ -284,87 +284,6 @@ export function MemoEditor() {
       </label>
 
       <div className="field">
-        <span className="field-label">Vakgebieden</span>
-        <div className="chips">
-          {topSubjects.map((s) => (
-            <button
-              key={s}
-              type="button"
-              className={`chip ${subjects.includes(s) ? 'on' : ''}`}
-              onClick={() => toggleSubject(s)}
-            >
-              {s}
-            </button>
-          ))}
-        </div>
-        {topSubjects
-          .filter((s) => subjects.includes(s) && subcatFor(s).length > 0)
-          .map((s) => (
-            <div key={s} className="subcat-row">
-              <span className="subcat-label">{s}:</span>
-              <div className="chips">
-                {subcatFor(s).map((sub) => (
-                  <button
-                    key={sub}
-                    type="button"
-                    className={`chip sm ${subjects.includes(sub) ? 'on' : ''}`}
-                    onClick={() => toggleSubject(sub)}
-                  >
-                    {sub}
-                  </button>
-                ))}
-              </div>
-            </div>
-          ))}
-      </div>
-
-      <div className="field">
-        <span className="field-label">Notitie</span>
-        <textarea
-          className="input textarea"
-          rows={6}
-          value={text}
-          onChange={(e) => setText(e.target.value)}
-          placeholder="Wat heeft je kind vandaag gedaan en geleerd?"
-        />
-        {voiceEnabled && voice.supported && (
-          <button
-            type="button"
-            className={`btn ${voice.recording ? 'recording' : 'outline white-bg'} full`}
-            disabled={voice.transcribing || live.listening}
-            onClick={() => (voice.recording ? voice.stop() : voice.start())}
-          >
-            {voice.transcribing
-              ? '⏳ Bezig met omzetten…'
-              : voice.recording
-                ? `⏹ Stop opname (${fmtSec(voice.seconds)})`
-                : '🎤 Inspreken (nauwkeurig)'}
-          </button>
-        )}
-        {live.supported && (
-          <button
-            type="button"
-            className={`btn ${live.listening ? 'recording' : 'outline white-bg'} full`}
-            disabled={voiceBusy}
-            onClick={() => (live.listening ? live.stop() : live.start(text))}
-          >
-            {live.listening ? '⏹ Stop live' : '⚡ Live inspreken (direct)'}
-          </button>
-        )}
-        {(voiceEnabled && voice.supported) || live.supported ? (
-          <p className="hint">
-            {voice.recording
-              ? 'Spreek rustig in; tik op stop, dan verschijnt de tekst.'
-              : live.listening
-                ? 'Je ziet de tekst live verschijnen. Tik op stop als je klaar bent.'
-                : 'Twee manieren: “nauwkeurig” (even wachten na stop) of “live” (direct meelezen, in Chrome/Safari).'}
-          </p>
-        ) : null}
-        {voice.error && <p className="error-text">{voice.error}</p>}
-        {live.error && <p className="error-text">{live.error}</p>}
-      </div>
-
-      <div className="field">
         <span className="field-label">Foto's</span>
         <div className="thumb-row wrap">
           {photoIds.map((pid, i) => (
@@ -416,21 +335,108 @@ export function MemoEditor() {
         </div>
       </div>
 
+      <div className="field">
+        <span className="field-label">Notitie</span>
+        <textarea
+          className="input textarea"
+          rows={6}
+          value={text}
+          onChange={(e) => setText(e.target.value)}
+          placeholder="Wat heeft je kind vandaag gedaan en geleerd?"
+        />
+        {((voiceEnabled && voice.supported) || live.supported) && (
+          <div className="voice-row">
+            {voiceEnabled && voice.supported && (
+              <button
+                type="button"
+                className={`btn ${voice.recording ? 'recording' : 'outline white-bg'}`}
+                disabled={voice.transcribing || live.listening}
+                onClick={() => (voice.recording ? voice.stop() : voice.start())}
+              >
+                {voice.transcribing
+                  ? '⏳ Omzetten…'
+                  : voice.recording
+                    ? `⏹ Stop (${fmtSec(voice.seconds)})`
+                    : '🎤 Inspreken'}
+              </button>
+            )}
+            {live.supported && (
+              <button
+                type="button"
+                className={`btn ${live.listening ? 'recording' : 'outline white-bg'}`}
+                disabled={voiceBusy}
+                onClick={() => (live.listening ? live.stop() : live.start(text))}
+              >
+                {live.listening ? '⏹ Stop' : '⚡ Live'}
+              </button>
+            )}
+          </div>
+        )}
+        {(voiceEnabled && voice.supported) || live.supported ? (
+          <p className="hint">
+            {voice.recording
+              ? 'Spreek rustig in; tik op stop, dan verschijnt de tekst.'
+              : live.listening
+                ? 'Je ziet de tekst live verschijnen. Tik op stop als je klaar bent.'
+                : '“Inspreken” = nauwkeurig (even wachten na stop). “Live” = direct meelezen (Chrome/Safari).'}
+          </p>
+        ) : null}
+        {voice.error && <p className="error-text">{voice.error}</p>}
+        {live.error && <p className="error-text">{live.error}</p>}
+      </div>
+
+      <div className="field">
+        <span className="field-label">Vakgebieden</span>
+        <div className="chips">
+          {topSubjects.map((s) => (
+            <button
+              key={s}
+              type="button"
+              className={`chip ${subjects.includes(s) ? 'on' : ''}`}
+              onClick={() => toggleSubject(s)}
+            >
+              {s}
+            </button>
+          ))}
+        </div>
+        {topSubjects
+          .filter((s) => subjects.includes(s) && subcatFor(s).length > 0)
+          .map((s) => (
+            <div key={s} className="subcat-row">
+              <span className="subcat-label">{s}:</span>
+              <div className="chips">
+                {subcatFor(s).map((sub) => (
+                  <button
+                    key={sub}
+                    type="button"
+                    className={`chip sm ${subjects.includes(sub) ? 'on' : ''}`}
+                    onClick={() => toggleSubject(sub)}
+                  >
+                    {sub}
+                  </button>
+                ))}
+              </div>
+            </div>
+          ))}
+      </div>
+
       <div className="sticky-actions">
-        <button
-          className="btn primary full big"
-          disabled={saving}
-          onClick={() => save(false)}
-        >
-          {saving ? 'Opslaan…' : 'Memo opslaan'}
-        </button>
-        <button
-          className="btn outline full white-bg"
-          disabled={saving}
-          onClick={() => save(true)}
-        >
-          📝 Opslaan als concept
-        </button>
+        <div className="save-row">
+          <button
+            className="btn primary big"
+            disabled={saving}
+            onClick={() => save(false)}
+          >
+            {saving ? 'Opslaan…' : 'Memo opslaan'}
+          </button>
+          <button
+            className="btn outline white-bg big"
+            disabled={saving}
+            onClick={() => save(true)}
+          >
+            📝 Concept
+          </button>
+        </div>
         {!isNew && (
           <button
             className="btn danger-outline full white-bg"
