@@ -205,6 +205,14 @@ body {
   min-height: 120px;
   font-family: inherit;
 }
+/* Datumvelden op iOS niet breder laten worden dan hun container
+   (voorkomt horizontaal scrollen van de pagina). */
+.input[type='date'] {
+  -webkit-appearance: none;
+  appearance: none;
+  min-width: 0;
+  max-width: 100%;
+}
 .field {
   display: block;
   margin: 16px 0;
@@ -437,6 +445,38 @@ body {
   color: var(--muted);
   padding-top: 7px;
   white-space: nowrap;
+}
+
+/* Nieuw vakgebied aanmaken tijdens het maken van een memo. */
+.add-subject-btn {
+  margin-top: 12px;
+}
+.new-subject {
+  margin-top: 12px;
+  padding: 12px;
+  border: 1.5px dashed var(--line);
+  border-radius: var(--radius);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  background: #fbfaf6;
+}
+.scope-choice {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.scope-opt {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 15px;
+  color: var(--ink);
+}
+.scope-opt input {
+  width: 18px;
+  height: 18px;
+  flex-shrink: 0;
 }
 
 /* Vakgebieden-beheer met subcategorieën (Instellingen) */
@@ -869,6 +909,28 @@ body {
   font-size: 14px;
   color: var(--muted);
   font-weight: 600;
+}
+
+/* Fotoraster in de memo-editor: 4 per rij, sleepbaar om te herordenen. */
+.photo-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 8px;
+  margin-top: 10px;
+}
+.photo-grid .thumb {
+  width: 100%;
+  height: auto;
+  aspect-ratio: 1 / 1;
+  touch-action: none;
+  cursor: grab;
+  transition: transform 0.12s ease, opacity 0.12s ease;
+}
+.photo-grid .thumb.dragging {
+  opacity: 0.6;
+  transform: scale(1.08);
+  z-index: 2;
+  cursor: grabbing;
 }
 
 .photo-buttons {

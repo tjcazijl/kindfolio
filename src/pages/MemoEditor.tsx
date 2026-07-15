@@ -8,7 +8,7 @@ import {
   uploadBlob,
   uploadPhoto,
 } from '../api'
-import { PhotoThumb } from '../components/PhotoThumb'
+import { PhotoGrid } from '../components/PhotoGrid'
 import { Lightbox } from '../components/Lightbox'
 import { useVoiceRecorder } from '../hooks/useVoiceRecorder'
 import { useLiveSpeech } from '../hooks/useLiveSpeech'
@@ -26,6 +26,8 @@ export function MemoEditor() {
     removeMemo,
     subjects: accountSubjects,
     subcategories,
+    saveSettings,
+    updateChild,
     voiceEnabled,
   } = useData()
   const isNew = !memoId
@@ -44,6 +46,13 @@ export function MemoEditor() {
   const [uploading, setUploading] = useState(false)
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null)
   const [rotating, setRotating] = useState(false)
+  // Nieuw vakgebied aanmaken tijdens het schrijven van een memo.
+  const [newSubjectOpen, setNewSubjectOpen] = useState(false)
+  const [newSubjectName, setNewSubjectName] = useState('')
+  const [newSubjectScope, setNewSubjectScope] = useState<'child' | 'account'>(
+    'account',
+  )
+  const [addingSubject, setAddingSubject] = useState(false)
   // Foto's die geüpload zijn maar nog niet opgeslagen: opruimen bij annuleren.
   const stagedPhotos = useRef<Set<string>>(new Set())
   const cameraInput = useRef<HTMLInputElement>(null)
@@ -80,6 +89,50 @@ export function MemoEditor() {
     setSelectedChildIds((prev) =>
       prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id],
     )
+  }
+
+  // Nieuw vakgebied aanmaken: voor de gekozen kinderen of voor het hele account.
+  async function addNewSubject() {
+    const name = newSubjectName.trim()
+    if (!name || addingSubject) return
+    const childIds = isNew
+      ? selectedChildIds
+      : existing
+        ? [existing.childId]
+        : []
+    if (newSubjectScope === 'child' && childIds.length === 0) {
+      alert('Kies eerst een kind.')
+      return
+    }
+    const known = new Set<string>([
+      ...accountSubjects,
+      ...childIds.flatMap(
+        (id) => children.find((c) => c.id === id)?.subjects || [],
+      ),
+    ])
+    setAddingSubject(true)
+    try {
+      if (!known.has(name)) {
+        if (newSubjectScope === 'account') {
+          await saveSettings({ subjects: [...accountSubjects, name] })
+        } else {
+          for (const id of childIds) {
+            const c = children.find((x) => x.id === id)
+            if (!c) continue
+            const extras = c.subjects || []
+            if (!extras.includes(name))
+              await updateChild(id, { subjects: [...extras, name] })
+          }
+        }
+      }
+      setSubjects((prev) => (prev.includes(name) ? prev : [...prev, name]))
+      setNewSubjectName('')
+      setNewSubjectOpen(false)
+    } catch (err: any) {
+      alert(err?.message || 'Vakgebied toevoegen mislukt')
+    } finally {
+      setAddingSubject(false)
+    }
   }
 
   async function onFiles(e: React.ChangeEvent<HTMLInputElement>) {
@@ -285,18 +338,16 @@ export function MemoEditor() {
 
       <div className="field">
         <span className="field-label">Foto's</span>
-        <div className="thumb-row wrap">
-          {photoIds.map((pid, i) => (
-            <PhotoThumb
-              key={pid}
-              photoId={pid}
-              onRemove={() => removePhoto(pid)}
-              onClick={() => setLightboxIndex(i)}
-            />
-          ))}
-        </div>
+        <PhotoGrid
+          photoIds={photoIds}
+          onReorder={setPhotoIds}
+          onOpen={setLightboxIndex}
+        />
         {photoIds.length > 0 && (
-          <p className="hint">Tik op een foto om groot te bekijken of te draaien.</p>
+          <p className="hint">
+            Tik op een foto om groot te bekijken, te draaien of te verwijderen.
+            Sleep om de volgorde te wijzigen.
+          </p>
         )}
         <input
           ref={cameraInput}
@@ -418,6 +469,75 @@ export function MemoEditor() {
               </div>
             </div>
           ))}
+
+        {newSubjectOpen ? (
+          <div className="new-subject">
+            <input
+              className="input"
+              value={newSubjectName}
+              autoFocus
+              placeholder="Naam van het vakgebied"
+              onChange={(e) => setNewSubjectName(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  e.preventDefault()
+                  addNewSubject()
+                }
+              }}
+            />
+            <div className="scope-choice">
+              <label className="scope-opt">
+                <input
+                  type="radio"
+                  name="subject-scope"
+                  checked={newSubjectScope === 'child'}
+                  onChange={() => setNewSubjectScope('child')}
+                />
+                {relevantChildren.filter(Boolean).length > 1
+                  ? 'Voor deze kinderen'
+                  : 'Voor dit kind'}
+              </label>
+              <label className="scope-opt">
+                <input
+                  type="radio"
+                  name="subject-scope"
+                  checked={newSubjectScope === 'account'}
+                  onChange={() => setNewSubjectScope('account')}
+                />
+                Voor heel het account
+              </label>
+            </div>
+            <div className="save-row">
+              <button
+                type="button"
+                className="btn primary"
+                disabled={addingSubject || !newSubjectName.trim()}
+                onClick={addNewSubject}
+              >
+                {addingSubject ? 'Toevoegen…' : 'Toevoegen'}
+              </button>
+              <button
+                type="button"
+                className="btn outline white-bg"
+                disabled={addingSubject}
+                onClick={() => {
+                  setNewSubjectOpen(false)
+                  setNewSubjectName('')
+                }}
+              >
+                Annuleren
+              </button>
+            </div>
+          </div>
+        ) : (
+          <button
+            type="button"
+            className="btn outline sm add-subject-btn"
+            onClick={() => setNewSubjectOpen(true)}
+          >
+            + Nieuw vakgebied
+          </button>
+        )}
       </div>
 
       <div className="sticky-actions">
