@@ -160,6 +160,14 @@ db.exec(`
     event_id TEXT, child_id TEXT,
     PRIMARY KEY (event_id, child_id)
   );
+  CREATE TABLE IF NOT EXISTS update_likes (
+    update_id TEXT, user_id TEXT, created_at INTEGER,
+    PRIMARY KEY (update_id, user_id)
+  );
+  CREATE TABLE IF NOT EXISTS update_comments (
+    id TEXT PRIMARY KEY, update_id TEXT, user_id TEXT, email TEXT,
+    author_name TEXT, text TEXT, created_at INTEGER
+  );
 `)
 
 // --- Migratie: account_id-kolom toevoegen aan bestaande DB's + oude data koppelen ---
@@ -996,6 +1004,92 @@ add('DELETE', /^\/api\/feedback\/([^/]+)$/, (req, res, m) => {
   sendJson(res, 200, { ok: true })
 })
 
+// --- Reacties op "Wat is er nieuw"-updates (gedeeld, net als het feedbackprikbord) ---
+// update_id komt uit de client-side changelog (bv. "2026-07-15").
+const UPDATE_ID_RE = /^[0-9a-z-]{1,40}$/
+
+add('GET', /^\/api\/updates$/, (req, res) => {
+  const likeRows = db
+    .prepare(
+      `SELECT update_id, COUNT(*) AS likes,
+        SUM(CASE WHEN user_id = ? THEN 1 ELSE 0 END) AS liked
+       FROM update_likes GROUP BY update_id`,
+    )
+    .all(req.userId)
+  const commentRows = db
+    .prepare('SELECT update_id, COUNT(*) AS c FROM update_comments GROUP BY update_id')
+    .all()
+  const reactions = {}
+  for (const r of likeRows)
+    reactions[r.update_id] = { likes: r.likes, likedByMe: !!r.liked, commentCount: 0 }
+  for (const r of commentRows)
+    (reactions[r.update_id] ||= { likes: 0, likedByMe: false, commentCount: 0 }).commentCount = r.c
+  sendJson(res, 200, { reactions })
+})
+
+add('POST', /^\/api\/updates\/([^/]+)\/like$/, (req, res, m) => {
+  const id = String(m[1])
+  if (!UPDATE_ID_RE.test(id)) return sendJson(res, 400, { error: 'ongeldig' })
+  const existing = db
+    .prepare('SELECT 1 FROM update_likes WHERE update_id = ? AND user_id = ?')
+    .get(id, req.userId)
+  if (existing) {
+    db.prepare('DELETE FROM update_likes WHERE update_id = ? AND user_id = ?').run(id, req.userId)
+  } else {
+    db.prepare('INSERT INTO update_likes (update_id,user_id,created_at) VALUES (?,?,?)').run(id, req.userId, now())
+  }
+  const likes = db.prepare('SELECT COUNT(*) AS c FROM update_likes WHERE update_id = ?').get(id).c
+  sendJson(res, 200, { likes, likedByMe: !existing })
+})
+
+add('GET', /^\/api\/updates\/([^/]+)\/comments$/, (req, res, m) => {
+  const id = String(m[1])
+  const rows = db
+    .prepare('SELECT id, user_id, email, author_name, text, created_at FROM update_comments WHERE update_id = ? ORDER BY created_at ASC')
+    .all(id)
+  sendJson(res, 200, {
+    comments: rows.map((r) => ({
+      id: r.id,
+      author: pickName(r.author_name, r.email),
+      text: r.text,
+      mine: r.user_id === req.userId,
+      createdAt: r.created_at,
+    })),
+  })
+})
+
+add('POST', /^\/api\/updates\/([^/]+)\/comments$/, async (req, res, m) => {
+  const id = String(m[1])
+  if (!UPDATE_ID_RE.test(id)) return sendJson(res, 400, { error: 'ongeldig' })
+  if (!rateLimit('ucmt:' + req.userId, 60, 60 * 60 * 1000)) {
+    return sendJson(res, 429, { error: 'Te veel reacties achter elkaar. Probeer het zo weer.' })
+  }
+  const body = await readJson(req)
+  const text = (body.text || '').trim()
+  if (!text) return sendJson(res, 400, { error: 'Schrijf eerst een reactie.' })
+  const c = { id: uid(), email: userEmail(req.userId), created_at: now() }
+  const authorName = String(body.name || '').trim().slice(0, 80) || null
+  db.prepare('INSERT INTO update_comments (id,update_id,user_id,email,author_name,text,created_at) VALUES (?,?,?,?,?,?,?)')
+    .run(c.id, id, req.userId, c.email, authorName, text.slice(0, 2000), c.created_at)
+  // Beheerder(s) op de hoogte stellen van een nieuwe reactie op een update.
+  for (const adminEmail of ADMIN_EMAILS) {
+    if (userEmail(req.userId) === adminEmail) continue
+    sendEmailSafe(
+      adminEmail,
+      'Nieuwe reactie op een update — Kindfolio 💬',
+      feedbackReplyHtml(pickName(authorName, c.email), text),
+      'update-reactie',
+    )
+  }
+  sendJson(res, 201, {
+    id: c.id,
+    author: pickName(authorName, c.email),
+    text: text.slice(0, 2000),
+    mine: true,
+    createdAt: c.created_at,
+  })
+})
+
 add('POST', /^\/api\/children$/, async (req, res) => {
   if (!requireEditor(req, res)) return
   const body = await readJson(req)
@@ -1204,11 +1298,14 @@ add('POST', /^\/api\/memos$/, async (req, res) => {
   const subjects = JSON.stringify(Array.isArray(body.subjects) ? body.subjects : [])
   const basePhotos = Array.isArray(body.photoIds) ? body.photoIds : []
   const draft = body.draft ? 1 : 0
+  // Bij toevoegen aan een extra kind vanuit een bestaande memo krijgen álle
+  // nieuwe memo's eigen foto-kopieën (de originele memo houdt de bestanden).
+  const copyAll = !!body.copyAllPhotos
 
   const created = []
   childIds.forEach((cid, i) => {
     // Eerste kind gebruikt de geüploade foto's; volgende kinderen krijgen kopieën.
-    const photoIds = i === 0 ? basePhotos : copyPhotos(basePhotos, req.accountId)
+    const photoIds = i === 0 && !copyAll ? basePhotos : copyPhotos(basePhotos, req.accountId)
     const memo = {
       id: uid(), child_id: cid, date, text, subjects,
       photo_ids: JSON.stringify(photoIds), draft,

@@ -10,6 +10,15 @@ export interface Update {
 
 export const CHANGELOG: Update[] = [
   {
+    id: '2026-07-16',
+    date: '2026-07-16',
+    title: 'Reageren op updates & memo delen met meer kinderen',
+    items: [
+      'Geef een 👍 en plaats een reactie onder de updates op deze pagina.',
+      'Een bestaande memo kun je nu in de bewerkmodus ook aan een ander kind toevoegen — er wordt dan een kopie voor dat kind gemaakt.',
+    ],
+  },
+  {
     id: '2026-07-15',
     date: '2026-07-15',
     title: 'Agenda toegevoegd 📅',

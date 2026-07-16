@@ -250,6 +250,30 @@ export const setFeedbackStatus = (id: string, status: 'open' | 'done') =>
 export const deleteFeedback = (id: string) =>
   req<{ ok: boolean }>(`/feedback/${id}`, { method: 'DELETE' })
 
+// ---- Reacties op "Wat is er nieuw"-updates (gedeeld prikbord) ----
+export interface UpdateReaction {
+  likes: number
+  likedByMe: boolean
+  commentCount: number
+}
+export const fetchUpdateReactions = () =>
+  req<{ reactions: Record<string, UpdateReaction> }>('/updates').then(
+    (r) => r.reactions,
+  )
+export const likeUpdate = (id: string) =>
+  req<{ likes: number; likedByMe: boolean }>(`/updates/${id}/like`, {
+    method: 'POST',
+  })
+export const fetchUpdateComments = (id: string) =>
+  req<{ comments: FeedbackComment[] }>(`/updates/${id}/comments`).then(
+    (r) => r.comments,
+  )
+export const commentUpdate = (id: string, text: string, name?: string) =>
+  req<FeedbackComment>(`/updates/${id}/comments`, {
+    method: 'POST',
+    body: JSON.stringify({ text, name }),
+  })
+
 export interface ChildInput {
   name?: string
   color?: string
@@ -296,6 +320,8 @@ export interface MemoInput {
   subjects?: string[]
   photoIds?: string[]
   draft?: boolean
+  // Bij toevoegen aan extra kinderen: elk krijgt eigen foto-kopieën.
+  copyAllPhotos?: boolean
 }
 
 export const createMemo = (data: MemoInput) =>

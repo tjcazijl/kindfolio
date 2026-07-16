@@ -55,6 +55,8 @@ export function MemoEditor() {
   )
   const [subjects, setSubjects] = useState<string[]>(existing?.subjects || [])
   const [photoIds, setPhotoIds] = useState<string[]>(existing?.photoIds || [])
+  // In bewerkmodus: extra kinderen om een kopie van deze memo voor te maken.
+  const [addChildIds, setAddChildIds] = useState<string[]>([])
   const [saving, setSaving] = useState(false)
   const [confirmDelete, setConfirmDelete] = useState(false)
   const [uploading, setUploading] = useState(false)
@@ -101,6 +103,12 @@ export function MemoEditor() {
 
   function toggleChild(id: string) {
     setSelectedChildIds((prev) =>
+      prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id],
+    )
+  }
+
+  function toggleAddChild(id: string) {
+    setAddChildIds((prev) =>
       prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id],
     )
   }
@@ -237,6 +245,17 @@ export function MemoEditor() {
           photoIds,
           draft: asDraft,
         })
+        // Extra kinderen: maak een aparte kopie-memo (met eigen foto-kopieën).
+        if (addChildIds.length) {
+          await addMemoMulti(addChildIds, {
+            date,
+            text: text.trim(),
+            subjects,
+            photoIds,
+            draft: asDraft,
+            copyAllPhotos: true,
+          })
+        }
       }
       stagedPhotos.current.clear()
       navigate(
@@ -335,6 +354,45 @@ export function MemoEditor() {
               )
             })}
           </div>
+        </div>
+      )}
+
+      {!isNew && existing && children.length > 1 && (
+        <div className="field">
+          <span className="field-label">
+            Ook toevoegen aan{' '}
+            <span className="fl-opt">(maakt een kopie voor dat kind)</span>
+          </span>
+          <div className="chips">
+            {children
+              .filter((c) => c.id !== existing.childId)
+              .map((c) => {
+                const on = addChildIds.includes(c.id)
+                return (
+                  <button
+                    key={c.id}
+                    type="button"
+                    className={`chip child-chip ${on ? 'on' : ''}`}
+                    onClick={() => toggleAddChild(c.id)}
+                  >
+                    <span
+                      className="avatar xs"
+                      style={{ background: on ? '#fff' : c.color, color: on ? c.color : '#fff' }}
+                    >
+                      {c.name.charAt(0).toUpperCase()}
+                    </span>
+                    {c.name}
+                  </button>
+                )
+              })}
+          </div>
+          {addChildIds.length > 0 && (
+            <p className="hint">
+              Er wordt een kopie van deze memo gemaakt voor{' '}
+              {addChildIds.length} extra kind
+              {addChildIds.length === 1 ? '' : 'eren'}.
+            </p>
+          )}
         </div>
       )}
 
