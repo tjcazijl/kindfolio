@@ -10,6 +10,16 @@ export interface Update {
 
 export const CHANGELOG: Update[] = [
   {
+    id: '2026-07-19b',
+    date: '2026-07-19',
+    title: 'Leermiddelen 📚',
+    items: [
+      'Nieuwe Leermiddelen-sectie (via het boek-icoon rechtsboven op je beginscherm): bewaar je boeken, websites, video’s en apps op één plek — je eigen database.',
+      'Filter op type; “Boeken” wordt zo je eigen boekenlijst, met status (te lezen / bezig / gelezen) en auteur.',
+      'Koppel een leermiddel aan een vakgebied en optioneel aan een kind.',
+    ],
+  },
+  {
     id: '2026-07-19',
     date: '2026-07-19',
     title: 'Aandachtspunten & reflectie ✍️',

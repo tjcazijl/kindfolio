@@ -175,6 +175,16 @@ db.exec(`
     source_memo_id TEXT, link_kind TEXT, -- link_kind: attention | later (bij memo), anders NULL
     created_at INTEGER, updated_at INTEGER
   );
+  CREATE TABLE IF NOT EXISTS resources (
+    id TEXT PRIMARY KEY, account_id TEXT,
+    type TEXT, title TEXT NOT NULL, author TEXT, url TEXT,
+    subject TEXT, status TEXT, notes TEXT,
+    created_at INTEGER, updated_at INTEGER
+  );
+  CREATE TABLE IF NOT EXISTS resource_children (
+    resource_id TEXT, child_id TEXT,
+    PRIMARY KEY (resource_id, child_id)
+  );
 `)
 
 // --- Migratie: account_id-kolom toevoegen aan bestaande DB's + oude data koppelen ---
@@ -291,6 +301,17 @@ const mapFocus = (r) => ({
 const MOODS = new Set(['leuk', 'prima', 'ging_wel', 'lastig'])
 const FOCUS_STATUS = new Set(['open', 'later', 'done'])
 const validMood = (v) => (MOODS.has(v) ? v : null)
+
+const RESOURCE_TYPES = new Set(['boek', 'website', 'video', 'app', 'overig'])
+const RESOURCE_STATUS = new Set(['te_lezen', 'bezig', 'gelezen'])
+const mapResource = (r, childIds) => ({
+  id: r.id, type: r.type || 'overig', title: r.title,
+  author: r.author || undefined, url: r.url || undefined,
+  subject: r.subject || undefined, status: r.status || undefined,
+  notes: r.notes || undefined,
+  childIds: childIds || [],
+  createdAt: r.created_at, updatedAt: r.updated_at,
+})
 
 // Maakt/werkt bij/verwijdert een aan een memo gekoppeld aandachtspunt.
 function upsertMemoFocus(memoId, childId, accountId, linkKind, text, subject, defaultStatus) {
@@ -850,6 +871,18 @@ add('GET', /^\/api\/state$/, (req, res) => {
     .prepare('SELECT * FROM focus_points WHERE account_id = ? ORDER BY created_at DESC')
     .all(acc)
     .map(mapFocus)
+  const resLinks = {}
+  for (const l of db
+    .prepare(
+      'SELECT rc.resource_id, rc.child_id FROM resource_children rc JOIN resources r ON r.id = rc.resource_id WHERE r.account_id = ?',
+    )
+    .all(acc)) {
+    ;(resLinks[l.resource_id] ||= []).push(l.child_id)
+  }
+  const resources = db
+    .prepare('SELECT * FROM resources WHERE account_id = ? ORDER BY created_at DESC')
+    .all(acc)
+    .map((r) => mapResource(r, resLinks[r.id] || []))
   sendJson(res, 200, {
     children,
     memos,
@@ -857,6 +890,7 @@ add('GET', /^\/api\/state$/, (req, res) => {
     comments,
     events,
     focusPoints,
+    resources,
     account: {
       id: acc,
       ownerEmail: userEmail(acc),
@@ -1466,6 +1500,74 @@ add('DELETE', /^\/api\/focus\/([^/]+)$/, (req, res, m) => {
   const fp = db.prepare('SELECT id FROM focus_points WHERE id = ? AND account_id = ?').get(m[1], req.accountId)
   if (!fp) return sendJson(res, 404, { error: 'niet gevonden' })
   db.prepare('DELETE FROM focus_points WHERE id = ?').run(m[1])
+  sendJson(res, 200, { ok: true })
+})
+
+// --- Leermiddelen (resources) ---
+function resourceStatus(type, status) {
+  return type === 'boek' && RESOURCE_STATUS.has(status) ? status : null
+}
+add('POST', /^\/api\/resources$/, async (req, res) => {
+  if (!requireEditor(req, res)) return
+  const body = await readJson(req)
+  const title = (body.title || '').trim()
+  if (!title) return sendJson(res, 400, { error: 'titel verplicht' })
+  const type = RESOURCE_TYPES.has(body.type) ? body.type : 'overig'
+  const r = {
+    id: uid(), type, title: title.slice(0, 300),
+    author: (body.author || '').trim().slice(0, 200) || null,
+    url: (body.url || '').trim().slice(0, 1000) || null,
+    subject: (body.subject || '').trim() || null,
+    status: resourceStatus(type, body.status),
+    notes: (body.notes || '').trim().slice(0, 2000) || null,
+    created_at: now(), updated_at: now(),
+  }
+  db.prepare(
+    'INSERT INTO resources (id,account_id,type,title,author,url,subject,status,notes,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?)',
+  ).run(r.id, req.accountId, r.type, r.title, r.author, r.url, r.subject, r.status, r.notes, r.created_at, r.updated_at)
+  const childIds = validChildIds(body.childIds, req.accountId)
+  for (const cid of childIds)
+    db.prepare('INSERT OR IGNORE INTO resource_children (resource_id,child_id) VALUES (?,?)').run(r.id, cid)
+  sendJson(res, 201, mapResource(r, childIds))
+})
+
+add('PATCH', /^\/api\/resources\/([^/]+)$/, async (req, res, m) => {
+  if (!requireEditor(req, res)) return
+  const existing = db.prepare('SELECT * FROM resources WHERE id = ? AND account_id = ?').get(m[1], req.accountId)
+  if (!existing) return sendJson(res, 404, { error: 'niet gevonden' })
+  const body = await readJson(req)
+  const type =
+    body.type !== undefined ? (RESOURCE_TYPES.has(body.type) ? body.type : existing.type) : existing.type
+  const title = body.title != null ? String(body.title).trim().slice(0, 300) || existing.title : existing.title
+  const author = body.author !== undefined ? (body.author || '').trim().slice(0, 200) || null : existing.author
+  const url = body.url !== undefined ? (body.url || '').trim().slice(0, 1000) || null : existing.url
+  const subject = body.subject !== undefined ? (body.subject || '').trim() || null : existing.subject
+  const status =
+    body.status !== undefined || body.type !== undefined
+      ? resourceStatus(type, body.status !== undefined ? body.status : existing.status)
+      : existing.status
+  const notes = body.notes !== undefined ? (body.notes || '').trim().slice(0, 2000) || null : existing.notes
+  db.prepare(
+    'UPDATE resources SET type=?,title=?,author=?,url=?,subject=?,status=?,notes=?,updated_at=? WHERE id=?',
+  ).run(type, title, author, url, subject, status, notes, now(), m[1])
+  let childIds
+  if (Array.isArray(body.childIds)) {
+    childIds = validChildIds(body.childIds, req.accountId)
+    db.prepare('DELETE FROM resource_children WHERE resource_id = ?').run(m[1])
+    for (const cid of childIds)
+      db.prepare('INSERT OR IGNORE INTO resource_children (resource_id,child_id) VALUES (?,?)').run(m[1], cid)
+  } else {
+    childIds = db.prepare('SELECT child_id FROM resource_children WHERE resource_id = ?').all(m[1]).map((x) => x.child_id)
+  }
+  sendJson(res, 200, mapResource({ ...existing, type, title, author, url, subject, status, notes }, childIds))
+})
+
+add('DELETE', /^\/api\/resources\/([^/]+)$/, (req, res, m) => {
+  if (!requireEditor(req, res)) return
+  const r = db.prepare('SELECT id FROM resources WHERE id = ? AND account_id = ?').get(m[1], req.accountId)
+  if (!r) return sendJson(res, 404, { error: 'niet gevonden' })
+  db.prepare('DELETE FROM resource_children WHERE resource_id = ?').run(m[1])
+  db.prepare('DELETE FROM resources WHERE id = ?').run(m[1])
   sendJson(res, 200, { ok: true })
 })
 

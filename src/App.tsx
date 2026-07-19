@@ -8,6 +8,8 @@ import { Summary } from './pages/Summary'
 import { Agenda } from './pages/Agenda'
 import { EventEditor } from './pages/EventEditor'
 import { EventDetail } from './pages/EventDetail'
+import { Resources } from './pages/Resources'
+import { ResourceEditor } from './pages/ResourceEditor'
 import { Feedback } from './pages/Feedback'
 import { Updates } from './pages/Updates'
 import { Settings } from './pages/Settings'
@@ -62,6 +64,12 @@ export function App() {
           <Route path="/agenda/nieuw" element={<EventEditor />} />
           <Route path="/agenda/:eventId" element={<EventDetail />} />
           <Route path="/agenda/:eventId/bewerken" element={<EventEditor />} />
+          <Route path="/leermiddelen" element={<Resources />} />
+          <Route path="/leermiddelen/nieuw" element={<ResourceEditor />} />
+          <Route
+            path="/leermiddelen/:resourceId/bewerken"
+            element={<ResourceEditor />}
+          />
           <Route path="/feedback" element={<Feedback />} />
           <Route path="/updates" element={<Updates />} />
           <Route path="/instellingen" element={<Settings />} />

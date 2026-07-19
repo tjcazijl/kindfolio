@@ -28,6 +28,23 @@ export interface Memo {
   updatedAt: number
 }
 
+export type ResourceType = 'boek' | 'website' | 'video' | 'app' | 'overig'
+export type ResourceStatus = 'te_lezen' | 'bezig' | 'gelezen'
+
+export interface Resource {
+  id: string
+  type: ResourceType
+  title: string
+  author?: string
+  url?: string
+  subject?: string
+  status?: ResourceStatus // alleen bij boeken
+  notes?: string
+  childIds: string[] // leeg = gezinsbreed
+  createdAt: number
+  updatedAt: number
+}
+
 export type FocusStatus = 'open' | 'later' | 'done'
 
 export interface FocusPoint {

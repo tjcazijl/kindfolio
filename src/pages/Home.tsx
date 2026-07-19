@@ -71,6 +71,14 @@ export function Home() {
         <div className="head-actions">
           <button
             className="icon-btn"
+            onClick={() => navigate('/leermiddelen')}
+            aria-label="Leermiddelen"
+            title="Leermiddelen"
+          >
+            <span className="icon-cal">📚</span>
+          </button>
+          <button
+            className="icon-btn"
             onClick={() => navigate('/agenda')}
             aria-label="Agenda"
             title="Agenda"

@@ -9,6 +9,9 @@ import type {
   FocusStatus,
   Memo,
   MoodKey,
+  Resource,
+  ResourceStatus,
+  ResourceType,
   Summary,
 } from './types'
 
@@ -129,6 +132,7 @@ export interface AppState {
   comments: Comment[]
   events: AgendaEvent[]
   focusPoints: FocusPoint[]
+  resources: Resource[]
   account: {
     id: string
     ownerEmail: string
@@ -345,6 +349,23 @@ export const updateFocus = (id: string, data: FocusInput) =>
   req<FocusPoint>(`/focus/${id}`, { method: 'PATCH', body: JSON.stringify(data) })
 export const deleteFocus = (id: string) =>
   req<{ ok: boolean }>(`/focus/${id}`, { method: 'DELETE' })
+
+export interface ResourceInput {
+  type?: ResourceType
+  title?: string
+  author?: string
+  url?: string
+  subject?: string
+  status?: ResourceStatus | null
+  notes?: string
+  childIds?: string[]
+}
+export const createResource = (data: ResourceInput) =>
+  req<Resource>('/resources', { method: 'POST', body: JSON.stringify(data) })
+export const updateResource = (id: string, data: ResourceInput) =>
+  req<Resource>(`/resources/${id}`, { method: 'PATCH', body: JSON.stringify(data) })
+export const deleteResource = (id: string) =>
+  req<{ ok: boolean }>(`/resources/${id}`, { method: 'DELETE' })
 
 export const createMemo = (data: MemoInput) =>
   req<Memo>('/memos', { method: 'POST', body: JSON.stringify(data) })

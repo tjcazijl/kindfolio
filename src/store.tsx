@@ -13,6 +13,7 @@ import type {
   Comment,
   FocusPoint,
   Memo,
+  Resource,
   Summary,
 } from './types'
 import {
@@ -23,11 +24,13 @@ import {
   createFocus,
   createMemo,
   createMemoForChildren,
+  createResource,
   deleteChild,
   deleteComment as apiDeleteComment,
   deleteEvent,
   deleteFocus,
   deleteMemo,
+  deleteResource,
   likeMemo as apiLikeMemo,
   deleteAllData as apiDeleteAllData,
   deleteSummary as apiDeleteSummary,
@@ -42,10 +45,12 @@ import {
   updateEvent,
   updateFocus,
   updateMemo,
+  updateResource,
   type ChildInput,
   type EventInput,
   type FocusInput,
   type MemoInput,
+  type ResourceInput,
 } from './api'
 
 interface DataContextValue {
@@ -55,6 +60,7 @@ interface DataContextValue {
   comments: Comment[]
   events: AgendaEvent[]
   focusPoints: FocusPoint[]
+  resources: Resource[]
   loading: boolean
   error: string | null
   authRequired: boolean
@@ -105,6 +111,9 @@ interface DataContextValue {
   addFocus: (data: FocusInput) => Promise<FocusPoint>
   editFocus: (id: string, data: FocusInput) => Promise<FocusPoint>
   removeFocus: (id: string) => Promise<void>
+  addResource: (data: ResourceInput) => Promise<Resource>
+  editResource: (id: string, data: ResourceInput) => Promise<Resource>
+  removeResource: (id: string) => Promise<void>
   wipeData: () => Promise<void>
 }
 
@@ -117,6 +126,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
   const [comments, setComments] = useState<Comment[]>([])
   const [events, setEvents] = useState<AgendaEvent[]>([])
   const [focusPoints, setFocusPoints] = useState<FocusPoint[]>([])
+  const [resources, setResources] = useState<Resource[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [authRequired, setAuthRequired] = useState(false)
@@ -142,6 +152,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
       setComments(state.comments || [])
       setEvents(state.events || [])
       setFocusPoints(state.focusPoints || [])
+      setResources(state.resources || [])
       setAccountEmail(state.account?.email ?? null)
       setIsAdmin(!!state.account?.isAdmin)
       setRole(state.account?.role ?? 'owner')
@@ -220,6 +231,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
     comments,
     events,
     focusPoints,
+    resources,
     loading,
     error,
     authRequired,
@@ -330,6 +342,20 @@ export function DataProvider({ children }: { children: ReactNode }) {
     },
     removeFocus: async (id) => {
       await deleteFocus(id)
+      await reload()
+    },
+    addResource: async (data) => {
+      const r = await createResource(data)
+      await reload()
+      return r
+    },
+    editResource: async (id, data) => {
+      const r = await updateResource(id, data)
+      await reload()
+      return r
+    },
+    removeResource: async (id) => {
+      await deleteResource(id)
       await reload()
     },
     wipeData: async () => {
