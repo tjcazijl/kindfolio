@@ -11,6 +11,7 @@ import type {
   AgendaEvent,
   Child,
   Comment,
+  FocusPoint,
   Memo,
   Summary,
 } from './types'
@@ -19,11 +20,13 @@ import {
   addComment as apiAddComment,
   createChild,
   createEvent,
+  createFocus,
   createMemo,
   createMemoForChildren,
   deleteChild,
   deleteComment as apiDeleteComment,
   deleteEvent,
+  deleteFocus,
   deleteMemo,
   likeMemo as apiLikeMemo,
   deleteAllData as apiDeleteAllData,
@@ -37,9 +40,11 @@ import {
   setActiveAccount,
   updateChild as apiUpdateChild,
   updateEvent,
+  updateFocus,
   updateMemo,
   type ChildInput,
   type EventInput,
+  type FocusInput,
   type MemoInput,
 } from './api'
 
@@ -49,6 +54,7 @@ interface DataContextValue {
   summaries: Summary[]
   comments: Comment[]
   events: AgendaEvent[]
+  focusPoints: FocusPoint[]
   loading: boolean
   error: string | null
   authRequired: boolean
@@ -96,6 +102,9 @@ interface DataContextValue {
   addEvent: (data: EventInput) => Promise<AgendaEvent>
   editEvent: (id: string, data: EventInput) => Promise<AgendaEvent>
   removeEvent: (id: string) => Promise<void>
+  addFocus: (data: FocusInput) => Promise<FocusPoint>
+  editFocus: (id: string, data: FocusInput) => Promise<FocusPoint>
+  removeFocus: (id: string) => Promise<void>
   wipeData: () => Promise<void>
 }
 
@@ -107,6 +116,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
   const [summaries, setSummaries] = useState<Summary[]>([])
   const [comments, setComments] = useState<Comment[]>([])
   const [events, setEvents] = useState<AgendaEvent[]>([])
+  const [focusPoints, setFocusPoints] = useState<FocusPoint[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [authRequired, setAuthRequired] = useState(false)
@@ -131,6 +141,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
       setSummaries(state.summaries || [])
       setComments(state.comments || [])
       setEvents(state.events || [])
+      setFocusPoints(state.focusPoints || [])
       setAccountEmail(state.account?.email ?? null)
       setIsAdmin(!!state.account?.isAdmin)
       setRole(state.account?.role ?? 'owner')
@@ -208,6 +219,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
     summaries,
     comments,
     events,
+    focusPoints,
     loading,
     error,
     authRequired,
@@ -304,6 +316,20 @@ export function DataProvider({ children }: { children: ReactNode }) {
     },
     removeEvent: async (id) => {
       await deleteEvent(id)
+      await reload()
+    },
+    addFocus: async (data) => {
+      const fp = await createFocus(data)
+      await reload()
+      return fp
+    },
+    editFocus: async (id, data) => {
+      const fp = await updateFocus(id, data)
+      await reload()
+      return fp
+    },
+    removeFocus: async (id) => {
+      await deleteFocus(id)
       await reload()
     },
     wipeData: async () => {

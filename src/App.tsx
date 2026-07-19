@@ -1,6 +1,7 @@
 import { NavLink, Route, Routes } from 'react-router-dom'
 import { Home } from './pages/Home'
 import { ChildTimeline } from './pages/ChildTimeline'
+import { FocusPoints } from './pages/FocusPoints'
 import { MemoView } from './pages/MemoView'
 import { MemoEditor } from './pages/MemoEditor'
 import { Summary } from './pages/Summary'
@@ -49,6 +50,7 @@ export function App() {
           <Route path="/" element={<Home />} />
           <Route path="/memo/nieuw" element={<MemoEditor />} />
           <Route path="/kind/:childId" element={<ChildTimeline />} />
+          <Route path="/kind/:childId/aandacht" element={<FocusPoints />} />
           <Route path="/kind/:childId/memo/nieuw" element={<MemoEditor />} />
           <Route path="/kind/:childId/memo/:memoId" element={<MemoView />} />
           <Route

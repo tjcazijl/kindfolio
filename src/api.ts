@@ -5,7 +5,10 @@ import type {
   Comment,
   EventFreq,
   EventType,
+  FocusPoint,
+  FocusStatus,
   Memo,
+  MoodKey,
   Summary,
 } from './types'
 
@@ -125,6 +128,7 @@ export interface AppState {
   summaries: Summary[]
   comments: Comment[]
   events: AgendaEvent[]
+  focusPoints: FocusPoint[]
   account: {
     id: string
     ownerEmail: string
@@ -322,7 +326,25 @@ export interface MemoInput {
   draft?: boolean
   // Bij toevoegen aan extra kinderen: elk krijgt eigen foto-kopieën.
   copyAllPhotos?: boolean
+  // Reflectie ("Hoe ging het?")
+  mood?: MoodKey | null
+  attentionText?: string
+  attentionSubject?: string
+  followupText?: string
 }
+
+export interface FocusInput {
+  childId?: string
+  text?: string
+  subject?: string
+  status?: FocusStatus
+}
+export const createFocus = (data: FocusInput) =>
+  req<FocusPoint>('/focus', { method: 'POST', body: JSON.stringify(data) })
+export const updateFocus = (id: string, data: FocusInput) =>
+  req<FocusPoint>(`/focus/${id}`, { method: 'PATCH', body: JSON.stringify(data) })
+export const deleteFocus = (id: string) =>
+  req<{ ok: boolean }>(`/focus/${id}`, { method: 'DELETE' })
 
 export const createMemo = (data: MemoInput) =>
   req<Memo>('/memos', { method: 'POST', body: JSON.stringify(data) })

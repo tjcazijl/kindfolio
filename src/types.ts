@@ -11,6 +11,8 @@ export interface Child {
   createdAt: number
 }
 
+export type MoodKey = 'leuk' | 'prima' | 'ging_wel' | 'lastig'
+
 export interface Memo {
   id: string
   childId: string
@@ -19,8 +21,23 @@ export interface Memo {
   subjects: string[]
   photoIds: string[]
   draft?: boolean
+  mood?: MoodKey // reactie van het kind ("Hoe ging het?")
   likeCount?: number
   likedByMe?: boolean
+  createdAt: number
+  updatedAt: number
+}
+
+export type FocusStatus = 'open' | 'later' | 'done'
+
+export interface FocusPoint {
+  id: string
+  childId: string
+  text: string
+  subject?: string
+  status: FocusStatus
+  sourceMemoId?: string // gekoppeld aan een memo, of los toegevoegd
+  linkKind?: 'attention' | 'later'
   createdAt: number
   updatedAt: number
 }

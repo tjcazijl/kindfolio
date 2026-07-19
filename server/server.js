@@ -168,6 +168,13 @@ db.exec(`
     id TEXT PRIMARY KEY, update_id TEXT, user_id TEXT, email TEXT,
     author_name TEXT, text TEXT, created_at INTEGER
   );
+  CREATE TABLE IF NOT EXISTS focus_points (
+    id TEXT PRIMARY KEY, account_id TEXT, child_id TEXT,
+    text TEXT, subject TEXT,
+    status TEXT DEFAULT 'open',          -- open | later | done
+    source_memo_id TEXT, link_kind TEXT, -- link_kind: attention | later (bij memo), anders NULL
+    created_at INTEGER, updated_at INTEGER
+  );
 `)
 
 // --- Migratie: account_id-kolom toevoegen aan bestaande DB's + oude data koppelen ---
@@ -204,6 +211,7 @@ for (const sql of [
   'ALTER TABLE feedback ADD COLUMN author_name TEXT',
   'ALTER TABLE feedback_comments ADD COLUMN author_name TEXT',
   'ALTER TABLE account_settings ADD COLUMN subcategories TEXT',
+  'ALTER TABLE memos ADD COLUMN mood TEXT',
 ]) {
   try {
     db.exec(sql)
@@ -267,10 +275,50 @@ const mapMemo = (r) => ({
   subjects: r.subjects ? JSON.parse(r.subjects) : [],
   photoIds: r.photo_ids ? JSON.parse(r.photo_ids) : [],
   draft: !!r.draft,
+  mood: r.mood || undefined,
   likeCount: r.like_count ?? 0,
   likedByMe: !!r.liked,
   createdAt: r.created_at, updatedAt: r.updated_at,
 })
+const mapFocus = (r) => ({
+  id: r.id, childId: r.child_id, text: r.text || '',
+  subject: r.subject || undefined, status: r.status || 'open',
+  sourceMemoId: r.source_memo_id || undefined,
+  linkKind: r.link_kind || undefined,
+  createdAt: r.created_at, updatedAt: r.updated_at,
+})
+// Toegestane stemmingen (reactie van het kind) en aandachtspunt-statussen.
+const MOODS = new Set(['leuk', 'prima', 'ging_wel', 'lastig'])
+const FOCUS_STATUS = new Set(['open', 'later', 'done'])
+const validMood = (v) => (MOODS.has(v) ? v : null)
+
+// Maakt/werkt bij/verwijdert een aan een memo gekoppeld aandachtspunt.
+function upsertMemoFocus(memoId, childId, accountId, linkKind, text, subject, defaultStatus) {
+  const t = (text || '').trim()
+  const existing = db
+    .prepare('SELECT * FROM focus_points WHERE source_memo_id = ? AND child_id = ? AND link_kind = ?')
+    .get(memoId, childId, linkKind)
+  if (t) {
+    const subj = (subject || '').trim() || null
+    if (existing) {
+      db.prepare('UPDATE focus_points SET text=?, subject=?, updated_at=? WHERE id=?').run(t, subj, now(), existing.id)
+    } else {
+      db.prepare(
+        'INSERT INTO focus_points (id,account_id,child_id,text,subject,status,source_memo_id,link_kind,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?,?,?)',
+      ).run(uid(), accountId, childId, t, subj, defaultStatus, memoId, linkKind, now(), now())
+    }
+  } else if (existing && existing.status !== 'done') {
+    // Leeggemaakt en nog niet afgerond → weghalen.
+    db.prepare('DELETE FROM focus_points WHERE id=?').run(existing.id)
+  }
+}
+// Synchroniseert het aandachtspunt + "voor later" van een memo (per kind).
+function syncMemoFocus(memoId, childId, accountId, body) {
+  if (body.attentionText !== undefined || body.attentionSubject !== undefined)
+    upsertMemoFocus(memoId, childId, accountId, 'attention', body.attentionText, body.attentionSubject, 'open')
+  if (body.followupText !== undefined)
+    upsertMemoFocus(memoId, childId, accountId, 'later', body.followupText, null, 'later')
+}
 const mapSummary = (r) => ({
   id: r.id, childId: r.child_id, period: r.period, periodLabel: r.period_label,
   start: r.start, end: r.end, text: r.text || '', createdAt: r.created_at,
@@ -798,12 +846,17 @@ add('GET', /^\/api\/state$/, (req, res) => {
     .prepare('SELECT * FROM events WHERE account_id = ? ORDER BY date ASC, time ASC')
     .all(acc)
     .map((r) => mapEvent(r, eventLinks[r.id] || []))
+  const focusPoints = db
+    .prepare('SELECT * FROM focus_points WHERE account_id = ? ORDER BY created_at DESC')
+    .all(acc)
+    .map(mapFocus)
   sendJson(res, 200, {
     children,
     memos,
     summaries,
     comments,
     events,
+    focusPoints,
     account: {
       id: acc,
       ownerEmail: userEmail(acc),
@@ -1298,6 +1351,7 @@ add('POST', /^\/api\/memos$/, async (req, res) => {
   const subjects = JSON.stringify(Array.isArray(body.subjects) ? body.subjects : [])
   const basePhotos = Array.isArray(body.photoIds) ? body.photoIds : []
   const draft = body.draft ? 1 : 0
+  const mood = validMood(body.mood)
   // Bij toevoegen aan een extra kind vanuit een bestaande memo krijgen álle
   // nieuwe memo's eigen foto-kopieën (de originele memo houdt de bestanden).
   const copyAll = !!body.copyAllPhotos
@@ -1308,11 +1362,13 @@ add('POST', /^\/api\/memos$/, async (req, res) => {
     const photoIds = i === 0 && !copyAll ? basePhotos : copyPhotos(basePhotos, req.accountId)
     const memo = {
       id: uid(), child_id: cid, date, text, subjects,
-      photo_ids: JSON.stringify(photoIds), draft,
+      photo_ids: JSON.stringify(photoIds), draft, mood,
       created_at: now(), updated_at: now(),
     }
-    db.prepare('INSERT INTO memos (id,account_id,child_id,date,text,subjects,photo_ids,draft,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?,?,?)')
-      .run(memo.id, req.accountId, memo.child_id, memo.date, memo.text, memo.subjects, memo.photo_ids, memo.draft, memo.created_at, memo.updated_at)
+    db.prepare('INSERT INTO memos (id,account_id,child_id,date,text,subjects,photo_ids,draft,mood,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?)')
+      .run(memo.id, req.accountId, memo.child_id, memo.date, memo.text, memo.subjects, memo.photo_ids, memo.draft, memo.mood, memo.created_at, memo.updated_at)
+    // Aandachtspunt + "voor later" uit de reflectie vastleggen voor dit kind.
+    syncMemoFocus(memo.id, cid, req.accountId, body)
     created.push(mapMemo(memo))
   })
 
@@ -1338,10 +1394,13 @@ add('PATCH', /^\/api\/memos\/([^/]+)$/, async (req, res, m) => {
   const removed = before.filter((p) => !after.includes(p))
   if (removed.length) deletePhotoFiles(removed)
   const draft = body.draft !== undefined ? (body.draft ? 1 : 0) : existing.draft
+  const mood = body.mood !== undefined ? validMood(body.mood) : existing.mood
   const updated_at = now()
-  db.prepare('UPDATE memos SET date=?, text=?, subjects=?, photo_ids=?, draft=?, updated_at=? WHERE id=?')
-    .run(date, text, subjects, photoIds, draft, updated_at, m[1])
-  sendJson(res, 200, mapMemo({ ...existing, date, text, subjects, photo_ids: photoIds, draft, updated_at }))
+  db.prepare('UPDATE memos SET date=?, text=?, subjects=?, photo_ids=?, draft=?, mood=?, updated_at=? WHERE id=?')
+    .run(date, text, subjects, photoIds, draft, mood, updated_at, m[1])
+  // Reflectie (aandachtspunt / voor later) bijwerken voor het kind van deze memo.
+  syncMemoFocus(m[1], existing.child_id, req.accountId, body)
+  sendJson(res, 200, mapMemo({ ...existing, date, text, subjects, photo_ids: photoIds, draft, mood, updated_at }))
 })
 
 add('DELETE', /^\/api\/memos\/([^/]+)$/, (req, res, m) => {
@@ -1367,6 +1426,47 @@ add('POST', /^\/api\/memos\/([^/]+)\/like$/, (req, res, m) => {
   }
   const likes = db.prepare('SELECT COUNT(*) AS c FROM memo_likes WHERE memo_id = ?').get(m[1]).c
   sendJson(res, 200, { likes, likedByMe: !existing })
+})
+
+// --- Aandachtspunten (focus points) ---
+add('POST', /^\/api\/focus$/, async (req, res) => {
+  if (!requireEditor(req, res)) return
+  const body = await readJson(req)
+  const child = db.prepare('SELECT id FROM children WHERE id = ? AND account_id = ?').get(body.childId, req.accountId)
+  if (!child) return sendJson(res, 404, { error: 'kind niet gevonden' })
+  const text = (body.text || '').trim()
+  if (!text) return sendJson(res, 400, { error: 'Schrijf eerst een aandachtspunt.' })
+  const fp = {
+    id: uid(), child_id: body.childId, text,
+    subject: (body.subject || '').trim() || null,
+    status: FOCUS_STATUS.has(body.status) ? body.status : 'open',
+    source_memo_id: null, link_kind: null,
+    created_at: now(), updated_at: now(),
+  }
+  db.prepare(
+    'INSERT INTO focus_points (id,account_id,child_id,text,subject,status,source_memo_id,link_kind,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?,?,?)',
+  ).run(fp.id, req.accountId, fp.child_id, fp.text, fp.subject, fp.status, fp.source_memo_id, fp.link_kind, fp.created_at, fp.updated_at)
+  sendJson(res, 201, mapFocus(fp))
+})
+
+add('PATCH', /^\/api\/focus\/([^/]+)$/, async (req, res, m) => {
+  if (!requireEditor(req, res)) return
+  const existing = db.prepare('SELECT * FROM focus_points WHERE id = ? AND account_id = ?').get(m[1], req.accountId)
+  if (!existing) return sendJson(res, 404, { error: 'niet gevonden' })
+  const body = await readJson(req)
+  const text = body.text != null ? String(body.text).trim() || existing.text : existing.text
+  const subject = body.subject !== undefined ? (body.subject || '').trim() || null : existing.subject
+  const status = body.status !== undefined && FOCUS_STATUS.has(body.status) ? body.status : existing.status
+  db.prepare('UPDATE focus_points SET text=?, subject=?, status=?, updated_at=? WHERE id=?').run(text, subject, status, now(), m[1])
+  sendJson(res, 200, mapFocus({ ...existing, text, subject, status }))
+})
+
+add('DELETE', /^\/api\/focus\/([^/]+)$/, (req, res, m) => {
+  if (!requireEditor(req, res)) return
+  const fp = db.prepare('SELECT id FROM focus_points WHERE id = ? AND account_id = ?').get(m[1], req.accountId)
+  if (!fp) return sendJson(res, 404, { error: 'niet gevonden' })
+  db.prepare('DELETE FROM focus_points WHERE id = ?').run(m[1])
+  sendJson(res, 200, { ok: true })
 })
 
 // Alleen afbeeldingen toestaan; voorkomt dat een geüpload HTML-bestand later

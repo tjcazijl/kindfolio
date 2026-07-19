@@ -1992,3 +1992,105 @@ body {
 .stack-actions {
   margin-top: 16px;
 }
+
+/* ================= Kind-detailpagina (herontwerp) ================= */
+.child-hero {
+  background: var(--card);
+  border-left: 5px solid var(--green);
+  border-radius: var(--radius);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+  overflow: hidden;
+  margin-bottom: 14px;
+}
+.child-hero-head { display: flex; align-items: center; gap: 13px; padding: 14px 16px; }
+.child-hero-head h1 { margin: 0; font-size: 21px; }
+.child-actions { display: grid; grid-template-columns: 1fr 1fr 1fr; border-top: 1px solid var(--line); }
+.child-actions.single { grid-template-columns: 1fr; }
+.child-act {
+  display: flex; flex-direction: column; align-items: center; gap: 7px;
+  padding: 13px 6px 14px; background: none; border: none; cursor: pointer;
+  position: relative; color: var(--ink); font: inherit;
+}
+.child-act + .child-act::before {
+  content: ""; position: absolute; left: 0; top: 12px; bottom: 12px; width: 1px; background: var(--line);
+}
+.ca-badge {
+  width: 44px; height: 44px; border-radius: 13px; display: flex; align-items: center; justify-content: center;
+  background: #e7efe9; color: var(--green); position: relative;
+}
+.ca-badge svg { width: 23px; height: 23px; }
+.ca-badge.heart { background: #fbe7e1; color: #d0553b; }
+.ca-lb { font-size: 12.5px; font-weight: 600; }
+.child-act.primary { background: #eef4f0; border: 1.5px solid #cfe0d5; border-radius: 14px; margin: 6px; padding: 12px 6px 13px; }
+.child-act.primary + .child-act::before { display: none; }
+.child-act.primary .ca-badge { background: var(--green); width: 54px; height: 54px; border-radius: 16px; }
+.child-act.primary .ca-badge svg { color: #fff; width: 27px; height: 27px; }
+.child-act.primary .ca-lb { color: var(--green-dark); font-weight: 700; font-size: 13px; }
+.ca-count {
+  position: absolute; top: -6px; right: -7px; min-width: 19px; height: 19px; padding: 0 5px;
+  border-radius: 10px; background: var(--danger); color: #fff; font-size: 11px; font-weight: 800;
+  display: flex; align-items: center; justify-content: center; border: 2px solid #fff;
+}
+.edit-link { display: inline-flex; align-items: center; gap: 5px; }
+.edit-ic { width: 15px; height: 15px; display: inline-flex; }
+.edit-ic svg { width: 100%; height: 100%; }
+
+.child-toolbar { display: flex; gap: 9px; align-items: stretch; margin-top: 8px; }
+.child-toolbar .timeline-seg { flex: 1; margin: 0; }
+.search-ic-btn {
+  width: 46px; flex-shrink: 0; border: 1.5px solid var(--line); border-radius: 11px; background: #fff;
+  display: flex; align-items: center; justify-content: center; color: var(--muted); cursor: pointer;
+}
+.search-ic-btn svg { width: 19px; height: 19px; }
+.search-ic-btn.on { border-color: var(--green); color: var(--green); }
+
+/* ================= Reflectie ("Hoe ging het?") ================= */
+.reflect-collapsed {
+  width: 100%; display: flex; align-items: center; justify-content: space-between; gap: 10px;
+  margin: 16px 0; padding: 15px 14px; border: 1.5px solid var(--line); border-radius: var(--radius);
+  background: #fff; cursor: pointer; text-align: left; font-weight: 700; font-size: 15px; color: var(--ink);
+}
+.rc-left { display: flex; align-items: center; gap: 8px; }
+.rc-opt { font-weight: 400; color: var(--muted); font-size: 13px; }
+.rc-chev { color: var(--muted); font-size: 16px; }
+.reflect { margin: 16px 0; border: 1.5px solid var(--green); border-radius: var(--radius); background: #fbfaf6; overflow: hidden; }
+.reflect-h {
+  width: 100%; display: flex; align-items: center; justify-content: space-between; gap: 8px;
+  padding: 14px; cursor: pointer; background: #f1f4ef; border: none; font-weight: 700; font-size: 15px; color: var(--ink); text-align: left;
+}
+.reflect-h .rc-chev { color: var(--green); }
+.reflect-body { padding: 14px; display: flex; flex-direction: column; gap: 16px; }
+.mood-row { display: flex; gap: 7px; margin-top: 6px; }
+.mood { flex: 1; text-align: center; padding: 9px 0 7px; border: 1.5px solid var(--line); border-radius: 11px; background: #fff; cursor: pointer; }
+.mood-em { font-size: 20px; display: block; }
+.mood-lb { font-size: 11px; color: var(--muted); font-weight: 600; margin-top: 2px; display: block; }
+.mood.on { border-color: var(--green); background: #e7efe9; }
+.mood.on .mood-lb { color: var(--green-dark); }
+.reflect-sub { border-left: 3px solid var(--line); padding-left: 11px; }
+.reflect-sub.focus { border-color: var(--focus); }
+.reflect-sub.later { border-color: var(--later); }
+.reflect-sub-h { font-size: 13px; font-weight: 700; margin-bottom: 7px; }
+.reflect-sub.focus .reflect-sub-h { color: var(--focus); }
+.reflect-sub.later .reflect-sub-h { color: var(--later); }
+.textarea.sm { min-height: 52px; }
+.reflect-subject { margin-top: 8px; }
+
+/* ================= Aandachtspunten-pagina ================= */
+.fp-list { margin-top: 16px; display: flex; flex-direction: column; gap: 10px; }
+.fp { background: var(--card); border: 1px solid var(--line); border-radius: var(--radius); padding: 12px; display: flex; gap: 11px; align-items: flex-start; }
+.fp-check {
+  width: 24px; height: 24px; border-radius: 7px; border: 2px solid var(--line); flex-shrink: 0; margin-top: 1px;
+  display: flex; align-items: center; justify-content: center; font-size: 14px; color: #fff; background: #fff; cursor: pointer;
+}
+.fp.done .fp-check { background: var(--green); border-color: var(--green); }
+.fp-check:disabled { cursor: default; }
+.fp-main { flex: 1; min-width: 0; }
+.fp-title { font-weight: 650; font-size: 15px; }
+.fp.done .fp-title { color: var(--muted); text-decoration: line-through; }
+.fp-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 8px; margin-top: 5px; font-size: 12px; color: var(--muted); }
+.fp-src { font-style: italic; }
+.fp-actions { display: flex; gap: 14px; margin-top: 8px; }
+.fp-actions .link-btn { font-size: 13px; }
+.subj-badge { font-size: 11px; font-weight: 700; padding: 2px 8px; border-radius: 6px; background: var(--focus-bg); color: var(--focus); }
+.fp-add { margin-top: 16px; display: flex; flex-direction: column; gap: 10px; padding: 14px; border: 1.5px dashed var(--line); border-radius: var(--radius); background: #fbfaf6; }
+.add-fp { margin-top: 12px; }

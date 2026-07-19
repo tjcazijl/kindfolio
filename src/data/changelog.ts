@@ -10,6 +10,16 @@ export interface Update {
 
 export const CHANGELOG: Update[] = [
   {
+    id: '2026-07-19',
+    date: '2026-07-19',
+    title: 'Aandachtspunten & reflectie ✍️',
+    items: [
+      'Bij een memo kun je nu optioneel “Hoe ging het?” invullen: wat je kind ervan vond (met een emoji), een aandachtspunt (waar het nog moeite mee heeft) en iets voor later of verdieping.',
+      'Aandachtspunten komen samen op een overzicht per kind — via de nieuwe knop op de kindpagina — zodat je er gericht mee kunt oefenen en ze kunt afvinken als ze onder de knie zijn.',
+      'De kindpagina is opgeruimd: nieuwe memo, vakgebieden en aandacht staan nu overzichtelijk bovenaan, met de memo’s direct daaronder.',
+    ],
+  },
+  {
     id: '2026-07-16',
     date: '2026-07-16',
     title: 'Reageren op updates & memo delen met meer kinderen',

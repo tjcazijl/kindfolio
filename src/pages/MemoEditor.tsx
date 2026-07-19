@@ -14,6 +14,8 @@ import { useVoiceRecorder } from '../hooks/useVoiceRecorder'
 import { useLiveSpeech } from '../hooks/useLiveSpeech'
 import { formatDateLong, todayISO } from '../utils/dates'
 import { effectiveSubcats } from '../utils/subjects'
+import { MOODS } from '../utils/mood'
+import type { MoodKey } from '../types'
 
 export function MemoEditor() {
   const { childId, memoId } = useParams()
@@ -26,12 +28,19 @@ export function MemoEditor() {
     removeMemo,
     subjects: accountSubjects,
     subcategories,
+    focusPoints,
     saveSettings,
     updateChild,
     voiceEnabled,
   } = useData()
   const isNew = !memoId
   const existing = memoId ? memos.find((m) => m.id === memoId) : undefined
+  const existingAttention = existing
+    ? focusPoints.find((f) => f.sourceMemoId === existing.id && f.linkKind === 'attention')
+    : undefined
+  const existingLater = existing
+    ? focusPoints.find((f) => f.sourceMemoId === existing.id && f.linkKind === 'later')
+    : undefined
 
   // Voorgevulde waarden wanneer je vanuit een agenda-item een memo maakt.
   const location = useLocation()
@@ -57,6 +66,16 @@ export function MemoEditor() {
   const [photoIds, setPhotoIds] = useState<string[]>(existing?.photoIds || [])
   // In bewerkmodus: extra kinderen om een kopie van deze memo voor te maken.
   const [addChildIds, setAddChildIds] = useState<string[]>([])
+  // Reflectie ("Hoe ging het?") — standaard dichtgeklapt tenzij al ingevuld.
+  const [mood, setMood] = useState<MoodKey | undefined>(existing?.mood)
+  const [attentionText, setAttentionText] = useState(existingAttention?.text || '')
+  const [attentionSubject, setAttentionSubject] = useState(
+    existingAttention?.subject || '',
+  )
+  const [followupText, setFollowupText] = useState(existingLater?.text || '')
+  const [reflectOpen, setReflectOpen] = useState(
+    !!(existing?.mood || existingAttention || existingLater),
+  )
   const [saving, setSaving] = useState(false)
   const [confirmDelete, setConfirmDelete] = useState(false)
   const [uploading, setUploading] = useState(false)
@@ -91,6 +110,17 @@ export function MemoEditor() {
       setText(existing.text)
       setSubjects(existing.subjects)
       setPhotoIds(existing.photoIds)
+      setMood(existing.mood)
+      const att = focusPoints.find(
+        (f) => f.sourceMemoId === existing.id && f.linkKind === 'attention',
+      )
+      const lat = focusPoints.find(
+        (f) => f.sourceMemoId === existing.id && f.linkKind === 'later',
+      )
+      setAttentionText(att?.text || '')
+      setAttentionSubject(att?.subject || '')
+      setFollowupText(lat?.text || '')
+      if (existing.mood || att || lat) setReflectOpen(true)
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [memoId])
@@ -227,6 +257,13 @@ export function MemoEditor() {
     }
     if (voice.recording) voice.cancel()
     if (live.listening) live.stop()
+    // Reflectie ("Hoe ging het?") — altijd meesturen, ook leeg (dan wissen).
+    const reflection = {
+      mood: mood ?? null,
+      attentionText: attentionText.trim(),
+      attentionSubject: attentionSubject.trim(),
+      followupText: followupText.trim(),
+    }
     setSaving(true)
     try {
       if (isNew) {
@@ -236,6 +273,7 @@ export function MemoEditor() {
           subjects,
           photoIds,
           draft: asDraft,
+          ...reflection,
         })
       } else if (memoId) {
         await editMemo(memoId, {
@@ -244,6 +282,7 @@ export function MemoEditor() {
           subjects,
           photoIds,
           draft: asDraft,
+          ...reflection,
         })
         // Extra kinderen: maak een aparte kopie-memo (met eigen foto-kopieën).
         if (addChildIds.length) {
@@ -254,6 +293,7 @@ export function MemoEditor() {
             photoIds,
             draft: asDraft,
             copyAllPhotos: true,
+            ...reflection,
           })
         }
       }
@@ -302,6 +342,10 @@ export function MemoEditor() {
   const relevantChildren = relevantChildIds.map((id) =>
     children.find((x) => x.id === id),
   )
+  const reflectName =
+    relevantChildren.length === 1 && relevantChildren[0]
+      ? relevantChildren[0].name
+      : 'het kind'
   const availableSubjects = (() => {
     const set = new Set<string>(accountSubjects)
     for (const c of relevantChildren) (c?.subjects || []).forEach((s) => set.add(s))
@@ -611,6 +655,87 @@ export function MemoEditor() {
           </button>
         )}
       </div>
+
+      {/* Reflectie — standaard dichtgeklapt */}
+      {!reflectOpen ? (
+        <button
+          type="button"
+          className="reflect-collapsed"
+          onClick={() => setReflectOpen(true)}
+        >
+          <span className="rc-left">
+            💭 Hoe ging het? <span className="rc-opt">(optioneel)</span>
+          </span>
+          <span className="rc-chev">▾</span>
+        </button>
+      ) : (
+        <div className="reflect">
+          <button
+            type="button"
+            className="reflect-h"
+            onClick={() => setReflectOpen(false)}
+          >
+            <span className="rc-left">
+              💭 Hoe ging het? <span className="rc-opt">(optioneel)</span>
+            </span>
+            <span className="rc-chev">▴</span>
+          </button>
+          <div className="reflect-body">
+            <div>
+              <span className="field-label">Wat vond {reflectName} ervan?</span>
+              <div className="mood-row">
+                {MOODS.map((mo) => (
+                  <button
+                    key={mo.key}
+                    type="button"
+                    className={`mood ${mood === mo.key ? 'on' : ''}`}
+                    onClick={() => setMood(mood === mo.key ? undefined : mo.key)}
+                  >
+                    <span className="mood-em">{mo.emoji}</span>
+                    <span className="mood-lb">{mo.label}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div className="reflect-sub focus">
+              <div className="reflect-sub-h">📌 Aandachtspunt</div>
+              <textarea
+                className="input textarea sm"
+                rows={2}
+                value={attentionText}
+                onChange={(e) => setAttentionText(e.target.value)}
+                placeholder={`Waar heeft ${reflectName} nog moeite mee?`}
+              />
+              {availableSubjects.length > 0 && (
+                <select
+                  className="input reflect-subject"
+                  value={attentionSubject}
+                  onChange={(e) => setAttentionSubject(e.target.value)}
+                >
+                  <option value="">Vakgebied (optioneel)</option>
+                  {availableSubjects.map((s) => (
+                    <option key={s} value={s}>
+                      {s}
+                    </option>
+                  ))}
+                </select>
+              )}
+            </div>
+
+            <div className="reflect-sub later">
+              <div className="reflect-sub-h">🔭 Voor later / verdieping</div>
+              <textarea
+                className="input textarea sm"
+                rows={2}
+                value={followupText}
+                onChange={(e) => setFollowupText(e.target.value)}
+                placeholder="Bijv. een vervolgstap of iets om op door te gaan."
+              />
+            </div>
+          </div>
+        </div>
+      )}
 
       <div className="sticky-actions">
         <div className="save-row">
