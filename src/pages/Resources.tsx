@@ -93,7 +93,7 @@ export function Resources() {
         <>
           <p className="count-line">
             {list.length}{' '}
-            {filter === 'boek'
+            {filter === 'leerboek' || filter === 'leesboek'
               ? `boek${list.length === 1 ? '' : 'en'}`
               : `leermiddel${list.length === 1 ? '' : 'en'}`}
           </p>
@@ -127,9 +127,13 @@ export function Resources() {
                         )}
                       </div>
                     )}
-                    {(r.subject || r.status || kids.length > 0) && (
+                    {(r.subjects.length > 0 || r.status || kids.length > 0) && (
                       <div className="badges">
-                        {r.subject && <span className="badge subj">{r.subject}</span>}
+                        {r.subjects.map((s) => (
+                          <span key={s} className="badge subj">
+                            {s}
+                          </span>
+                        ))}
                         {r.status && (
                           <span className={`badge ${STATUS_META[r.status].cls}`}>
                             {STATUS_META[r.status].label}

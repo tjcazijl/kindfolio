@@ -2154,3 +2154,26 @@ body {
 .summary-photos .field-label { margin-bottom: 6px; }
 .summary-photos .photo-grid .thumb { cursor: pointer; }
 .fb-edit { margin: 6px 0 4px; display: flex; flex-direction: column; gap: 8px; }
+
+/* ---- Leesboek-icoon-kleur ---- */
+.res-ic.lees { background: #f6ecd8; }
+
+/* ---- Gekoppelde leermiddelen in memo-weergave ---- */
+.memo-resources { margin: 18px 0 8px; }
+.memo-resources .field-label { margin-bottom: 8px; }
+.memo-res { display: flex; gap: 10px; align-items: flex-start; background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 10px 12px; margin-bottom: 8px; }
+.memo-res-ic { font-size: 18px; flex-shrink: 0; }
+.memo-res-main { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.memo-res-title { font-weight: 650; font-size: 14px; }
+
+/* ---- Agenda: reorder-pijltjes + klikbare rij ---- */
+.agenda-item-open {
+  flex: 1; min-width: 0; display: flex; gap: 11px; align-items: center;
+  background: none; border: none; padding: 0; text-align: left; cursor: pointer; font: inherit; color: inherit;
+}
+.agenda-reorder { display: flex; flex-direction: column; gap: 2px; flex-shrink: 0; }
+.reorder-btn {
+  width: 30px; height: 22px; border: 1.5px solid var(--line); background: #fff; color: var(--muted);
+  border-radius: 7px; font-size: 11px; line-height: 1; cursor: pointer; display: flex; align-items: center; justify-content: center;
+}
+.reorder-btn:disabled { opacity: 0.35; cursor: default; }

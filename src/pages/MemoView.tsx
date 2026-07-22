@@ -5,14 +5,18 @@ import { PhotoThumb } from '../components/PhotoThumb'
 import { Lightbox } from '../components/Lightbox'
 import { Comments } from '../components/Comments'
 import { formatDateLong } from '../utils/dates'
+import { RESOURCE_META, normalizeUrl, displayUrl } from '../utils/resources'
 
 export function MemoView() {
   const { childId, memoId } = useParams()
   const navigate = useNavigate()
-  const { memos, loading, canEdit } = useData()
+  const { memos, resources, loading, canEdit } = useData()
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null)
 
   const memo = memos.find((m) => m.id === memoId)
+  const linkedResources = (memo?.resourceIds || [])
+    .map((id) => resources.find((r) => r.id === id))
+    .filter(Boolean)
 
   if (loading && !memo) return <div className="page">Laden…</div>
   if (!memo)
@@ -56,6 +60,33 @@ export function MemoView() {
               onClick={() => setLightboxIndex(i)}
             />
           ))}
+        </div>
+      )}
+
+      {linkedResources.length > 0 && (
+        <div className="memo-resources">
+          <div className="field-label">Gebruikte leermiddelen</div>
+          {linkedResources.map((r) => {
+            const href = normalizeUrl(r!.url)
+            return (
+              <div key={r!.id} className="memo-res">
+                <span className="memo-res-ic">{RESOURCE_META[r!.type].icon}</span>
+                <span className="memo-res-main">
+                  <span className="memo-res-title">{r!.title}</span>
+                  {href && (
+                    <a
+                      className="res-link"
+                      href={href}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                    >
+                      {displayUrl(r!.url)} ↗
+                    </a>
+                  )}
+                </span>
+              </div>
+            )
+          })}
         </div>
       )}
 

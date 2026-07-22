@@ -4,7 +4,8 @@ export const RESOURCE_META: Record<
   ResourceType,
   { icon: string; label: string; cls: string }
 > = {
-  boek: { icon: '📚', label: 'Boek', cls: 'boek' },
+  leerboek: { icon: '📕', label: 'Leerboek', cls: 'boek' },
+  leesboek: { icon: '📖', label: 'Leesboek', cls: 'lees' },
   website: { icon: '🌐', label: 'Website', cls: 'site' },
   video: { icon: '▶️', label: 'Video', cls: 'tube' },
   app: { icon: '🧩', label: 'App/Spel', cls: 'app' },
@@ -12,19 +13,37 @@ export const RESOURCE_META: Record<
 }
 
 export const RESOURCE_ORDER: ResourceType[] = [
-  'boek',
+  'leerboek',
+  'leesboek',
   'website',
   'video',
   'app',
   'overig',
 ]
 
+// Types waarvoor een status geldt, met hun toegestane statussen (in volgorde).
+export const STATUSES_BY_TYPE: Partial<Record<ResourceType, ResourceStatus[]>> = {
+  leesboek: ['te_lezen', 'bezig', 'gelezen'],
+  leerboek: ['in_gebruik', 'afgerond'],
+}
+
 export const STATUS_META: Record<ResourceStatus, { label: string; cls: string }> = {
   te_lezen: { label: 'Te lezen', cls: 'te-lezen' },
   bezig: { label: 'Bezig', cls: 'bezig' },
-  gelezen: { label: 'Gelezen', cls: 'gelezen' },
+  gelezen: { label: 'Uit', cls: 'gelezen' },
+  in_gebruik: { label: 'In gebruik', cls: 'bezig' },
+  afgerond: { label: 'Afgerond', cls: 'gelezen' },
 }
-export const STATUS_ORDER: ResourceStatus[] = ['te_lezen', 'bezig', 'gelezen']
+
+export function statusesForType(type: ResourceType): ResourceStatus[] {
+  return STATUSES_BY_TYPE[type] || []
+}
+export function hasStatus(type: ResourceType): boolean {
+  return !!STATUSES_BY_TYPE[type]
+}
+export function isBook(type: ResourceType): boolean {
+  return type === 'leerboek' || type === 'leesboek'
+}
 
 /** Zet een link om naar iets dat de browser kan openen (met protocol). */
 export function normalizeUrl(url?: string): string | undefined {

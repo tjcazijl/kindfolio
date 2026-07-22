@@ -10,6 +10,17 @@ export interface Update {
 
 export const CHANGELOG: Update[] = [
   {
+    id: '2026-07-22b',
+    date: '2026-07-22',
+    title: 'Leermiddelen slimmer & agenda ordenen',
+    items: [
+      'Koppel leermiddelen aan een memo: kies bij het schrijven welke boeken, sites of video’s je gebruikte.',
+      'Boeken zijn nu gesplitst in leerboeken en leesboeken — leesboeken lopen van te lezen → bezig → uit, leerboeken van in gebruik → afgerond.',
+      'Geef een leermiddel meerdere vakgebieden.',
+      'Agenda-items zonder tijd kun je nu handmatig omhoog/omlaag zetten, zodat een later toegevoegd item op de juiste plek komt.',
+    ],
+  },
+  {
     id: '2026-07-22',
     date: '2026-07-22',
     title: 'Samenvattingen bewerken & foto’s erbij',

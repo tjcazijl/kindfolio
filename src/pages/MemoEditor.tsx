@@ -15,6 +15,7 @@ import { useLiveSpeech } from '../hooks/useLiveSpeech'
 import { formatDateLong, todayISO } from '../utils/dates'
 import { effectiveSubcats } from '../utils/subjects'
 import { MOODS } from '../utils/mood'
+import { RESOURCE_META } from '../utils/resources'
 import type { MoodKey } from '../types'
 
 export function MemoEditor() {
@@ -29,6 +30,7 @@ export function MemoEditor() {
     subjects: accountSubjects,
     subcategories,
     focusPoints,
+    resources,
     saveSettings,
     updateChild,
     voiceEnabled,
@@ -66,6 +68,10 @@ export function MemoEditor() {
   const [photoIds, setPhotoIds] = useState<string[]>(existing?.photoIds || [])
   // In bewerkmodus: extra kinderen om een kopie van deze memo voor te maken.
   const [addChildIds, setAddChildIds] = useState<string[]>([])
+  // Gekoppelde leermiddelen.
+  const [resourceIds, setResourceIds] = useState<string[]>(
+    existing?.resourceIds || [],
+  )
   // Reflectie ("Hoe ging het?") — standaard dichtgeklapt tenzij al ingevuld.
   const [mood, setMood] = useState<MoodKey | undefined>(existing?.mood)
   const [attentionText, setAttentionText] = useState(existingAttention?.text || '')
@@ -110,6 +116,7 @@ export function MemoEditor() {
       setText(existing.text)
       setSubjects(existing.subjects)
       setPhotoIds(existing.photoIds)
+      setResourceIds(existing.resourceIds || [])
       setMood(existing.mood)
       const att = focusPoints.find(
         (f) => f.sourceMemoId === existing.id && f.linkKind === 'attention',
@@ -139,6 +146,12 @@ export function MemoEditor() {
 
   function toggleAddChild(id: string) {
     setAddChildIds((prev) =>
+      prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id],
+    )
+  }
+
+  function toggleResource(id: string) {
+    setResourceIds((prev) =>
       prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id],
     )
   }
@@ -272,6 +285,7 @@ export function MemoEditor() {
           text: text.trim(),
           subjects,
           photoIds,
+          resourceIds,
           draft: asDraft,
           ...reflection,
         })
@@ -281,6 +295,7 @@ export function MemoEditor() {
           text: text.trim(),
           subjects,
           photoIds,
+          resourceIds,
           draft: asDraft,
           ...reflection,
         })
@@ -291,6 +306,7 @@ export function MemoEditor() {
             text: text.trim(),
             subjects,
             photoIds,
+            resourceIds,
             draft: asDraft,
             copyAllPhotos: true,
             ...reflection,
@@ -655,6 +671,29 @@ export function MemoEditor() {
           </button>
         )}
       </div>
+
+      {resources.length > 0 && (
+        <div className="field">
+          <span className="field-label">
+            Leermiddelen <span className="fl-opt">(optioneel)</span>
+          </span>
+          <div className="chips">
+            {resources.map((r) => {
+              const on = resourceIds.includes(r.id)
+              return (
+                <button
+                  key={r.id}
+                  type="button"
+                  className={`chip ${on ? 'on' : ''}`}
+                  onClick={() => toggleResource(r.id)}
+                >
+                  {RESOURCE_META[r.type].icon} {r.title}
+                </button>
+              )
+            })}
+          </div>
+        </div>
+      )}
 
       {/* Reflectie — standaard dichtgeklapt */}
       {!reflectOpen ? (

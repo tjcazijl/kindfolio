@@ -2,7 +2,14 @@ import { useMemo, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { useData } from '../store'
 import type { ResourceStatus, ResourceType } from '../types'
-import { RESOURCE_ORDER, RESOURCE_META, STATUS_ORDER, STATUS_META } from '../utils/resources'
+import {
+  RESOURCE_ORDER,
+  RESOURCE_META,
+  STATUS_META,
+  statusesForType,
+  hasStatus,
+  isBook,
+} from '../utils/resources'
 
 export function ResourceEditor() {
   const { resourceId } = useParams()
@@ -18,12 +25,12 @@ export function ResourceEditor() {
   const isNew = !resourceId
   const existing = resourceId ? resources.find((r) => r.id === resourceId) : undefined
 
-  const [type, setType] = useState<ResourceType>(existing?.type || 'boek')
+  const [type, setType] = useState<ResourceType>(existing?.type || 'leesboek')
   const [title, setTitle] = useState(existing?.title || '')
   const [author, setAuthor] = useState(existing?.author || '')
   const [url, setUrl] = useState(existing?.url || '')
-  const [status, setStatus] = useState<ResourceStatus>(existing?.status || 'te_lezen')
-  const [subject, setSubject] = useState(existing?.subject || '')
+  const [status, setStatus] = useState<ResourceStatus | undefined>(existing?.status)
+  const [subjects, setSubjects] = useState<string[]>(existing?.subjects || [])
   const [notes, setNotes] = useState(existing?.notes || '')
   const [childIds, setChildIds] = useState<string[]>(existing?.childIds || [])
   const [saving, setSaving] = useState(false)
@@ -36,9 +43,20 @@ export function ResourceEditor() {
 
   if (!isNew && !existing) return <div className="page">Laden…</div>
 
+  // Status resetten als het gekozen type een andere statusset heeft.
+  function pickType(t: ResourceType) {
+    setType(t)
+    const opts = statusesForType(t)
+    setStatus((cur) => (cur && opts.includes(cur) ? cur : opts[0]))
+  }
   function toggleChild(id: string) {
     setChildIds((prev) =>
       prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id],
+    )
+  }
+  function toggleSubject(s: string) {
+    setSubjects((prev) =>
+      prev.includes(s) ? prev.filter((x) => x !== s) : [...prev, s],
     )
   }
 
@@ -52,18 +70,16 @@ export function ResourceEditor() {
       const data = {
         type,
         title: title.trim(),
-        author: type === 'boek' ? author.trim() : '',
-        url: type === 'boek' ? '' : url.trim(),
-        subject,
-        status: type === 'boek' ? status : null,
+        author: isBook(type) ? author.trim() : '',
+        url: isBook(type) ? '' : url.trim(),
+        subjects,
+        status: hasStatus(type) ? status ?? null : null,
         notes: notes.trim(),
         childIds,
       }
-      const saved = isNew
-        ? await addResource(data)
-        : await editResource(resourceId!, data)
+      if (isNew) await addResource(data)
+      else await editResource(resourceId!, data)
       navigate('/leermiddelen')
-      void saved
     } catch (err: any) {
       alert(err?.message || 'Opslaan mislukt')
       setSaving(false)
@@ -75,6 +91,8 @@ export function ResourceEditor() {
     await removeResource(resourceId)
     navigate('/leermiddelen')
   }
+
+  const statusOptions = statusesForType(type)
 
   return (
     <div className="page">
@@ -95,7 +113,7 @@ export function ResourceEditor() {
               key={t}
               type="button"
               className={`type-cell ${type === t ? 'on' : ''}`}
-              onClick={() => setType(t)}
+              onClick={() => pickType(t)}
             >
               <span className="type-em">{RESOURCE_META[t].icon}</span>
               <span className="type-lb">{RESOURCE_META[t].label}</span>
@@ -115,34 +133,36 @@ export function ResourceEditor() {
         />
       </label>
 
-      {type === 'boek' ? (
+      {isBook(type) ? (
         <>
           <label className="field">
             <span className="field-label">
-              Auteur <span className="fl-opt">(optioneel)</span>
+              Auteur / methode <span className="fl-opt">(optioneel)</span>
             </span>
             <input
               className="input"
               value={author}
-              placeholder="Wie schreef het?"
+              placeholder={type === 'leerboek' ? 'Bijv. de uitgever of methode' : 'Wie schreef het?'}
               onChange={(e) => setAuthor(e.target.value)}
             />
           </label>
-          <div className="field">
-            <span className="field-label">Status</span>
-            <div className="seg">
-              {STATUS_ORDER.map((s) => (
-                <button
-                  key={s}
-                  type="button"
-                  className={`seg-btn ${status === s ? 'on' : ''}`}
-                  onClick={() => setStatus(s)}
-                >
-                  {STATUS_META[s].label}
-                </button>
-              ))}
+          {statusOptions.length > 0 && (
+            <div className="field">
+              <span className="field-label">Status</span>
+              <div className="seg">
+                {statusOptions.map((s) => (
+                  <button
+                    key={s}
+                    type="button"
+                    className={`seg-btn ${status === s ? 'on' : ''}`}
+                    onClick={() => setStatus(s)}
+                  >
+                    {STATUS_META[s].label}
+                  </button>
+                ))}
+              </div>
             </div>
-          </div>
+          )}
         </>
       ) : (
         <label className="field">
@@ -190,23 +210,23 @@ export function ResourceEditor() {
       )}
 
       {availableSubjects.length > 0 && (
-        <label className="field">
+        <div className="field">
           <span className="field-label">
-            Vakgebied <span className="fl-opt">(optioneel)</span>
+            Vakgebieden <span className="fl-opt">(optioneel, meerdere mag)</span>
           </span>
-          <select
-            className="input"
-            value={subject}
-            onChange={(e) => setSubject(e.target.value)}
-          >
-            <option value="">Geen</option>
+          <div className="chips">
             {availableSubjects.map((s) => (
-              <option key={s} value={s}>
+              <button
+                key={s}
+                type="button"
+                className={`chip ${subjects.includes(s) ? 'on' : ''}`}
+                onClick={() => toggleSubject(s)}
+              >
                 {s}
-              </option>
+              </button>
             ))}
-          </select>
-        </label>
+          </div>
+        </div>
       )}
 
       <label className="field">

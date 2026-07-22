@@ -20,6 +20,7 @@ export interface Memo {
   text: string
   subjects: string[]
   photoIds: string[]
+  resourceIds: string[] // gekoppelde leermiddelen
   draft?: boolean
   mood?: MoodKey // reactie van het kind ("Hoe ging het?")
   likeCount?: number
@@ -28,8 +29,19 @@ export interface Memo {
   updatedAt: number
 }
 
-export type ResourceType = 'boek' | 'website' | 'video' | 'app' | 'overig'
-export type ResourceStatus = 'te_lezen' | 'bezig' | 'gelezen'
+export type ResourceType =
+  | 'leerboek'
+  | 'leesboek'
+  | 'website'
+  | 'video'
+  | 'app'
+  | 'overig'
+export type ResourceStatus =
+  | 'te_lezen'
+  | 'bezig'
+  | 'gelezen'
+  | 'in_gebruik'
+  | 'afgerond'
 
 export interface Resource {
   id: string
@@ -37,7 +49,7 @@ export interface Resource {
   title: string
   author?: string
   url?: string
-  subject?: string
+  subjects: string[]
   status?: ResourceStatus // alleen bij boeken
   notes?: string
   childIds: string[] // leeg = gezinsbreed
@@ -78,6 +90,7 @@ export interface AgendaEvent {
   everyN: number // elke N dagen/weken/…
   weekdays: string[] // ['ma','wo'] — alleen bij freq 'weekly'
   until?: string // YYYY-MM-DD, herhaal t/m (optioneel)
+  sortOrder: number // handmatige volgorde binnen een dag
   childIds: string[] // leeg = gezinsbreed
   createdAt: number
   updatedAt: number

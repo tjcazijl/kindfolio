@@ -98,8 +98,10 @@ export function expandEvents(
   out.sort(
     (x, y) =>
       x.date.localeCompare(y.date) ||
-      (x.event.time || '99').localeCompare(y.event.time || '99') ||
-      x.event.title.localeCompare(y.event.title),
+      // Items met tijd eerst (op tijd), daarna tijdloze op handmatige volgorde.
+      (x.event.time || '99:99').localeCompare(y.event.time || '99:99') ||
+      (x.event.sortOrder || 0) - (y.event.sortOrder || 0) ||
+      x.event.createdAt - y.event.createdAt,
   )
   return out
 }

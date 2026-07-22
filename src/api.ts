@@ -316,6 +316,7 @@ export interface EventInput {
   everyN?: number
   weekdays?: string[]
   until?: string | null
+  sortOrder?: number
   childIds?: string[]
 }
 export const createEvent = (data: EventInput) =>
@@ -333,6 +334,7 @@ export interface MemoInput {
   text?: string
   subjects?: string[]
   photoIds?: string[]
+  resourceIds?: string[]
   draft?: boolean
   // Bij toevoegen aan extra kinderen: elk krijgt eigen foto-kopieën.
   copyAllPhotos?: boolean
@@ -361,7 +363,7 @@ export interface ResourceInput {
   title?: string
   author?: string
   url?: string
-  subject?: string
+  subjects?: string[]
   status?: ResourceStatus | null
   notes?: string
   childIds?: string[]

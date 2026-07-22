@@ -185,6 +185,10 @@ db.exec(`
     resource_id TEXT, child_id TEXT,
     PRIMARY KEY (resource_id, child_id)
   );
+  CREATE TABLE IF NOT EXISTS memo_resources (
+    memo_id TEXT, resource_id TEXT,
+    PRIMARY KEY (memo_id, resource_id)
+  );
 `)
 
 // --- Migratie: account_id-kolom toevoegen aan bestaande DB's + oude data koppelen ---
@@ -223,12 +227,29 @@ for (const sql of [
   'ALTER TABLE account_settings ADD COLUMN subcategories TEXT',
   'ALTER TABLE memos ADD COLUMN mood TEXT',
   'ALTER TABLE summaries ADD COLUMN photo_ids TEXT',
+  'ALTER TABLE events ADD COLUMN sort_order INTEGER DEFAULT 0',
+  'ALTER TABLE resources ADD COLUMN subjects TEXT',
 ]) {
   try {
     db.exec(sql)
   } catch {
     /* kolom bestaat al */
   }
+}
+// Leermiddelen: oude "boek" wordt "leesboek"; los vakgebied → lijst met vakgebieden.
+try {
+  db.exec("UPDATE resources SET type = 'leesboek' WHERE type = 'boek'")
+} catch {
+  /* tabel bestaat nog niet / niets te doen */
+}
+try {
+  for (const r of db.prepare('SELECT id, subject FROM resources WHERE subject IS NOT NULL AND (subjects IS NULL OR subjects = \'\')').all()) {
+    if (r.subject && String(r.subject).trim()) {
+      db.prepare('UPDATE resources SET subjects = ? WHERE id = ?').run(JSON.stringify([String(r.subject).trim()]), r.id)
+    }
+  }
+} catch {
+  /* niets te migreren */
 }
 // Pre-existing data (van vóór accounts) toewijzen aan een placeholder-account.
 // Wordt na deploy met één UPDATE aan het echte owner-account gekoppeld.
@@ -281,10 +302,11 @@ function accountSettings(accId) {
     subcategories: row && row.subcategories ? JSON.parse(row.subcategories) : {},
   }
 }
-const mapMemo = (r) => ({
+const mapMemo = (r, resourceIds) => ({
   id: r.id, childId: r.child_id, date: r.date, text: r.text || '',
   subjects: r.subjects ? JSON.parse(r.subjects) : [],
   photoIds: r.photo_ids ? JSON.parse(r.photo_ids) : [],
+  resourceIds: resourceIds || [],
   draft: !!r.draft,
   mood: r.mood || undefined,
   likeCount: r.like_count ?? 0,
@@ -303,12 +325,17 @@ const MOODS = new Set(['leuk', 'prima', 'ging_wel', 'lastig'])
 const FOCUS_STATUS = new Set(['open', 'later', 'done'])
 const validMood = (v) => (MOODS.has(v) ? v : null)
 
-const RESOURCE_TYPES = new Set(['boek', 'website', 'video', 'app', 'overig'])
-const RESOURCE_STATUS = new Set(['te_lezen', 'bezig', 'gelezen'])
+const RESOURCE_TYPES = new Set(['leerboek', 'leesboek', 'website', 'video', 'app', 'overig'])
+// Toegestane statussen per type (leerboeken werken anders dan leesboeken).
+const RESOURCE_STATUS_BY_TYPE = {
+  leesboek: new Set(['te_lezen', 'bezig', 'gelezen']),
+  leerboek: new Set(['in_gebruik', 'afgerond']),
+}
 const mapResource = (r, childIds) => ({
   id: r.id, type: r.type || 'overig', title: r.title,
   author: r.author || undefined, url: r.url || undefined,
-  subject: r.subject || undefined, status: r.status || undefined,
+  subjects: r.subjects ? JSON.parse(r.subjects) : r.subject ? [r.subject] : [],
+  status: r.status || undefined,
   notes: r.notes || undefined,
   childIds: childIds || [],
   createdAt: r.created_at, updatedAt: r.updated_at,
@@ -334,6 +361,18 @@ function upsertMemoFocus(memoId, childId, accountId, linkKind, text, subject, de
     db.prepare('DELETE FROM focus_points WHERE id=?').run(existing.id)
   }
 }
+// Koppelt (geldige) leermiddelen aan een memo; vervangt bestaande koppelingen.
+function setMemoResources(memoId, accountId, resourceIds) {
+  if (!Array.isArray(resourceIds)) return
+  const valid = [...new Set(resourceIds)].filter((rid) =>
+    db.prepare('SELECT id FROM resources WHERE id = ? AND account_id = ?').get(rid, accountId),
+  )
+  db.prepare('DELETE FROM memo_resources WHERE memo_id = ?').run(memoId)
+  for (const rid of valid)
+    db.prepare('INSERT OR IGNORE INTO memo_resources (memo_id,resource_id) VALUES (?,?)').run(memoId, rid)
+  return valid
+}
+
 // Synchroniseert het aandachtspunt + "voor later" van een memo (per kind).
 function syncMemoFocus(memoId, childId, accountId, body) {
   if (body.attentionText !== undefined || body.attentionSubject !== undefined)
@@ -357,6 +396,7 @@ const mapEvent = (r, childIds) => ({
   freq: r.freq || 'none', everyN: r.every_n || 1,
   weekdays: r.weekdays ? String(r.weekdays).split(',').filter(Boolean) : [],
   until: r.until_date || undefined,
+  sortOrder: r.sort_order || 0,
   childIds: childIds || [],
   createdAt: r.created_at, updatedAt: r.updated_at,
 })
@@ -847,12 +887,20 @@ add('GET', /^\/api\/me$/, (req, res) => {
 add('GET', /^\/api\/state$/, (req, res) => {
   const acc = req.accountId
   const children = db.prepare('SELECT * FROM children WHERE account_id = ? ORDER BY created_at ASC').all(acc).map(mapChild)
+  const memoResLinks = {}
+  for (const l of db
+    .prepare(
+      'SELECT mr.memo_id, mr.resource_id FROM memo_resources mr JOIN memos m ON m.id = mr.memo_id WHERE m.account_id = ?',
+    )
+    .all(acc)) {
+    ;(memoResLinks[l.memo_id] ||= []).push(l.resource_id)
+  }
   const memos = db.prepare(
     `SELECT *,
        (SELECT COUNT(*) FROM memo_likes l WHERE l.memo_id = memos.id) AS like_count,
        (SELECT COUNT(*) FROM memo_likes l WHERE l.memo_id = memos.id AND l.user_id = ?) AS liked
      FROM memos WHERE account_id = ? ORDER BY date DESC, created_at DESC`,
-  ).all(req.userId, acc).map(mapMemo)
+  ).all(req.userId, acc).map((r) => mapMemo(r, memoResLinks[r.id] || []))
   const summaries = db.prepare('SELECT * FROM summaries WHERE account_id = ? ORDER BY created_at DESC').all(acc).map(mapSummary)
   const comments = db
     .prepare('SELECT * FROM comments WHERE account_id = ? ORDER BY created_at ASC')
@@ -1300,14 +1348,15 @@ add('POST', /^\/api\/events$/, async (req, res) => {
     every_n: Math.max(1, parseInt(body.everyN, 10) || 1),
     weekdays: cleanWeekdays(freq, body.weekdays),
     until_date: freq !== 'none' && body.until ? body.until : null,
+    sort_order: Number.isFinite(body.sortOrder) ? body.sortOrder : now(),
     created_at: now(),
     updated_at: now(),
   }
   db.prepare(
-    'INSERT INTO events (id,account_id,title,notes,type,date,time,freq,every_n,weekdays,until_date,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)',
+    'INSERT INTO events (id,account_id,title,notes,type,date,time,freq,every_n,weekdays,until_date,sort_order,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)',
   ).run(
     ev.id, req.accountId, ev.title, ev.notes, ev.type, ev.date, ev.time,
-    ev.freq, ev.every_n, ev.weekdays, ev.until_date, ev.created_at, ev.updated_at,
+    ev.freq, ev.every_n, ev.weekdays, ev.until_date, ev.sort_order, ev.created_at, ev.updated_at,
   )
   const childIds = validChildIds(body.childIds, req.accountId)
   for (const cid of childIds)
@@ -1337,9 +1386,11 @@ add('PATCH', /^\/api\/events\/([^/]+)$/, async (req, res, m) => {
       : existing.weekdays
   const until =
     body.until !== undefined ? (freq !== 'none' && body.until ? body.until : null) : existing.until_date
+  const sortOrder =
+    body.sortOrder !== undefined && Number.isFinite(body.sortOrder) ? body.sortOrder : existing.sort_order
   db.prepare(
-    'UPDATE events SET title=?,notes=?,type=?,date=?,time=?,freq=?,every_n=?,weekdays=?,until_date=?,updated_at=? WHERE id=?',
-  ).run(title, notes, type, date, time, freq, everyN, weekdays, until, now(), m[1])
+    'UPDATE events SET title=?,notes=?,type=?,date=?,time=?,freq=?,every_n=?,weekdays=?,until_date=?,sort_order=?,updated_at=? WHERE id=?',
+  ).run(title, notes, type, date, time, freq, everyN, weekdays, until, sortOrder, now(), m[1])
   let childIds
   if (Array.isArray(body.childIds)) {
     childIds = validChildIds(body.childIds, req.accountId)
@@ -1352,7 +1403,7 @@ add('PATCH', /^\/api\/events\/([^/]+)$/, async (req, res, m) => {
   sendJson(
     res, 200,
     mapEvent(
-      { ...existing, title, notes, type, date, time, freq, every_n: everyN, weekdays, until_date: until },
+      { ...existing, title, notes, type, date, time, freq, every_n: everyN, weekdays, until_date: until, sort_order: sortOrder },
       childIds,
     ),
   )
@@ -1425,7 +1476,9 @@ add('POST', /^\/api\/memos$/, async (req, res) => {
       .run(memo.id, req.accountId, memo.child_id, memo.date, memo.text, memo.subjects, memo.photo_ids, memo.draft, memo.mood, memo.created_at, memo.updated_at)
     // Aandachtspunt + "voor later" uit de reflectie vastleggen voor dit kind.
     syncMemoFocus(memo.id, cid, req.accountId, body)
-    created.push(mapMemo(memo))
+    // Gekoppelde leermiddelen (zelfde voor elk gekozen kind).
+    const resIds = setMemoResources(memo.id, req.accountId, body.resourceIds) || []
+    created.push(mapMemo(memo, resIds))
   })
 
   // Met childIds geven we een lijst terug; legacy childId blijft één memo.
@@ -1456,7 +1509,13 @@ add('PATCH', /^\/api\/memos\/([^/]+)$/, async (req, res, m) => {
     .run(date, text, subjects, photoIds, draft, mood, updated_at, m[1])
   // Reflectie (aandachtspunt / voor later) bijwerken voor het kind van deze memo.
   syncMemoFocus(m[1], existing.child_id, req.accountId, body)
-  sendJson(res, 200, mapMemo({ ...existing, date, text, subjects, photo_ids: photoIds, draft, mood, updated_at }))
+  let resourceIds
+  if (Array.isArray(body.resourceIds)) {
+    resourceIds = setMemoResources(m[1], req.accountId, body.resourceIds)
+  } else {
+    resourceIds = db.prepare('SELECT resource_id FROM memo_resources WHERE memo_id = ?').all(m[1]).map((x) => x.resource_id)
+  }
+  sendJson(res, 200, mapMemo({ ...existing, date, text, subjects, photo_ids: photoIds, draft, mood, updated_at }, resourceIds))
 })
 
 add('DELETE', /^\/api\/memos\/([^/]+)$/, (req, res, m) => {
@@ -1466,6 +1525,7 @@ add('DELETE', /^\/api\/memos\/([^/]+)$/, (req, res, m) => {
     deletePhotoFiles(existing.photo_ids ? JSON.parse(existing.photo_ids) : [])
     db.prepare('DELETE FROM memos WHERE id = ?').run(m[1])
     db.prepare('DELETE FROM memo_likes WHERE memo_id = ?').run(m[1])
+    db.prepare('DELETE FROM memo_resources WHERE memo_id = ?').run(m[1])
   }
   sendJson(res, 200, { ok: true })
 })
@@ -1527,7 +1587,13 @@ add('DELETE', /^\/api\/focus\/([^/]+)$/, (req, res, m) => {
 
 // --- Leermiddelen (resources) ---
 function resourceStatus(type, status) {
-  return type === 'boek' && RESOURCE_STATUS.has(status) ? status : null
+  const allowed = RESOURCE_STATUS_BY_TYPE[type]
+  return allowed && allowed.has(status) ? status : null
+}
+function cleanSubjects(list) {
+  if (!Array.isArray(list)) return null
+  const s = [...new Set(list.map((x) => String(x).trim()).filter(Boolean))]
+  return s.length ? JSON.stringify(s) : null
 }
 add('POST', /^\/api\/resources$/, async (req, res) => {
   if (!requireEditor(req, res)) return
@@ -1539,14 +1605,14 @@ add('POST', /^\/api\/resources$/, async (req, res) => {
     id: uid(), type, title: title.slice(0, 300),
     author: (body.author || '').trim().slice(0, 200) || null,
     url: (body.url || '').trim().slice(0, 1000) || null,
-    subject: (body.subject || '').trim() || null,
+    subjects: cleanSubjects(body.subjects),
     status: resourceStatus(type, body.status),
     notes: (body.notes || '').trim().slice(0, 2000) || null,
     created_at: now(), updated_at: now(),
   }
   db.prepare(
-    'INSERT INTO resources (id,account_id,type,title,author,url,subject,status,notes,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?)',
-  ).run(r.id, req.accountId, r.type, r.title, r.author, r.url, r.subject, r.status, r.notes, r.created_at, r.updated_at)
+    'INSERT INTO resources (id,account_id,type,title,author,url,subjects,status,notes,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?)',
+  ).run(r.id, req.accountId, r.type, r.title, r.author, r.url, r.subjects, r.status, r.notes, r.created_at, r.updated_at)
   const childIds = validChildIds(body.childIds, req.accountId)
   for (const cid of childIds)
     db.prepare('INSERT OR IGNORE INTO resource_children (resource_id,child_id) VALUES (?,?)').run(r.id, cid)
@@ -1563,15 +1629,15 @@ add('PATCH', /^\/api\/resources\/([^/]+)$/, async (req, res, m) => {
   const title = body.title != null ? String(body.title).trim().slice(0, 300) || existing.title : existing.title
   const author = body.author !== undefined ? (body.author || '').trim().slice(0, 200) || null : existing.author
   const url = body.url !== undefined ? (body.url || '').trim().slice(0, 1000) || null : existing.url
-  const subject = body.subject !== undefined ? (body.subject || '').trim() || null : existing.subject
+  const subjects = body.subjects !== undefined ? cleanSubjects(body.subjects) : existing.subjects
   const status =
     body.status !== undefined || body.type !== undefined
       ? resourceStatus(type, body.status !== undefined ? body.status : existing.status)
       : existing.status
   const notes = body.notes !== undefined ? (body.notes || '').trim().slice(0, 2000) || null : existing.notes
   db.prepare(
-    'UPDATE resources SET type=?,title=?,author=?,url=?,subject=?,status=?,notes=?,updated_at=? WHERE id=?',
-  ).run(type, title, author, url, subject, status, notes, now(), m[1])
+    'UPDATE resources SET type=?,title=?,author=?,url=?,subjects=?,status=?,notes=?,updated_at=? WHERE id=?',
+  ).run(type, title, author, url, subjects, status, notes, now(), m[1])
   let childIds
   if (Array.isArray(body.childIds)) {
     childIds = validChildIds(body.childIds, req.accountId)
@@ -1581,7 +1647,7 @@ add('PATCH', /^\/api\/resources\/([^/]+)$/, async (req, res, m) => {
   } else {
     childIds = db.prepare('SELECT child_id FROM resource_children WHERE resource_id = ?').all(m[1]).map((x) => x.child_id)
   }
-  sendJson(res, 200, mapResource({ ...existing, type, title, author, url, subject, status, notes }, childIds))
+  sendJson(res, 200, mapResource({ ...existing, type, title, author, url, subjects, status, notes }, childIds))
 })
 
 add('DELETE', /^\/api\/resources\/([^/]+)$/, (req, res, m) => {
@@ -1589,6 +1655,7 @@ add('DELETE', /^\/api\/resources\/([^/]+)$/, (req, res, m) => {
   const r = db.prepare('SELECT id FROM resources WHERE id = ? AND account_id = ?').get(m[1], req.accountId)
   if (!r) return sendJson(res, 404, { error: 'niet gevonden' })
   db.prepare('DELETE FROM resource_children WHERE resource_id = ?').run(m[1])
+  db.prepare('DELETE FROM memo_resources WHERE resource_id = ?').run(m[1])
   db.prepare('DELETE FROM resources WHERE id = ?').run(m[1])
   sendJson(res, 200, { ok: true })
 })
