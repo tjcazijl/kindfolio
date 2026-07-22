@@ -7,6 +7,7 @@ import {
   fetchFeedbackComments,
   postFeedback,
   setFeedbackStatus,
+  updateFeedback,
   voteFeedback,
   type FeedbackComment,
   type FeedbackPost,
@@ -40,6 +41,10 @@ export function Feedback() {
   const [openId, setOpenId] = useState<string | null>(null)
   const [comments, setComments] = useState<Record<string, FeedbackComment[]>>({})
   const [commentText, setCommentText] = useState('')
+  // Eigen bericht bewerken.
+  const [editingId, setEditingId] = useState<string | null>(null)
+  const [editText, setEditText] = useState('')
+  const [savingEdit, setSavingEdit] = useState(false)
 
   // Onthoud de gekozen naam voor volgende keer.
   function updateName(v: string) {
@@ -127,6 +132,21 @@ export function Feedback() {
     await deleteFeedback(p.id).catch(() => {})
   }
 
+  async function saveEdit(p: FeedbackPost) {
+    const msg = editText.trim()
+    if (!msg) return
+    setSavingEdit(true)
+    try {
+      const updated = await updateFeedback(p.id, msg)
+      patch(p.id, { message: updated.message })
+      setEditingId(null)
+    } catch (err: any) {
+      alert(err?.message || 'Aanpassen mislukt')
+    } finally {
+      setSavingEdit(false)
+    }
+  }
+
   return (
     <div className="page">
       <header className="page-head">
@@ -195,7 +215,34 @@ export function Feedback() {
                 {p.status === 'done' && (
                   <span className="status-badge">✓ Verwerkt</span>
                 )}
-                <p className="feedback-msg">{p.message}</p>
+                {editingId === p.id ? (
+                  <div className="fb-edit">
+                    <textarea
+                      className="input textarea"
+                      rows={3}
+                      value={editText}
+                      autoFocus
+                      onChange={(e) => setEditText(e.target.value)}
+                    />
+                    <div className="row gap">
+                      <button
+                        className="btn primary sm"
+                        disabled={savingEdit || !editText.trim()}
+                        onClick={() => saveEdit(p)}
+                      >
+                        {savingEdit ? 'Opslaan…' : 'Opslaan'}
+                      </button>
+                      <button
+                        className="btn outline sm white-bg"
+                        onClick={() => setEditingId(null)}
+                      >
+                        Annuleren
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <p className="feedback-msg">{p.message}</p>
+                )}
                 <div className="feedback-meta">
                   <span>{p.author}</span>
                   <span>·</span>
@@ -203,18 +250,26 @@ export function Feedback() {
                   <button className="link-btn" onClick={() => toggleComments(p)}>
                     💬 {p.commentCount}
                   </button>
+                  {p.mine && editingId !== p.id && (
+                    <button
+                      className="link-btn"
+                      onClick={() => {
+                        setEditingId(p.id)
+                        setEditText(p.message)
+                      }}
+                    >
+                      Bewerken
+                    </button>
+                  )}
                   {isAdmin && (
-                    <>
-                      <button className="link-btn" onClick={() => toggleStatus(p)}>
-                        {p.status === 'done' ? 'Heropenen' : 'Markeer verwerkt'}
-                      </button>
-                      <button
-                        className="link-btn danger"
-                        onClick={() => remove(p)}
-                      >
-                        Verwijderen
-                      </button>
-                    </>
+                    <button className="link-btn" onClick={() => toggleStatus(p)}>
+                      {p.status === 'done' ? 'Heropenen' : 'Markeer verwerkt'}
+                    </button>
+                  )}
+                  {(p.mine || isAdmin) && (
+                    <button className="link-btn danger" onClick={() => remove(p)}>
+                      Verwijderen
+                    </button>
                   )}
                 </div>
 

@@ -1,8 +1,9 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useData } from '../store'
-import { generateSummary, summaryAvailable } from '../api'
+import { generateSummary, photoUrl, summaryAvailable } from '../api'
 import { Markdown } from '../components/Markdown'
 import { Comments } from '../components/Comments'
+import { Lightbox } from '../components/Lightbox'
 import {
   formatDateLong,
   formatDateNumeric,
@@ -29,6 +30,7 @@ export function Summary() {
     memos,
     summaries,
     removeSummary,
+    editSummary,
     reload,
     canEdit,
     aiEnabled,
@@ -44,9 +46,18 @@ export function Summary() {
   )
   const [customEnd, setCustomEnd] = useState<string>(() => todayISO())
   const [subject, setSubject] = useState<string>('')
+  const [withPhotos, setWithPhotos] = useState(false)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [expandedId, setExpandedId] = useState<string | null>(null)
+  // Bewerken van een bewaarde samenvatting.
+  const [editingId, setEditingId] = useState<string | null>(null)
+  const [editText, setEditText] = useState('')
+  const [savingEdit, setSavingEdit] = useState(false)
+  // Foto's groot bekijken bij een samenvatting.
+  const [lightbox, setLightbox] = useState<{ ids: string[]; index: number } | null>(
+    null,
+  )
 
   useEffect(() => {
     if (aiEnabled) summaryAvailable().then(setAvailable)
@@ -115,6 +126,7 @@ export function Summary() {
         period,
         periodLabel: subject ? `${subject} · ${range.label}` : range.label,
         includePhotos: false,
+        withPhotos,
         subject: subject || undefined,
         ai: aiEnabled,
       })
@@ -145,11 +157,27 @@ export function Summary() {
     const title = subject
       ? `${child.name} — ${subject} — ${range.label}`
       : `${child.name} — ${range.label}`
+    const urls = withPhotos
+      ? filteredMemos.flatMap((m) => m.photoIds).slice(0, 60).map(photoUrl)
+      : []
     openSummaryPrint(
       title,
       `${child.name} · ${filteredMemos.length} memo${filteredMemos.length === 1 ? '' : "'s"}`,
       body,
+      urls,
     )
+  }
+
+  async function saveEdit(id: string) {
+    setSavingEdit(true)
+    try {
+      await editSummary(id, { text: editText })
+      setEditingId(null)
+    } catch (e: any) {
+      alert(e?.message || 'Opslaan mislukt')
+    } finally {
+      setSavingEdit(false)
+    }
   }
 
   if (children.length === 0) {
@@ -296,6 +324,14 @@ export function Summary() {
       {/* Samenvatting maken — met of zonder AI (chronologisch). */}
       {canEdit && (
         <>
+          <label className="checkbox-row">
+            <input
+              type="checkbox"
+              checked={withPhotos}
+              onChange={(e) => setWithPhotos(e.target.checked)}
+            />
+            📷 Foto's uit deze periode meenemen in de samenvatting
+          </label>
           <button
             className="btn primary full big"
             disabled={
@@ -380,7 +416,58 @@ export function Summary() {
                     </button>
                     {open && (
                       <div className="summary-item-body">
-                        <Markdown text={s.text} />
+                        {editingId === s.id ? (
+                          <div className="summary-edit">
+                            <textarea
+                              className="input textarea summary-textarea"
+                              value={editText}
+                              onChange={(e) => setEditText(e.target.value)}
+                            />
+                            <p className="hint">
+                              Je bewerkt de tekst (Markdown: # kop, - opsomming,
+                              **vet**).
+                            </p>
+                            <div className="row gap">
+                              <button
+                                className="btn primary sm"
+                                disabled={savingEdit}
+                                onClick={() => saveEdit(s.id)}
+                              >
+                                {savingEdit ? 'Opslaan…' : 'Opslaan'}
+                              </button>
+                              <button
+                                className="btn outline sm white-bg"
+                                onClick={() => setEditingId(null)}
+                              >
+                                Annuleren
+                              </button>
+                            </div>
+                          </div>
+                        ) : (
+                          <Markdown text={s.text} />
+                        )}
+
+                        {s.photoIds.length > 0 && editingId !== s.id && (
+                          <div className="summary-photos">
+                            <div className="field-label">
+                              Foto's ({s.photoIds.length})
+                            </div>
+                            <div className="photo-grid">
+                              {s.photoIds.map((pid, i) => (
+                                <div
+                                  key={pid}
+                                  className="thumb"
+                                  onClick={() =>
+                                    setLightbox({ ids: s.photoIds, index: i })
+                                  }
+                                >
+                                  <img src={photoUrl(pid)} alt="" loading="lazy" />
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+
                         <div className="row gap summary-actions">
                           <button
                             className="btn outline sm"
@@ -389,6 +476,7 @@ export function Summary() {
                                 `${child?.name ?? ''} — ${s.periodLabel}`,
                                 `${child?.name ?? ''} · gemaakt op ${formatMoment(s.createdAt)}`,
                                 s.text,
+                                s.photoIds.map(photoUrl),
                               )
                             }
                           >
@@ -400,6 +488,17 @@ export function Summary() {
                           >
                             Kopiëren
                           </button>
+                          {canEdit && editingId !== s.id && (
+                            <button
+                              className="btn outline sm"
+                              onClick={() => {
+                                setEditingId(s.id)
+                                setEditText(s.text)
+                              }}
+                            >
+                              ✏️ Bewerken
+                            </button>
+                          )}
                           {canEdit && (
                             <button
                               className="btn danger-outline sm"
@@ -417,6 +516,15 @@ export function Summary() {
               })}
             </section>
           )}
+
+      {lightbox && (
+        <Lightbox
+          photoIds={lightbox.ids}
+          index={lightbox.index}
+          onIndexChange={(i) => setLightbox({ ids: lightbox.ids, index: i })}
+          onClose={() => setLightbox(null)}
+        />
+      )}
     </div>
   )
 }

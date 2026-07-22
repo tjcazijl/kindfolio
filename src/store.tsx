@@ -34,6 +34,7 @@ import {
   likeMemo as apiLikeMemo,
   deleteAllData as apiDeleteAllData,
   deleteSummary as apiDeleteSummary,
+  updateSummary as apiUpdateSummary,
   fetchAccounts,
   fetchState,
   login as apiLogin,
@@ -104,6 +105,10 @@ interface DataContextValue {
   editMemo: (id: string, data: MemoInput) => Promise<Memo>
   removeMemo: (id: string) => Promise<void>
   likeMemo: (id: string) => Promise<void>
+  editSummary: (
+    id: string,
+    data: { text?: string; periodLabel?: string; photoIds?: string[] },
+  ) => Promise<Summary>
   removeSummary: (id: string) => Promise<void>
   addEvent: (data: EventInput) => Promise<AgendaEvent>
   editEvent: (id: string, data: EventInput) => Promise<AgendaEvent>
@@ -311,6 +316,11 @@ export function DataProvider({ children }: { children: ReactNode }) {
       } catch {
         await reload()
       }
+    },
+    editSummary: async (id, data) => {
+      const s = await apiUpdateSummary(id, data)
+      await reload()
+      return s
     },
     removeSummary: async (id) => {
       await apiDeleteSummary(id)

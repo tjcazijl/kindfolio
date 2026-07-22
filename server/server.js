@@ -222,6 +222,7 @@ for (const sql of [
   'ALTER TABLE feedback_comments ADD COLUMN author_name TEXT',
   'ALTER TABLE account_settings ADD COLUMN subcategories TEXT',
   'ALTER TABLE memos ADD COLUMN mood TEXT',
+  'ALTER TABLE summaries ADD COLUMN photo_ids TEXT',
 ]) {
   try {
     db.exec(sql)
@@ -342,7 +343,9 @@ function syncMemoFocus(memoId, childId, accountId, body) {
 }
 const mapSummary = (r) => ({
   id: r.id, childId: r.child_id, period: r.period, periodLabel: r.period_label,
-  start: r.start, end: r.end, text: r.text || '', createdAt: r.created_at,
+  start: r.start, end: r.end, text: r.text || '',
+  photoIds: r.photo_ids ? JSON.parse(r.photo_ids) : [],
+  createdAt: r.created_at,
 })
 const mapComment = (r) => ({
   id: r.id, targetType: r.target_type, targetId: r.target_id,
@@ -1082,9 +1085,28 @@ add('POST', /^\/api\/feedback\/([^/]+)\/status$/, async (req, res, m) => {
   sendJson(res, 200, { status })
 })
 
-// Beheerder: feedback verwijderen (incl. stemmen en reacties).
+// Eigen feedback aanpassen (of die van iedereen als beheerder).
+add('PATCH', /^\/api\/feedback\/([^/]+)$/, async (req, res, m) => {
+  const fb = db.prepare('SELECT id, user_id FROM feedback WHERE id = ?').get(m[1])
+  if (!fb) return sendJson(res, 404, { error: 'niet gevonden' })
+  if (fb.user_id !== req.userId && !isAdminUser(req.userId)) {
+    return sendJson(res, 403, { error: 'Je kunt alleen je eigen feedback aanpassen.' })
+  }
+  const body = await readJson(req)
+  const message = (body.message || '').trim()
+  if (!message) return sendJson(res, 400, { error: 'Schrijf eerst een bericht.' })
+  db.prepare('UPDATE feedback SET message = ? WHERE id = ?').run(message.slice(0, 4000), m[1])
+  const row = db.prepare(`${FEEDBACK_SELECT} WHERE f.id = ?`).get(req.userId, m[1])
+  sendJson(res, 200, mapFeedbackRow(row, req.userId))
+})
+
+// Eigen feedback verwijderen (of die van iedereen als beheerder), incl. stemmen en reacties.
 add('DELETE', /^\/api\/feedback\/([^/]+)$/, (req, res, m) => {
-  if (!isAdminUser(req.userId)) return sendJson(res, 403, { error: 'Geen toegang' })
+  const fb = db.prepare('SELECT id, user_id FROM feedback WHERE id = ?').get(m[1])
+  if (!fb) return sendJson(res, 404, { error: 'niet gevonden' })
+  if (fb.user_id !== req.userId && !isAdminUser(req.userId)) {
+    return sendJson(res, 403, { error: 'Je kunt alleen je eigen feedback verwijderen.' })
+  }
   db.prepare('DELETE FROM feedback_votes WHERE feedback_id = ?').run(m[1])
   db.prepare('DELETE FROM feedback_comments WHERE feedback_id = ?').run(m[1])
   db.prepare('DELETE FROM feedback WHERE id = ?').run(m[1])
@@ -1972,13 +1994,42 @@ ${memoText}`
   text = (json.content || []).filter((b) => b.type === 'text').map((b) => b.text).join('\n')
   }
 
+  // Foto's zichtbaar meenemen in de samenvatting (en dus in de PDF).
+  const visiblePhotos = body.withPhotos
+    ? memos.flatMap((mm) => mm.photoIds).slice(0, 60)
+    : []
+
   const saved = {
     id: uid(), child_id: child.id, period, period_label: periodLabel,
-    start, end, text: text || 'De AI gaf geen tekst terug.', created_at: now(),
+    start, end, text: text || 'De AI gaf geen tekst terug.',
+    photo_ids: visiblePhotos.length ? JSON.stringify(visiblePhotos) : null,
+    created_at: now(),
   }
-  db.prepare('INSERT INTO summaries (id,account_id,child_id,period,period_label,start,end,text,created_at) VALUES (?,?,?,?,?,?,?,?,?)')
-    .run(saved.id, req.accountId, saved.child_id, saved.period, saved.period_label, saved.start, saved.end, saved.text, saved.created_at)
+  db.prepare('INSERT INTO summaries (id,account_id,child_id,period,period_label,start,end,text,photo_ids,created_at) VALUES (?,?,?,?,?,?,?,?,?,?)')
+    .run(saved.id, req.accountId, saved.child_id, saved.period, saved.period_label, saved.start, saved.end, saved.text, saved.photo_ids, saved.created_at)
   sendJson(res, 200, mapSummary(saved))
+})
+
+// Samenvatting bewerken (tekst bijschaven na het genereren).
+add('PATCH', /^\/api\/summaries\/([^/]+)$/, async (req, res, m) => {
+  if (!requireEditor(req, res)) return
+  const existing = db.prepare('SELECT * FROM summaries WHERE id = ? AND account_id = ?').get(m[1], req.accountId)
+  if (!existing) return sendJson(res, 404, { error: 'niet gevonden' })
+  const body = await readJson(req)
+  const text = body.text != null ? String(body.text) : existing.text
+  const periodLabel =
+    body.periodLabel != null
+      ? String(body.periodLabel).trim().slice(0, 200) || existing.period_label
+      : existing.period_label
+  const photoIds =
+    body.photoIds !== undefined
+      ? Array.isArray(body.photoIds) && body.photoIds.length
+        ? JSON.stringify(body.photoIds)
+        : null
+      : existing.photo_ids
+  db.prepare('UPDATE summaries SET text = ?, period_label = ?, photo_ids = ? WHERE id = ?')
+    .run(text, periodLabel, photoIds, m[1])
+  sendJson(res, 200, mapSummary({ ...existing, text, period_label: periodLabel, photo_ids: photoIds }))
 })
 
 add('DELETE', /^\/api\/summaries\/([^/]+)$/, (req, res, m) => {

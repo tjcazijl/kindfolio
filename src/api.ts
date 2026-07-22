@@ -255,6 +255,12 @@ export const setFeedbackStatus = (id: string, status: 'open' | 'done') =>
     body: JSON.stringify({ status }),
   })
 
+export const updateFeedback = (id: string, message: string) =>
+  req<FeedbackPost>(`/feedback/${id}`, {
+    method: 'PATCH',
+    body: JSON.stringify({ message }),
+  })
+
 export const deleteFeedback = (id: string) =>
   req<{ ok: boolean }>(`/feedback/${id}`, { method: 'DELETE' })
 
@@ -488,7 +494,8 @@ export interface SummaryParams {
   end: string
   period: string
   periodLabel: string
-  includePhotos: boolean
+  includePhotos: boolean // foto's naar de AI sturen
+  withPhotos?: boolean // foto's zichtbaar bij de samenvatting bewaren
   subject?: string
   ai?: boolean
 }
@@ -499,6 +506,15 @@ export async function generateSummary(params: SummaryParams): Promise<Summary> {
     body: JSON.stringify(params),
   })
 }
+
+export const updateSummary = (
+  id: string,
+  data: { text?: string; periodLabel?: string; photoIds?: string[] },
+) =>
+  req<Summary>(`/summaries/${id}`, {
+    method: 'PATCH',
+    body: JSON.stringify(data),
+  })
 
 export const deleteSummary = (id: string) =>
   req<{ ok: boolean }>(`/summaries/${id}`, { method: 'DELETE' })

@@ -91,6 +91,7 @@ export interface Summary {
   start: string
   end: string
   text: string
+  photoIds: string[] // foto's die zichtbaar bij de samenvatting horen
   createdAt: number
 }
 

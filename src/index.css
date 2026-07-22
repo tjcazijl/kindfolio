@@ -2146,3 +2146,11 @@ body {
 .type-lb { font-size: 12px; font-weight: 600; color: var(--muted); }
 .type-cell.on { border-color: var(--green); background: #e7efe9; }
 .type-cell.on .type-lb { color: var(--green-dark); }
+
+/* ---- Samenvatting: bewerken + foto's ---- */
+.summary-textarea { min-height: 240px; font-family: inherit; }
+.summary-edit { margin-bottom: 12px; }
+.summary-photos { margin: 14px 0 6px; }
+.summary-photos .field-label { margin-bottom: 6px; }
+.summary-photos .photo-grid .thumb { cursor: pointer; }
+.fb-edit { margin: 6px 0 4px; display: flex; flex-direction: column; gap: 8px; }

@@ -55,8 +55,14 @@ export function openSummaryPrint(
   title: string,
   metaLine: string,
   markdownText: string,
+  photoUrls: string[] = [],
 ): void {
   const body = markdownToHtml(markdownText)
+  const photos = photoUrls.length
+    ? `<h2>Foto's</h2><div class="fotos">${photoUrls
+        .map((u) => `<img src="${escapeHtml(u)}" alt="" />`)
+        .join('')}</div>`
+    : ''
   const html = `<!doctype html>
 <html lang="nl">
 <head>
@@ -85,13 +91,26 @@ export function openSummaryPrint(
     background: #2f6f4f; color: #fff; border: none; border-radius: 10px;
     padding: 10px 18px; font-size: 15px; font-weight: 600; cursor: pointer;
   }
-  @media print { .toolbar { display: none; } body { padding-top: 0; } }
+  .fotos {
+    display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-top: 8px;
+  }
+  .fotos img {
+    width: 100%; aspect-ratio: 1 / 1; object-fit: cover;
+    border-radius: 8px; break-inside: avoid;
+  }
+  @media print {
+    .toolbar { display: none; }
+    body { padding-top: 0; }
+    .fotos { grid-template-columns: repeat(3, 1fr); }
+    .fotos img { break-inside: avoid; }
+  }
 </style>
 </head>
 <body>
   <div class="toolbar"><button onclick="window.print()">📄 Opslaan als PDF / Afdrukken</button></div>
   <p class="meta">${escapeHtml(metaLine)}</p>
   ${body}
+  ${photos}
 </body>
 </html>`
 

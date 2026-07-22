@@ -10,6 +10,16 @@ export interface Update {
 
 export const CHANGELOG: Update[] = [
   {
+    id: '2026-07-22',
+    date: '2026-07-22',
+    title: 'Samenvattingen bewerken & foto’s erbij',
+    items: [
+      'Een bewaarde samenvatting kun je nu zelf bijschaven met de knop “Bewerken”.',
+      'Bij het maken kies je of de foto’s uit die periode mee mogen — ze komen dan bij de samenvatting én in de PDF.',
+      'Je eigen berichten op het feedbackprikbord kun je nu bewerken of verwijderen.',
+    ],
+  },
+  {
     id: '2026-07-19b',
     date: '2026-07-19',
     title: 'Leermiddelen 📚',
