@@ -2186,3 +2186,8 @@ body {
 }
 .status-btn.on { background: var(--green); border-color: var(--green); color: #fff; }
 .finished-section { margin-top: 16px; }
+
+/* Sticky knoppenbalk: ondoorzichtig, zodat scrollende content er niet doorheen schijnt.
+   (.btn.white-bg later herhalen zodat het wint van .btn.danger-outline / .btn.outline) */
+.sticky-actions { background: var(--bg); }
+.btn.white-bg { background: #fff; }
