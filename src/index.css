@@ -2191,3 +2191,13 @@ body {
    (.btn.white-bg later herhalen zodat het wint van .btn.danger-outline / .btn.outline) */
 .sticky-actions { background: var(--bg); }
 .btn.white-bg { background: #fff; }
+
+/* ---- Agenda: notitie-snelknop, vakgebieden, verleden ---- */
+.agenda-memo-btn {
+  flex-shrink: 0; width: 40px; height: 40px; border: 1.5px solid var(--line);
+  border-radius: 11px; background: #fff; font-size: 18px; cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+}
+.ev-subjects { color: var(--muted); }
+.agenda-item.past { opacity: 0.72; }
+.agenda-item.past .ev-ic { filter: grayscale(0.3); }

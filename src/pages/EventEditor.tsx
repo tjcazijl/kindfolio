@@ -23,7 +23,14 @@ const UNIT: Record<Exclude<EventFreq, 'none'>, [string, string]> = {
 export function EventEditor() {
   const { eventId } = useParams()
   const navigate = useNavigate()
-  const { children, events, addEvent, editEvent, removeEvent } = useData()
+  const {
+    children,
+    events,
+    subjects: accountSubjects,
+    addEvent,
+    editEvent,
+    removeEvent,
+  } = useData()
   const isNew = !eventId
   const existing = eventId ? events.find((e) => e.id === eventId) : undefined
 
@@ -32,6 +39,7 @@ export function EventEditor() {
   const [date, setDate] = useState(existing?.date || todayISO())
   const [time, setTime] = useState(existing?.time || '')
   const [childIds, setChildIds] = useState<string[]>(existing?.childIds || [])
+  const [subjects, setSubjects] = useState<string[]>(existing?.subjects || [])
   const [freq, setFreq] = useState<EventFreq>(existing?.freq || 'none')
   const [everyN, setEveryN] = useState(existing?.everyN || 1)
   const [weekdays, setWeekdays] = useState<string[]>(existing?.weekdays || [])
@@ -40,11 +48,20 @@ export function EventEditor() {
   const [saving, setSaving] = useState(false)
   const [confirmDelete, setConfirmDelete] = useState(false)
 
+  const availableSubjects = [
+    ...new Set([...accountSubjects, ...children.flatMap((c) => c.subjects || [])]),
+  ]
+
   if (!isNew && !existing) return <div className="page">Laden…</div>
 
   function toggleChild(id: string) {
     setChildIds((prev) =>
       prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id],
+    )
+  }
+  function toggleSubject(s: string) {
+    setSubjects((prev) =>
+      prev.includes(s) ? prev.filter((x) => x !== s) : [...prev, s],
     )
   }
   function toggleWeekday(code: string) {
@@ -81,6 +98,7 @@ export function EventEditor() {
         everyN,
         weekdays,
         until: until || null,
+        subjects,
         childIds,
         notes: notes.trim(),
       }
@@ -182,6 +200,26 @@ export function EventEditor() {
                 </button>
               )
             })}
+          </div>
+        </div>
+      )}
+
+      {availableSubjects.length > 0 && (
+        <div className="field">
+          <span className="field-label">
+            Vakgebieden <span className="fl-opt">(optioneel, meerdere mag)</span>
+          </span>
+          <div className="chips">
+            {availableSubjects.map((s) => (
+              <button
+                key={s}
+                type="button"
+                className={`chip ${subjects.includes(s) ? 'on' : ''}`}
+                onClick={() => toggleSubject(s)}
+              >
+                {s}
+              </button>
+            ))}
           </div>
         </div>
       )}

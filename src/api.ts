@@ -317,6 +317,7 @@ export interface EventInput {
   weekdays?: string[]
   until?: string | null
   sortOrder?: number
+  subjects?: string[]
   childIds?: string[]
 }
 export const createEvent = (data: EventInput) =>

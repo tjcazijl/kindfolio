@@ -41,6 +41,7 @@ export function EventDetail() {
           title: ev!.title,
           date: shownDate,
           childIds: ev!.childIds,
+          subjects: ev!.subjects,
         },
       },
     })
@@ -94,6 +95,13 @@ export function EventDetail() {
               ))}
               {kids.map((c) => c!.name).join(', ')}
             </span>
+          </div>
+        )}
+        {ev.subjects.length > 0 && (
+          <div className="event-meta-row">
+            <span className="emi">📚</span>
+            <span className="emk">Vakgebieden</span>
+            <span className="emv">{ev.subjects.join(', ')}</span>
           </div>
         )}
         {ev.notes && (

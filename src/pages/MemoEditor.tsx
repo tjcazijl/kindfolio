@@ -47,7 +47,7 @@ export function MemoEditor() {
   // Voorgevulde waarden wanneer je vanuit een agenda-item een memo maakt.
   const location = useLocation()
   const prefill = (location.state as any)?.eventPrefill as
-    | { title?: string; date?: string; childIds?: string[] }
+    | { title?: string; date?: string; childIds?: string[]; subjects?: string[] }
     | undefined
 
   // Bij een nieuwe memo kun je één of meerdere kinderen kiezen.
@@ -64,7 +64,9 @@ export function MemoEditor() {
   const [text, setText] = useState(
     existing?.text || (prefill?.title ? `${prefill.title}: ` : ''),
   )
-  const [subjects, setSubjects] = useState<string[]>(existing?.subjects || [])
+  const [subjects, setSubjects] = useState<string[]>(
+    existing?.subjects || prefill?.subjects || [],
+  )
   const [photoIds, setPhotoIds] = useState<string[]>(existing?.photoIds || [])
   // In bewerkmodus: extra kinderen om een kopie van deze memo voor te maken.
   const [addChildIds, setAddChildIds] = useState<string[]>([])

@@ -92,6 +92,7 @@ export interface AgendaEvent {
   weekdays: string[] // ['ma','wo'] — alleen bij freq 'weekly'
   until?: string // YYYY-MM-DD, herhaal t/m (optioneel)
   sortOrder: number // handmatige volgorde binnen een dag
+  subjects: string[] // vakgebieden/categorieën
   childIds: string[] // leeg = gezinsbreed
   createdAt: number
   updatedAt: number

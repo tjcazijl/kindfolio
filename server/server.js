@@ -228,6 +228,7 @@ for (const sql of [
   'ALTER TABLE memos ADD COLUMN mood TEXT',
   'ALTER TABLE summaries ADD COLUMN photo_ids TEXT',
   'ALTER TABLE events ADD COLUMN sort_order INTEGER DEFAULT 0',
+  'ALTER TABLE events ADD COLUMN subjects TEXT',
   'ALTER TABLE resources ADD COLUMN subjects TEXT',
   'ALTER TABLE resources ADD COLUMN read_date TEXT',
 ]) {
@@ -401,6 +402,7 @@ const mapEvent = (r, childIds) => ({
   weekdays: r.weekdays ? String(r.weekdays).split(',').filter(Boolean) : [],
   until: r.until_date || undefined,
   sortOrder: r.sort_order || 0,
+  subjects: r.subjects ? JSON.parse(r.subjects) : [],
   childIds: childIds || [],
   createdAt: r.created_at, updatedAt: r.updated_at,
 })
@@ -1353,14 +1355,15 @@ add('POST', /^\/api\/events$/, async (req, res) => {
     weekdays: cleanWeekdays(freq, body.weekdays),
     until_date: freq !== 'none' && body.until ? body.until : null,
     sort_order: Number.isFinite(body.sortOrder) ? body.sortOrder : now(),
+    subjects: cleanSubjects(body.subjects),
     created_at: now(),
     updated_at: now(),
   }
   db.prepare(
-    'INSERT INTO events (id,account_id,title,notes,type,date,time,freq,every_n,weekdays,until_date,sort_order,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)',
+    'INSERT INTO events (id,account_id,title,notes,type,date,time,freq,every_n,weekdays,until_date,sort_order,subjects,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)',
   ).run(
     ev.id, req.accountId, ev.title, ev.notes, ev.type, ev.date, ev.time,
-    ev.freq, ev.every_n, ev.weekdays, ev.until_date, ev.sort_order, ev.created_at, ev.updated_at,
+    ev.freq, ev.every_n, ev.weekdays, ev.until_date, ev.sort_order, ev.subjects, ev.created_at, ev.updated_at,
   )
   const childIds = validChildIds(body.childIds, req.accountId)
   for (const cid of childIds)
@@ -1392,9 +1395,10 @@ add('PATCH', /^\/api\/events\/([^/]+)$/, async (req, res, m) => {
     body.until !== undefined ? (freq !== 'none' && body.until ? body.until : null) : existing.until_date
   const sortOrder =
     body.sortOrder !== undefined && Number.isFinite(body.sortOrder) ? body.sortOrder : existing.sort_order
+  const subjects = body.subjects !== undefined ? cleanSubjects(body.subjects) : existing.subjects
   db.prepare(
-    'UPDATE events SET title=?,notes=?,type=?,date=?,time=?,freq=?,every_n=?,weekdays=?,until_date=?,sort_order=?,updated_at=? WHERE id=?',
-  ).run(title, notes, type, date, time, freq, everyN, weekdays, until, sortOrder, now(), m[1])
+    'UPDATE events SET title=?,notes=?,type=?,date=?,time=?,freq=?,every_n=?,weekdays=?,until_date=?,sort_order=?,subjects=?,updated_at=? WHERE id=?',
+  ).run(title, notes, type, date, time, freq, everyN, weekdays, until, sortOrder, subjects, now(), m[1])
   let childIds
   if (Array.isArray(body.childIds)) {
     childIds = validChildIds(body.childIds, req.accountId)
@@ -1407,7 +1411,7 @@ add('PATCH', /^\/api\/events\/([^/]+)$/, async (req, res, m) => {
   sendJson(
     res, 200,
     mapEvent(
-      { ...existing, title, notes, type, date, time, freq, every_n: everyN, weekdays, until_date: until, sort_order: sortOrder },
+      { ...existing, title, notes, type, date, time, freq, every_n: everyN, weekdays, until_date: until, sort_order: sortOrder, subjects },
       childIds,
     ),
   )

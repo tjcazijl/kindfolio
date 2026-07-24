@@ -16,8 +16,19 @@ export function Agenda() {
     d.setDate(d.getDate() + 1)
     return toISODate(d)
   }, [])
+  const yesterday = useMemo(() => {
+    const d = new Date()
+    d.setDate(d.getDate() - 1)
+    return toISODate(d)
+  }, [])
 
-  // Vandaag t/m een jaar vooruit.
+  // Afgelopen week blijft staan (om nog memo's bij te kunnen schrijven),
+  // vandaag t/m een jaar vooruit.
+  const rangeStart = useMemo(() => {
+    const d = new Date()
+    d.setDate(d.getDate() - 7)
+    return toISODate(d)
+  }, [])
   const rangeEnd = useMemo(() => {
     const d = new Date()
     d.setFullYear(d.getFullYear() + 1)
@@ -25,8 +36,8 @@ export function Agenda() {
   }, [])
 
   const occurrences = useMemo(
-    () => expandEvents(events, today, rangeEnd),
-    [events, today, rangeEnd],
+    () => expandEvents(events, rangeStart, rangeEnd),
+    [events, rangeStart, rangeEnd],
   )
 
   // Groeperen per datum, met behoud van de sortering.
@@ -42,8 +53,23 @@ export function Agenda() {
   function headerLabel(iso: string): string {
     if (iso === today) return 'Vandaag'
     if (iso === tomorrow) return 'Morgen'
+    if (iso === yesterday) return 'Gisteren'
     const s = formatDateShort(iso)
     return s.charAt(0).toUpperCase() + s.slice(1)
+  }
+
+  // Vanuit een agenda-item direct een (voorgevulde) memo maken.
+  function makeMemo(o: Occurrence) {
+    navigate('/memo/nieuw', {
+      state: {
+        eventPrefill: {
+          title: o.event.title,
+          date: o.date,
+          childIds: o.event.childIds,
+          subjects: o.event.subjects,
+        },
+      },
+    })
   }
 
   const childById = useMemo(() => {
@@ -116,7 +142,10 @@ export function Agenda() {
               const tIdx = ev.time ? -1 : timeless.findIndex((i) => i.event.id === ev.id)
               const showReorder = canEdit && tIdx >= 0 && timeless.length > 1
               return (
-                <div key={`${ev.id}-${o.date}`} className="agenda-item">
+                <div
+                  key={`${ev.id}-${o.date}`}
+                  className={`agenda-item ${o.date < today ? 'past' : ''}`}
+                >
                   <button
                     className="agenda-item-open"
                     onClick={() => navigate(`/agenda/${ev.id}`)}
@@ -143,10 +172,23 @@ export function Agenda() {
                             {kids.map((c) => c!.name).join(', ')}
                           </span>
                         )}
+                        {ev.subjects.length > 0 && (
+                          <span className="ev-subjects">{ev.subjects.join(', ')}</span>
+                        )}
                         {rep && <span className="ev-rep">↻ {rep}</span>}
                       </span>
                     </span>
                   </button>
+                  {canEdit && (
+                    <button
+                      className="agenda-memo-btn"
+                      aria-label="Notitie maken"
+                      title="Notitie maken"
+                      onClick={() => makeMemo(o)}
+                    >
+                      📝
+                    </button>
+                  )}
                   {showReorder ? (
                     <span className="agenda-reorder">
                       <button

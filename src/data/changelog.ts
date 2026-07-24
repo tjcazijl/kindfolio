@@ -10,6 +10,16 @@ export interface Update {
 
 export const CHANGELOG: Update[] = [
   {
+    id: '2026-07-24',
+    date: '2026-07-24',
+    title: 'Agenda: verleden blijft staan & categorieën',
+    items: [
+      'Agenda-items verdwijnen niet meer meteen na de dag: ze blijven een week staan, zodat je rustig nog een memo kunt schrijven.',
+      'Met de nieuwe 📝-knop in de agenda maak je direct een voorgevulde memo (datum, kind en titel staan al klaar).',
+      'Voeg vakgebieden toe aan een agenda-item; die worden dan ook meteen ingevuld in de memo. Zo klik je bij een herhalende activiteit alleen nog “notitie maken”, schrijft kort hoe het ging, en klaar.',
+    ],
+  },
+  {
     id: '2026-07-22c',
     date: '2026-07-22',
     title: 'Boeken bijhouden: status, gelezen-lijst & samenvatting',
