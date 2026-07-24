@@ -29,11 +29,13 @@ export const STATUSES_BY_TYPE: Partial<Record<ResourceType, ResourceStatus[]>> =
 
 export const STATUS_META: Record<ResourceStatus, { label: string; cls: string }> = {
   te_lezen: { label: 'Te lezen', cls: 'te-lezen' },
-  bezig: { label: 'Bezig', cls: 'bezig' },
-  gelezen: { label: 'Uit', cls: 'gelezen' },
+  bezig: { label: 'Aan het lezen', cls: 'bezig' },
+  gelezen: { label: 'Gelezen', cls: 'gelezen' },
   in_gebruik: { label: 'In gebruik', cls: 'bezig' },
   afgerond: { label: 'Afgerond', cls: 'gelezen' },
 }
+
+const FINISHED: ResourceStatus[] = ['gelezen', 'afgerond']
 
 export function statusesForType(type: ResourceType): ResourceStatus[] {
   return STATUSES_BY_TYPE[type] || []
@@ -43,6 +45,9 @@ export function hasStatus(type: ResourceType): boolean {
 }
 export function isBook(type: ResourceType): boolean {
   return type === 'leerboek' || type === 'leesboek'
+}
+export function isFinished(status?: ResourceStatus): boolean {
+  return !!status && FINISHED.includes(status)
 }
 
 /** Zet een link om naar iets dat de browser kan openen (met protocol). */

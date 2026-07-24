@@ -47,6 +47,7 @@ export function Summary() {
   const [customEnd, setCustomEnd] = useState<string>(() => todayISO())
   const [subject, setSubject] = useState<string>('')
   const [withPhotos, setWithPhotos] = useState(false)
+  const [withBooks, setWithBooks] = useState(false)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [expandedId, setExpandedId] = useState<string | null>(null)
@@ -127,6 +128,7 @@ export function Summary() {
         periodLabel: subject ? `${subject} · ${range.label}` : range.label,
         includePhotos: false,
         withPhotos,
+        withBooks,
         subject: subject || undefined,
         ai: aiEnabled,
       })
@@ -331,6 +333,14 @@ export function Summary() {
               onChange={(e) => setWithPhotos(e.target.checked)}
             />
             📷 Foto's uit deze periode meenemen in de samenvatting
+          </label>
+          <label className="checkbox-row">
+            <input
+              type="checkbox"
+              checked={withBooks}
+              onChange={(e) => setWithBooks(e.target.checked)}
+            />
+            📚 Gelezen boeken uit deze periode onderaan toevoegen
           </label>
           <button
             className="btn primary full big"

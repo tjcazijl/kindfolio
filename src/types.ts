@@ -51,6 +51,7 @@ export interface Resource {
   url?: string
   subjects: string[]
   status?: ResourceStatus // alleen bij boeken
+  readDate?: string // YYYY-MM-DD, wanneer gelezen/afgerond
   notes?: string
   childIds: string[] // leeg = gezinsbreed
   createdAt: number

@@ -10,6 +10,17 @@ export interface Update {
 
 export const CHANGELOG: Update[] = [
   {
+    id: '2026-07-22c',
+    date: '2026-07-22',
+    title: 'Boeken bijhouden: status, gelezen-lijst & samenvatting',
+    items: [
+      'Wissel de status van een boek met één tik: Te lezen / Aan het lezen / Gelezen (leerboeken: In gebruik / Afgerond).',
+      'Leg vast wanneer je een boek gelezen hebt; gelezen boeken staan apart onder een inklapbaar deel — overzichtelijker.',
+      'Gelezen boeken staan niet meer tussen de keuzes als je een memo maakt.',
+      'Bij een samenvatting kun je de gelezen boeken uit die periode onderaan toevoegen.',
+    ],
+  },
+  {
     id: '2026-07-22b',
     date: '2026-07-22',
     title: 'Leermiddelen slimmer & agenda ordenen',

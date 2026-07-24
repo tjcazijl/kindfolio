@@ -365,6 +365,7 @@ export interface ResourceInput {
   url?: string
   subjects?: string[]
   status?: ResourceStatus | null
+  readDate?: string | null
   notes?: string
   childIds?: string[]
 }
@@ -498,6 +499,7 @@ export interface SummaryParams {
   periodLabel: string
   includePhotos: boolean // foto's naar de AI sturen
   withPhotos?: boolean // foto's zichtbaar bij de samenvatting bewaren
+  withBooks?: boolean // gelezen boeken uit de periode onderaan toevoegen
   subject?: string
   ai?: boolean
 }

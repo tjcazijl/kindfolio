@@ -1,21 +1,26 @@
 import { useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useData } from '../store'
-import type { ResourceType } from '../types'
+import type { Resource, ResourceStatus, ResourceType } from '../types'
 import {
   RESOURCE_META,
   RESOURCE_ORDER,
   STATUS_META,
+  statusesForType,
+  isBook,
+  isFinished,
   normalizeUrl,
   displayUrl,
 } from '../utils/resources'
+import { todayISO, formatDateNumeric } from '../utils/dates'
 
 type Filter = 'alles' | ResourceType
 
 export function Resources() {
   const navigate = useNavigate()
-  const { resources, children, canEdit } = useData()
+  const { resources, children, canEdit, editResource } = useData()
   const [filter, setFilter] = useState<Filter>('alles')
+  const [showFinished, setShowFinished] = useState(false)
 
   const counts = useMemo(() => {
     const map: Record<string, number> = { alles: resources.length }
@@ -27,12 +32,100 @@ export function Resources() {
     () => (filter === 'alles' ? resources : resources.filter((r) => r.type === filter)),
     [resources, filter],
   )
+  const active = useMemo(() => list.filter((r) => !isFinished(r.status)), [list])
+  const finished = useMemo(() => list.filter((r) => isFinished(r.status)), [list])
 
   const childById = useMemo(() => {
     const m: Record<string, (typeof children)[number]> = {}
     for (const c of children) m[c.id] = c
     return m
   }, [children])
+
+  async function setStatus(r: Resource, s: ResourceStatus) {
+    await editResource(r.id, {
+      status: s,
+      readDate: isFinished(s) ? r.readDate || todayISO() : null,
+    })
+  }
+
+  function renderCard(r: Resource) {
+    const meta = RESOURCE_META[r.type]
+    const href = normalizeUrl(r.url)
+    const kids = r.childIds.map((id) => childById[id]).filter(Boolean)
+    const statuses = statusesForType(r.type)
+    return (
+      <div
+        key={r.id}
+        className={`res ${canEdit ? 'tappable' : ''}`}
+        onClick={() => canEdit && navigate(`/leermiddelen/${r.id}/bewerken`)}
+      >
+        <span className={`res-ic ${meta.cls}`}>{meta.icon}</span>
+        <div className="res-main">
+          <div className="res-title">{r.title}</div>
+          {(r.author || href) && (
+            <div className="res-sub">
+              {r.author && <span>{r.author}</span>}
+              {href && (
+                <a
+                  className="res-link"
+                  href={href}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  {displayUrl(r.url)} ↗
+                </a>
+              )}
+            </div>
+          )}
+          {(r.subjects.length > 0 || kids.length > 0 || r.readDate) && (
+            <div className="badges">
+              {r.subjects.map((s) => (
+                <span key={s} className="badge subj">
+                  {s}
+                </span>
+              ))}
+              {isFinished(r.status) && r.readDate && (
+                <span className="badge gelezen">
+                  {r.type === 'leerboek' ? 'Afgerond' : 'Gelezen'} · {formatDateNumeric(r.readDate)}
+                </span>
+              )}
+              {kids.map((c) => (
+                <span key={c!.id} className="badge child">
+                  <span className="badge-dot" style={{ background: c!.color }} />
+                  {c!.name}
+                </span>
+              ))}
+            </div>
+          )}
+          {r.notes && <div className="res-note">{r.notes}</div>}
+
+          {/* Snelle statuswissel voor boeken. */}
+          {isBook(r.type) && statuses.length > 0 && canEdit && (
+            <div className="res-status" onClick={(e) => e.stopPropagation()}>
+              {statuses.map((s) => (
+                <button
+                  key={s}
+                  type="button"
+                  className={`status-btn ${r.status === s ? 'on' : ''}`}
+                  onClick={() => setStatus(r, s)}
+                >
+                  {STATUS_META[s].label}
+                </button>
+              ))}
+            </div>
+          )}
+          {isBook(r.type) && r.status && !canEdit && (
+            <div className="badges">
+              <span className={`badge ${STATUS_META[r.status].cls}`}>
+                {STATUS_META[r.status].label}
+              </span>
+            </div>
+          )}
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div className="page">
@@ -92,67 +185,32 @@ export function Resources() {
       ) : (
         <>
           <p className="count-line">
-            {list.length}{' '}
+            {active.length}{' '}
             {filter === 'leerboek' || filter === 'leesboek'
-              ? `boek${list.length === 1 ? '' : 'en'}`
-              : `leermiddel${list.length === 1 ? '' : 'en'}`}
+              ? `boek${active.length === 1 ? '' : 'en'}`
+              : `leermiddel${active.length === 1 ? '' : 'en'}`}
           </p>
-          <div className="res-list">
-            {list.map((r) => {
-              const meta = RESOURCE_META[r.type]
-              const href = normalizeUrl(r.url)
-              const kids = r.childIds.map((id) => childById[id]).filter(Boolean)
-              return (
-                <div
-                  key={r.id}
-                  className={`res ${canEdit ? 'tappable' : ''}`}
-                  onClick={() => canEdit && navigate(`/leermiddelen/${r.id}/bewerken`)}
-                >
-                  <span className={`res-ic ${meta.cls}`}>{meta.icon}</span>
-                  <div className="res-main">
-                    <div className="res-title">{r.title}</div>
-                    {(r.author || href) && (
-                      <div className="res-sub">
-                        {r.author && <span>{r.author}</span>}
-                        {href && (
-                          <a
-                            className="res-link"
-                            href={href}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            onClick={(e) => e.stopPropagation()}
-                          >
-                            {displayUrl(r.url)} ↗
-                          </a>
-                        )}
-                      </div>
-                    )}
-                    {(r.subjects.length > 0 || r.status || kids.length > 0) && (
-                      <div className="badges">
-                        {r.subjects.map((s) => (
-                          <span key={s} className="badge subj">
-                            {s}
-                          </span>
-                        ))}
-                        {r.status && (
-                          <span className={`badge ${STATUS_META[r.status].cls}`}>
-                            {STATUS_META[r.status].label}
-                          </span>
-                        )}
-                        {kids.map((c) => (
-                          <span key={c!.id} className="badge child">
-                            <span className="badge-dot" style={{ background: c!.color }} />
-                            {c!.name}
-                          </span>
-                        ))}
-                      </div>
-                    )}
-                    {r.notes && <div className="res-note">{r.notes}</div>}
-                  </div>
+          <div className="res-list">{active.map(renderCard)}</div>
+
+          {finished.length > 0 && (
+            <div className="finished-section">
+              <button
+                className="collapse-head"
+                onClick={() => setShowFinished((v) => !v)}
+              >
+                <span>
+                  <strong>Gelezen / afgerond</strong>
+                  <span className="hint inline"> · {finished.length}</span>
+                </span>
+                <span className="chevron">{showFinished ? '▾' : '▸'}</span>
+              </button>
+              {showFinished && (
+                <div className="res-list" style={{ marginTop: 10 }}>
+                  {finished.map(renderCard)}
                 </div>
-              )
-            })}
-          </div>
+              )}
+            </div>
+          )}
         </>
       )}
     </div>

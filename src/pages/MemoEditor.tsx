@@ -15,7 +15,7 @@ import { useLiveSpeech } from '../hooks/useLiveSpeech'
 import { formatDateLong, todayISO } from '../utils/dates'
 import { effectiveSubcats } from '../utils/subjects'
 import { MOODS } from '../utils/mood'
-import { RESOURCE_META } from '../utils/resources'
+import { RESOURCE_META, isFinished } from '../utils/resources'
 import type { MoodKey } from '../types'
 
 export function MemoEditor() {
@@ -676,31 +676,37 @@ export function MemoEditor() {
         <span className="field-label">
           Leermiddelen <span className="fl-opt">(optioneel)</span>
         </span>
-        {resources.length > 0 ? (
-          <>
-            <div className="chips">
-              {resources.map((r) => {
-                const on = resourceIds.includes(r.id)
-                return (
-                  <button
-                    key={r.id}
-                    type="button"
-                    className={`chip ${on ? 'on' : ''}`}
-                    onClick={() => toggleResource(r.id)}
-                  >
-                    {RESOURCE_META[r.type].icon} {r.title}
-                  </button>
-                )
-              })}
-            </div>
-            <p className="hint">Tik aan welke je bij deze memo gebruikte.</p>
-          </>
-        ) : (
-          <p className="hint">
-            Nog geen leermiddelen. Voeg boeken, sites of video’s toe via 📚 op het
-            beginscherm, dan kun je ze hier koppelen.
-          </p>
-        )}
+        {(() => {
+          // Gelezen/afgeronde boeken niet aanbieden (tenzij al gekoppeld).
+          const pickable = resources.filter(
+            (r) => !isFinished(r.status) || resourceIds.includes(r.id),
+          )
+          return pickable.length > 0 ? (
+            <>
+              <div className="chips">
+                {pickable.map((r) => {
+                  const on = resourceIds.includes(r.id)
+                  return (
+                    <button
+                      key={r.id}
+                      type="button"
+                      className={`chip ${on ? 'on' : ''}`}
+                      onClick={() => toggleResource(r.id)}
+                    >
+                      {RESOURCE_META[r.type].icon} {r.title}
+                    </button>
+                  )
+                })}
+              </div>
+              <p className="hint">Tik aan welke je bij deze memo gebruikte.</p>
+            </>
+          ) : (
+            <p className="hint">
+              Nog geen leermiddelen om te koppelen. Voeg boeken, sites of video’s
+              toe via 📚 op het beginscherm.
+            </p>
+          )
+        })()}
       </div>
 
       {/* Reflectie — standaard dichtgeklapt */}

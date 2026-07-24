@@ -9,7 +9,9 @@ import {
   statusesForType,
   hasStatus,
   isBook,
+  isFinished,
 } from '../utils/resources'
+import { todayISO } from '../utils/dates'
 
 export function ResourceEditor() {
   const { resourceId } = useParams()
@@ -30,6 +32,7 @@ export function ResourceEditor() {
   const [author, setAuthor] = useState(existing?.author || '')
   const [url, setUrl] = useState(existing?.url || '')
   const [status, setStatus] = useState<ResourceStatus | undefined>(existing?.status)
+  const [readDate, setReadDate] = useState(existing?.readDate || '')
   const [subjects, setSubjects] = useState<string[]>(existing?.subjects || [])
   const [notes, setNotes] = useState(existing?.notes || '')
   const [childIds, setChildIds] = useState<string[]>(existing?.childIds || [])
@@ -74,6 +77,10 @@ export function ResourceEditor() {
         url: isBook(type) ? '' : url.trim(),
         subjects,
         status: hasStatus(type) ? status ?? null : null,
+        readDate:
+          hasStatus(type) && isFinished(status)
+            ? readDate || todayISO()
+            : null,
         notes: notes.trim(),
         childIds,
       }
@@ -162,6 +169,21 @@ export function ResourceEditor() {
                 ))}
               </div>
             </div>
+          )}
+          {isFinished(status) && (
+            <label className="field">
+              <span className="field-label">
+                {type === 'leerboek' ? 'Afgerond op' : 'Gelezen op'}{' '}
+                <span className="fl-opt">(optioneel)</span>
+              </span>
+              <input
+                type="date"
+                className="input"
+                value={readDate || todayISO()}
+                max={todayISO()}
+                onChange={(e) => setReadDate(e.target.value)}
+              />
+            </label>
           )}
         </>
       ) : (

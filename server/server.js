@@ -229,6 +229,7 @@ for (const sql of [
   'ALTER TABLE summaries ADD COLUMN photo_ids TEXT',
   'ALTER TABLE events ADD COLUMN sort_order INTEGER DEFAULT 0',
   'ALTER TABLE resources ADD COLUMN subjects TEXT',
+  'ALTER TABLE resources ADD COLUMN read_date TEXT',
 ]) {
   try {
     db.exec(sql)
@@ -336,10 +337,13 @@ const mapResource = (r, childIds) => ({
   author: r.author || undefined, url: r.url || undefined,
   subjects: r.subjects ? JSON.parse(r.subjects) : r.subject ? [r.subject] : [],
   status: r.status || undefined,
+  readDate: r.read_date || undefined,
   notes: r.notes || undefined,
   childIds: childIds || [],
   createdAt: r.created_at, updatedAt: r.updated_at,
 })
+// Statussen die "af/gelezen" betekenen.
+const FINISHED_STATUS = new Set(['gelezen', 'afgerond'])
 
 // Maakt/werkt bij/verwijdert een aan een memo gekoppeld aandachtspunt.
 function upsertMemoFocus(memoId, childId, accountId, linkKind, text, subject, defaultStatus) {
@@ -1601,18 +1605,20 @@ add('POST', /^\/api\/resources$/, async (req, res) => {
   const title = (body.title || '').trim()
   if (!title) return sendJson(res, 400, { error: 'titel verplicht' })
   const type = RESOURCE_TYPES.has(body.type) ? body.type : 'overig'
+  const status = resourceStatus(type, body.status)
   const r = {
     id: uid(), type, title: title.slice(0, 300),
     author: (body.author || '').trim().slice(0, 200) || null,
     url: (body.url || '').trim().slice(0, 1000) || null,
     subjects: cleanSubjects(body.subjects),
-    status: resourceStatus(type, body.status),
+    status,
+    read_date: FINISHED_STATUS.has(status) && body.readDate ? String(body.readDate).slice(0, 10) : null,
     notes: (body.notes || '').trim().slice(0, 2000) || null,
     created_at: now(), updated_at: now(),
   }
   db.prepare(
-    'INSERT INTO resources (id,account_id,type,title,author,url,subjects,status,notes,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?)',
-  ).run(r.id, req.accountId, r.type, r.title, r.author, r.url, r.subjects, r.status, r.notes, r.created_at, r.updated_at)
+    'INSERT INTO resources (id,account_id,type,title,author,url,subjects,status,read_date,notes,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)',
+  ).run(r.id, req.accountId, r.type, r.title, r.author, r.url, r.subjects, r.status, r.read_date, r.notes, r.created_at, r.updated_at)
   const childIds = validChildIds(body.childIds, req.accountId)
   for (const cid of childIds)
     db.prepare('INSERT OR IGNORE INTO resource_children (resource_id,child_id) VALUES (?,?)').run(r.id, cid)
@@ -1634,10 +1640,17 @@ add('PATCH', /^\/api\/resources\/([^/]+)$/, async (req, res, m) => {
     body.status !== undefined || body.type !== undefined
       ? resourceStatus(type, body.status !== undefined ? body.status : existing.status)
       : existing.status
+  // Gelezen-datum: expliciet meegegeven wint; anders bewaren, of wissen als niet meer "af".
+  let readDate
+  if (body.readDate !== undefined) {
+    readDate = body.readDate ? String(body.readDate).slice(0, 10) : null
+  } else {
+    readDate = FINISHED_STATUS.has(status) ? existing.read_date : null
+  }
   const notes = body.notes !== undefined ? (body.notes || '').trim().slice(0, 2000) || null : existing.notes
   db.prepare(
-    'UPDATE resources SET type=?,title=?,author=?,url=?,subjects=?,status=?,notes=?,updated_at=? WHERE id=?',
-  ).run(type, title, author, url, subjects, status, notes, now(), m[1])
+    'UPDATE resources SET type=?,title=?,author=?,url=?,subjects=?,status=?,read_date=?,notes=?,updated_at=? WHERE id=?',
+  ).run(type, title, author, url, subjects, status, readDate, notes, now(), m[1])
   let childIds
   if (Array.isArray(body.childIds)) {
     childIds = validChildIds(body.childIds, req.accountId)
@@ -1647,7 +1660,7 @@ add('PATCH', /^\/api\/resources\/([^/]+)$/, async (req, res, m) => {
   } else {
     childIds = db.prepare('SELECT child_id FROM resource_children WHERE resource_id = ?').all(m[1]).map((x) => x.child_id)
   }
-  sendJson(res, 200, mapResource({ ...existing, type, title, author, url, subjects, status, notes }, childIds))
+  sendJson(res, 200, mapResource({ ...existing, type, title, author, url, subjects, status, read_date: readDate, notes }, childIds))
 })
 
 add('DELETE', /^\/api\/resources\/([^/]+)$/, (req, res, m) => {
@@ -2059,6 +2072,31 @@ ${memoText}`
   }
   const json = await aiRes.json()
   text = (json.content || []).filter((b) => b.type === 'text').map((b) => b.text).join('\n')
+  }
+
+  // Optioneel: lijst van gelezen boeken uit deze periode onderaan de samenvatting.
+  if (body.withBooks) {
+    const finished = db
+      .prepare(
+        `SELECT * FROM resources
+         WHERE account_id = ? AND type IN ('leesboek','leerboek')
+           AND status IN ('gelezen','afgerond')
+           AND read_date IS NOT NULL AND read_date >= ? AND read_date <= ?
+         ORDER BY read_date ASC`,
+      )
+      .all(req.accountId, start, end)
+      .filter((b) => {
+        const kids = db.prepare('SELECT child_id FROM resource_children WHERE resource_id = ?').all(b.id).map((x) => x.child_id)
+        return kids.length === 0 || kids.includes(child.id)
+      })
+    if (finished.length) {
+      text += `\n\n## Gelezen boeken\n`
+      for (const b of finished) {
+        const d = String(b.read_date).split('-')
+        const nice = d.length === 3 ? `${d[2]}-${d[1]}-${d[0]}` : b.read_date
+        text += `- ${b.title}${b.author ? ` — ${b.author}` : ''} (${nice})\n`
+      }
+    }
   }
 
   // Foto's zichtbaar meenemen in de samenvatting (en dus in de PDF).
