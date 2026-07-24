@@ -266,8 +266,18 @@ export function MemoEditor() {
       alert('Kies minstens één kind.')
       return
     }
-    if (!text.trim() && photoIds.length === 0) {
-      alert('Voeg tekst of minstens één foto toe.')
+    // Een memo mag ook zonder tekst/foto, zolang er íets in staat
+    // (vakgebied, leermiddel, stemming of aandachtspunt).
+    const hasContent =
+      text.trim() ||
+      photoIds.length > 0 ||
+      subjects.length > 0 ||
+      resourceIds.length > 0 ||
+      !!mood ||
+      attentionText.trim() ||
+      followupText.trim()
+    if (!hasContent) {
+      alert('Voeg iets toe: tekst, een foto, een vakgebied of een leermiddel.')
       return
     }
     if (voice.recording) voice.cancel()
