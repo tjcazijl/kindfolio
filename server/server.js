@@ -1004,27 +1004,66 @@ add('POST', /^\/api\/settings$/, async (req, res) => {
   sendJson(res, 200, { subjects, aiEnabled: !!aiEnabled, subcategories })
 })
 
+// Beheeroverzicht, gegroepeerd per portfolio: de eigenaar met daaronder de
+// mensen die meekijken of meewerken (bv. een lerares of medeouder).
 add('GET', /^\/api\/admin\/users$/, (req, res) => {
   if (!isAdminUser(req.userId)) return sendJson(res, 403, { error: 'Geen toegang' })
-  const rows = db
-    .prepare(
-      `SELECT u.email, u.created_at, u.verified,
-        (SELECT COUNT(*) FROM children c WHERE c.account_id = u.id) AS children,
-        (SELECT COUNT(*) FROM memos m WHERE m.account_id = u.id) AS memos,
-        (SELECT COUNT(*) FROM summaries s WHERE s.account_id = u.id) AS summaries
-      FROM users u ORDER BY u.created_at DESC`,
-    )
+  const users = db
+    .prepare('SELECT id, email, created_at, verified, last_seen FROM users')
     .all()
-  sendJson(res, 200, {
-    users: rows.map((r) => ({
-      email: r.email,
-      createdAt: r.created_at,
-      verified: !!r.verified,
-      children: r.children,
-      memos: r.memos,
-      summaries: r.summaries,
-    })),
+  const byId = {}
+  for (const u of users) byId[u.id] = u
+  const memberships = db.prepare('SELECT account_id, user_id, role FROM memberships').all()
+
+  const mapUser = (u, role) => ({
+    email: u.email,
+    role,
+    createdAt: u.created_at,
+    verified: !!u.verified,
+    lastSeen: u.last_seen || undefined,
   })
+
+  // Per account: wie is de eigenaar en wie heeft er verder toegang.
+  const accounts = []
+  const seen = new Set()
+  for (const m of memberships.filter((x) => x.role === 'owner')) {
+    const owner = byId[m.user_id]
+    if (!owner) continue
+    seen.add(owner.id)
+    const acc = m.account_id
+    const others = memberships
+      .filter((x) => x.account_id === acc && x.user_id !== m.user_id)
+      .map((x) => (byId[x.user_id] ? mapUser(byId[x.user_id], x.role) : null))
+      .filter(Boolean)
+    for (const o of others) seen.add(users.find((u) => u.email === o.email)?.id)
+    accounts.push({
+      ...mapUser(owner, 'owner'),
+      children: db.prepare('SELECT COUNT(*) AS c FROM children WHERE account_id = ?').get(acc).c,
+      memos: db.prepare('SELECT COUNT(*) AS c FROM memos WHERE account_id = ?').get(acc).c,
+      summaries: db.prepare('SELECT COUNT(*) AS c FROM summaries WHERE account_id = ?').get(acc).c,
+      members: others,
+    })
+  }
+  accounts.sort((a, b) => b.createdAt - a.createdAt)
+
+  // Uitgenodigden zonder eigen portfolio staan al onder hun account(s); wie
+  // nergens bij hoort tonen we apart, zodat niemand uit beeld valt.
+  const losse = users
+    .filter((u) => !memberships.some((m) => m.user_id === u.id))
+    .map((u) => mapUser(u, 'geen'))
+    .sort((a, b) => b.createdAt - a.createdAt)
+
+  // Openstaande uitnodigingen (nog niet geregistreerd).
+  const invites = db
+    .prepare('SELECT account_id, email, role FROM invites')
+    .all()
+    .map((i) => ({
+      email: i.email,
+      role: i.role,
+      ownerEmail: byId[i.account_id]?.email || '',
+    }))
+
+  sendJson(res, 200, { accounts, losse, invites })
 })
 
 // Eigen naam als die is ingevuld, anders het deel vóór de @ (privacy).

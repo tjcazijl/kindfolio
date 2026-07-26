@@ -2232,3 +2232,56 @@ body {
 .past-list {
   margin-top: 4px;
 }
+
+/* ---- Beheer: portfolio's met hun leden ---- */
+.admin-account {
+  background: var(--card);
+  border: 1.5px solid var(--line);
+  border-radius: var(--radius);
+  padding: 12px 14px;
+}
+.admin-counts {
+  flex-wrap: wrap;
+}
+.admin-seen {
+  color: var(--muted);
+  font-style: italic;
+}
+.admin-members {
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid var(--line);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.admin-member {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding-left: 11px;
+  border-left: 2px solid var(--line);
+}
+.admin-member-email {
+  font-size: 14px;
+  word-break: break-all;
+}
+.admin-member-meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  font-size: 12px;
+}
+.role-badge {
+  font-size: 11px;
+  font-weight: 700;
+  padding: 2px 8px;
+  border-radius: 6px;
+  background: #eef1ec;
+  color: #5a6b57;
+}
+.role-badge.editor { background: var(--les-bg); color: var(--les); }
+.role-badge.commenter { background: var(--uitje-bg); color: var(--uitje); }
+.role-badge.invite { background: #f1efe8; color: var(--muted); }
+.role-badge.geen { background: var(--taak-bg); color: var(--taak); }

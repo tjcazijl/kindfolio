@@ -193,17 +193,36 @@ export const revokeShare = (email: string) =>
     body: JSON.stringify({ email }),
   })
 
-export interface AdminUser {
+export type AdminRole = 'owner' | 'editor' | 'commenter' | 'geen'
+
+export interface AdminMember {
   email: string
+  role: AdminRole
   createdAt: number
   verified: boolean
+  lastSeen?: number
+}
+
+export interface AdminAccount extends AdminMember {
   children: number
   memos: number
   summaries: number
+  members: AdminMember[]
 }
 
-export const fetchAdminUsers = () =>
-  req<{ users: AdminUser[] }>('/admin/users').then((r) => r.users)
+export interface AdminInvite {
+  email: string
+  role: string
+  ownerEmail: string
+}
+
+export interface AdminOverview {
+  accounts: AdminAccount[]
+  losse: AdminMember[]
+  invites: AdminInvite[]
+}
+
+export const fetchAdminUsers = () => req<AdminOverview>('/admin/users')
 
 export interface FeedbackPost {
   id: string
