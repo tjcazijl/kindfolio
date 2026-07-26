@@ -5,6 +5,7 @@ import type { EventFreq, EventType } from '../types'
 import { EVENT_ORDER, EVENT_META } from '../utils/events'
 import { WEEKDAYS, recurrenceLabel } from '../utils/recurrence'
 import { todayISO } from '../utils/dates'
+import { SubjectPicker } from '../components/SubjectPicker'
 
 const FREQ_OPTIONS: { value: EventFreq; label: string }[] = [
   { value: 'none', label: 'Niet herhalen' },
@@ -23,14 +24,7 @@ const UNIT: Record<Exclude<EventFreq, 'none'>, [string, string]> = {
 export function EventEditor() {
   const { eventId } = useParams()
   const navigate = useNavigate()
-  const {
-    children,
-    events,
-    subjects: accountSubjects,
-    addEvent,
-    editEvent,
-    removeEvent,
-  } = useData()
+  const { children, events, addEvent, editEvent, removeEvent } = useData()
   const isNew = !eventId
   const existing = eventId ? events.find((e) => e.id === eventId) : undefined
 
@@ -47,10 +41,6 @@ export function EventEditor() {
   const [notes, setNotes] = useState(existing?.notes || '')
   const [saving, setSaving] = useState(false)
   const [confirmDelete, setConfirmDelete] = useState(false)
-
-  const availableSubjects = [
-    ...new Set([...accountSubjects, ...children.flatMap((c) => c.subjects || [])]),
-  ]
 
   if (!isNew && !existing) return <div className="page">Laden…</div>
 
@@ -204,25 +194,12 @@ export function EventEditor() {
         </div>
       )}
 
-      {availableSubjects.length > 0 && (
-        <div className="field">
-          <span className="field-label">
-            Vakgebieden <span className="fl-opt">(optioneel, meerdere mag)</span>
-          </span>
-          <div className="chips">
-            {availableSubjects.map((s) => (
-              <button
-                key={s}
-                type="button"
-                className={`chip ${subjects.includes(s) ? 'on' : ''}`}
-                onClick={() => toggleSubject(s)}
-              >
-                {s}
-              </button>
-            ))}
-          </div>
-        </div>
-      )}
+      <div className="field">
+        <span className="field-label">
+          Vakgebieden <span className="fl-opt">(optioneel, meerdere mag)</span>
+        </span>
+        <SubjectPicker selected={subjects} onToggle={toggleSubject} />
+      </div>
 
       <label className="field">
         <span className="field-label">Herhalen</span>

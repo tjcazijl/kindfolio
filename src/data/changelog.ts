@@ -10,6 +10,16 @@ export interface Update {
 
 export const CHANGELOG: Update[] = [
   {
+    id: '2026-07-26',
+    date: '2026-07-26',
+    title: 'Overzichtelijker: dagen, agenda & subcategorieën',
+    items: [
+      'In de tijdlijn staat nu een duidelijke dagkop boven de memo’s van die dag (“Vandaag”, “Gisteren” of bijv. “Woensdag 15 juli”), met een lijn ertussen.',
+      'In de agenda staan afgelopen activiteiten onder een apart, ingeklapt “Afgelopen”-kopje — zo begin je meteen bij vandaag, maar blijft het verleden vindbaar.',
+      'Bij leermiddelen en agenda-items kun je nu ook subcategorieën kiezen (bijv. Taal → Lezen), net als bij een memo.',
+    ],
+  },
+  {
     id: '2026-07-24',
     date: '2026-07-24',
     title: 'Agenda: verleden blijft staan & categorieën',

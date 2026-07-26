@@ -1,4 +1,4 @@
-import { useMemo } from 'react'
+import { useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useData } from '../store'
 import { updateEvent } from '../api'
@@ -50,6 +50,18 @@ export function Agenda() {
     return [...map.entries()]
   }, [occurrences])
 
+  // Afgelopen dagen apart, zodat je niet langs het verleden hoeft te scrollen.
+  const pastGroups = useMemo(() => groups.filter(([d]) => d < today), [groups, today])
+  const upcomingGroups = useMemo(
+    () => groups.filter(([d]) => d >= today),
+    [groups, today],
+  )
+  const pastCount = useMemo(
+    () => pastGroups.reduce((n, [, items]) => n + items.length, 0),
+    [pastGroups],
+  )
+  const [showPast, setShowPast] = useState(false)
+
   function headerLabel(iso: string): string {
     if (iso === today) return 'Vandaag'
     if (iso === tomorrow) return 'Morgen'
@@ -94,6 +106,96 @@ export function Agenda() {
     await reload()
   }
 
+  function renderGroup([date, items]: [string, Occurrence[]]) {
+    const timeless = items.filter((i) => !i.event.time)
+    return (
+      <div key={date} className="agenda-group">
+        <div className="agenda-group-head">{headerLabel(date)}</div>
+        {items.map((o) => {
+          const ev = o.event
+          const meta = EVENT_META[ev.type]
+          const kids = ev.childIds.map((id) => childById[id]).filter(Boolean)
+          const rep = recurrenceLabel(ev)
+          // Reorder tonen voor tijdloze items als er meer dan één is die dag.
+          const tIdx = ev.time ? -1 : timeless.findIndex((i) => i.event.id === ev.id)
+          const showReorder = canEdit && tIdx >= 0 && timeless.length > 1
+          return (
+            <div
+              key={`${ev.id}-${o.date}`}
+              className={`agenda-item ${o.date < today ? 'past' : ''}`}
+            >
+              <button
+                className="agenda-item-open"
+                onClick={() => navigate(`/agenda/${ev.id}`)}
+              >
+                <span className={`ev-ic ${ev.type}`}>{meta.icon}</span>
+                <span className="agenda-item-main">
+                  <span className="agenda-item-title">
+                    {ev.title}
+                    <span className={`ev-badge ${ev.type}`}>
+                      {meta.label.toLowerCase()}
+                    </span>
+                  </span>
+                  <span className="agenda-item-meta">
+                    {ev.time && <span className="ev-time">{ev.time}</span>}
+                    {kids.length > 0 && (
+                      <span className="ev-kids">
+                        {kids.map((c) => (
+                          <span
+                            key={c!.id}
+                            className="ev-dot"
+                            style={{ background: c!.color }}
+                          />
+                        ))}
+                        {kids.map((c) => c!.name).join(', ')}
+                      </span>
+                    )}
+                    {ev.subjects.length > 0 && (
+                      <span className="ev-subjects">{ev.subjects.join(', ')}</span>
+                    )}
+                    {rep && <span className="ev-rep">↻ {rep}</span>}
+                  </span>
+                </span>
+              </button>
+              {canEdit && (
+                <button
+                  className="agenda-memo-btn"
+                  aria-label="Notitie maken"
+                  title="Notitie maken"
+                  onClick={() => makeMemo(o)}
+                >
+                  📝
+                </button>
+              )}
+              {showReorder ? (
+                <span className="agenda-reorder">
+                  <button
+                    className="reorder-btn"
+                    aria-label="Omhoog"
+                    disabled={tIdx === 0}
+                    onClick={() => moveTimeless(items, o, -1)}
+                  >
+                    ▲
+                  </button>
+                  <button
+                    className="reorder-btn"
+                    aria-label="Omlaag"
+                    disabled={tIdx === timeless.length - 1}
+                    onClick={() => moveTimeless(items, o, 1)}
+                  >
+                    ▼
+                  </button>
+                </span>
+              ) : (
+                <span className="chev">›</span>
+              )}
+            </div>
+          )
+        })}
+      </div>
+    )
+  }
+
   return (
     <div className="page">
       <div className="topbar">
@@ -128,95 +230,28 @@ export function Agenda() {
         </div>
       )}
 
-      {groups.map(([date, items]) => {
-        const timeless = items.filter((i) => !i.event.time)
-        return (
-          <div key={date} className="agenda-group">
-            <div className="agenda-group-head">{headerLabel(date)}</div>
-            {items.map((o) => {
-              const ev = o.event
-              const meta = EVENT_META[ev.type]
-              const kids = ev.childIds.map((id) => childById[id]).filter(Boolean)
-              const rep = recurrenceLabel(ev)
-              // Reorder tonen voor tijdloze items als er meer dan één is die dag.
-              const tIdx = ev.time ? -1 : timeless.findIndex((i) => i.event.id === ev.id)
-              const showReorder = canEdit && tIdx >= 0 && timeless.length > 1
-              return (
-                <div
-                  key={`${ev.id}-${o.date}`}
-                  className={`agenda-item ${o.date < today ? 'past' : ''}`}
-                >
-                  <button
-                    className="agenda-item-open"
-                    onClick={() => navigate(`/agenda/${ev.id}`)}
-                  >
-                    <span className={`ev-ic ${ev.type}`}>{meta.icon}</span>
-                    <span className="agenda-item-main">
-                      <span className="agenda-item-title">
-                        {ev.title}
-                        <span className={`ev-badge ${ev.type}`}>
-                          {meta.label.toLowerCase()}
-                        </span>
-                      </span>
-                      <span className="agenda-item-meta">
-                        {ev.time && <span className="ev-time">{ev.time}</span>}
-                        {kids.length > 0 && (
-                          <span className="ev-kids">
-                            {kids.map((c) => (
-                              <span
-                                key={c!.id}
-                                className="ev-dot"
-                                style={{ background: c!.color }}
-                              />
-                            ))}
-                            {kids.map((c) => c!.name).join(', ')}
-                          </span>
-                        )}
-                        {ev.subjects.length > 0 && (
-                          <span className="ev-subjects">{ev.subjects.join(', ')}</span>
-                        )}
-                        {rep && <span className="ev-rep">↻ {rep}</span>}
-                      </span>
-                    </span>
-                  </button>
-                  {canEdit && (
-                    <button
-                      className="agenda-memo-btn"
-                      aria-label="Notitie maken"
-                      title="Notitie maken"
-                      onClick={() => makeMemo(o)}
-                    >
-                      📝
-                    </button>
-                  )}
-                  {showReorder ? (
-                    <span className="agenda-reorder">
-                      <button
-                        className="reorder-btn"
-                        aria-label="Omhoog"
-                        disabled={tIdx === 0}
-                        onClick={() => moveTimeless(items, o, -1)}
-                      >
-                        ▲
-                      </button>
-                      <button
-                        className="reorder-btn"
-                        aria-label="Omlaag"
-                        disabled={tIdx === timeless.length - 1}
-                        onClick={() => moveTimeless(items, o, 1)}
-                      >
-                        ▼
-                      </button>
-                    </span>
-                  ) : (
-                    <span className="chev">›</span>
-                  )}
-                </div>
-              )
-            })}
-          </div>
-        )
-      })}
+      {/* Afgelopen dagen apart en standaard ingeklapt. */}
+      {pastCount > 0 && (
+        <div className="past-section">
+          <button
+            className="collapse-head"
+            onClick={() => setShowPast((v) => !v)}
+          >
+            <span>
+              <strong>Afgelopen</strong>
+              <span className="hint inline"> · {pastCount}</span>
+            </span>
+            <span className="chevron">{showPast ? '▾' : '▸'}</span>
+          </button>
+          {showPast && <div className="past-list">{pastGroups.map(renderGroup)}</div>}
+        </div>
+      )}
+
+      {upcomingGroups.map(renderGroup)}
+
+      {upcomingGroups.length === 0 && pastCount > 0 && (
+        <p className="empty-note">Niets meer gepland vanaf vandaag.</p>
+      )}
     </div>
   )
 }

@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { useData } from '../store'
 import type { ResourceStatus, ResourceType } from '../types'
@@ -12,6 +12,7 @@ import {
   isFinished,
 } from '../utils/resources'
 import { todayISO } from '../utils/dates'
+import { SubjectPicker } from '../components/SubjectPicker'
 
 export function ResourceEditor() {
   const { resourceId } = useParams()
@@ -19,7 +20,6 @@ export function ResourceEditor() {
   const {
     resources,
     children,
-    subjects: accountSubjects,
     addResource,
     editResource,
     removeResource,
@@ -38,11 +38,6 @@ export function ResourceEditor() {
   const [childIds, setChildIds] = useState<string[]>(existing?.childIds || [])
   const [saving, setSaving] = useState(false)
   const [confirmDelete, setConfirmDelete] = useState(false)
-
-  const availableSubjects = useMemo(
-    () => [...new Set([...accountSubjects, ...children.flatMap((c) => c.subjects || [])])],
-    [accountSubjects, children],
-  )
 
   if (!isNew && !existing) return <div className="page">Laden…</div>
 
@@ -231,25 +226,12 @@ export function ResourceEditor() {
         </div>
       )}
 
-      {availableSubjects.length > 0 && (
-        <div className="field">
-          <span className="field-label">
-            Vakgebieden <span className="fl-opt">(optioneel, meerdere mag)</span>
-          </span>
-          <div className="chips">
-            {availableSubjects.map((s) => (
-              <button
-                key={s}
-                type="button"
-                className={`chip ${subjects.includes(s) ? 'on' : ''}`}
-                onClick={() => toggleSubject(s)}
-              >
-                {s}
-              </button>
-            ))}
-          </div>
-        </div>
-      )}
+      <div className="field">
+        <span className="field-label">
+          Vakgebieden <span className="fl-opt">(optioneel, meerdere mag)</span>
+        </span>
+        <SubjectPicker selected={subjects} onToggle={toggleSubject} />
+      </div>
 
       <label className="field">
         <span className="field-label">

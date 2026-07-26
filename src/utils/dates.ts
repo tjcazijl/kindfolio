@@ -27,6 +27,28 @@ export function formatDateLong(iso: string): string {
   })
 }
 
+/**
+ * Kop boven een dag in de tijdlijn: "Vandaag", "Gisteren" of de volledig
+ * uitgeschreven dag ("Woensdag 15 juli"), met jaartal als het niet dit jaar is.
+ */
+export function formatDayHeading(iso: string): string {
+  const today = todayISO()
+  if (iso === today) return 'Vandaag'
+  const y = new Date()
+  y.setDate(y.getDate() - 1)
+  if (iso === toISODate(y)) return 'Gisteren'
+
+  const d = new Date(iso + 'T00:00:00')
+  const sameYear = d.getFullYear() === new Date().getFullYear()
+  const s = d.toLocaleDateString('nl-NL', {
+    weekday: 'long',
+    day: 'numeric',
+    month: 'long',
+    ...(sameYear ? {} : { year: 'numeric' }),
+  })
+  return s.charAt(0).toUpperCase() + s.slice(1)
+}
+
 export function formatDateShort(iso: string): string {
   const d = new Date(iso + 'T00:00:00')
   return d.toLocaleDateString('nl-NL', {

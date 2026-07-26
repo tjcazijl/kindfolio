@@ -4,7 +4,7 @@ import { useData } from '../store'
 import { MemoCard } from '../components/MemoCard'
 import { ChildForm } from '../components/ChildForm'
 import { ChildSubjectsEditor } from '../components/ChildSubjectsEditor'
-import { childAge, periodRange, shiftPeriod } from '../utils/dates'
+import { childAge, formatDayHeading, periodRange, shiftPeriod } from '../utils/dates'
 
 type Filter = 'week' | 'maand' | 'alles'
 
@@ -82,6 +82,16 @@ export function ChildTimeline() {
     }
     return childMemos
   }, [childMemos, search, range])
+
+  // Memo's per dag groeperen, zodat de tijdlijn duidelijke dagkoppen krijgt.
+  const byDay = useMemo(() => {
+    const map = new Map<string, typeof visible>()
+    for (const m of visible) {
+      if (!map.has(m.date)) map.set(m.date, [])
+      map.get(m.date)!.push(m)
+    }
+    return [...map.entries()]
+  }, [visible])
 
   if (loading && !child) return <div className="page">Laden…</div>
   if (!child)
@@ -281,8 +291,18 @@ export function ChildTimeline() {
       </p>
 
       <div className="timeline feed">
-        {visible.map((m) => (
-          <MemoCard key={m.id} memo={m} child={child} canEdit={canEdit} />
+        {byDay.map(([day, dayMemos]) => (
+          <div key={day} className="day-group">
+            <div className="day-head">
+              <span className="day-title">{formatDayHeading(day)}</span>
+              <span className="day-count">
+                · {dayMemos.length} memo{dayMemos.length === 1 ? '' : "'s"}
+              </span>
+            </div>
+            {dayMemos.map((m) => (
+              <MemoCard key={m.id} memo={m} child={child} canEdit={canEdit} />
+            ))}
+          </div>
         ))}
       </div>
     </div>
