@@ -259,7 +259,7 @@ const LEGACY = 'legacy-account'
 for (const t of ['children', 'memos', 'photos', 'summaries']) {
   db.prepare(`UPDATE ${t} SET account_id = ? WHERE account_id IS NULL`).run(LEGACY)
 }
-for (const col of ['verify_token TEXT', 'reset_token TEXT', 'reset_expires INTEGER']) {
+for (const col of ['verify_token TEXT', 'reset_token TEXT', 'reset_expires INTEGER', 'last_seen INTEGER']) {
   try {
     db.exec(`ALTER TABLE users ADD COLUMN ${col}`)
   } catch {
@@ -822,7 +822,12 @@ add('GET', /^\/api\/verify$/, (req, res) => {
     return res.end()
   }
   db.prepare('UPDATE users SET verified = 1, verify_token = NULL WHERE id = ?').run(user.id)
-  res.writeHead(302, { Location: `${APP_URL}/?verified=1` })
+  // Meteen inloggen: wie net z'n adres bevestigt hoeft niet opnieuw in te typen.
+  // (Scheelt een drempel, vooral op de telefoon vanuit de mail-app.)
+  res.writeHead(302, {
+    'Set-Cookie': `${COOKIE_NAME}=${makeSession(user.id)}; HttpOnly; Secure; SameSite=Lax; Path=/; Max-Age=${COOKIE_MAX_AGE}`,
+    Location: `${APP_URL}/?verified=1`,
+  })
   res.end()
 })
 
@@ -889,9 +894,24 @@ add('GET', /^\/api\/me$/, (req, res) => {
   sendJson(res, 200, { email: user.email })
 })
 
+// Houdt bij wanneer iemand de app voor het laatst opende (hooguit 1x per uur
+// een schrijfactie). Alleen een tijdstempel — geen gedrag of inhoud.
+function touchLastSeen(userId) {
+  try {
+    const t = now()
+    const row = db.prepare('SELECT last_seen FROM users WHERE id = ?').get(userId)
+    if (!row || !row.last_seen || t - row.last_seen > 3600000) {
+      db.prepare('UPDATE users SET last_seen = ? WHERE id = ?').run(t, userId)
+    }
+  } catch {
+    /* niet kritisch */
+  }
+}
+
 // --- Data (account-scoped via req.accountId) ---
 add('GET', /^\/api\/state$/, (req, res) => {
   const acc = req.accountId
+  touchLastSeen(req.userId)
   const children = db.prepare('SELECT * FROM children WHERE account_id = ? ORDER BY created_at ASC').all(acc).map(mapChild)
   const memoResLinks = {}
   for (const l of db
