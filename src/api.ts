@@ -338,6 +338,7 @@ export interface EventInput {
   sortOrder?: number
   subjects?: string[]
   childIds?: string[]
+  focusIds?: string[]
 }
 export const createEvent = (data: EventInput) =>
   req<AgendaEvent>('/events', { method: 'POST', body: JSON.stringify(data) })

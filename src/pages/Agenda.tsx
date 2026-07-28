@@ -8,7 +8,7 @@ import { todayISO, toISODate, formatDateShort } from '../utils/dates'
 
 export function Agenda() {
   const navigate = useNavigate()
-  const { events, children, canEdit, reload } = useData()
+  const { events, children, focusPoints, canEdit, reload } = useData()
 
   const today = todayISO()
   const tomorrow = useMemo(() => {
@@ -106,6 +106,15 @@ export function Agenda() {
     await reload()
   }
 
+  // Springt naar het gekoppelde aandachtspunt, zodat je het daar kunt afvinken.
+  function goToFocus(focusId: string) {
+    const fp = focusPoints.find((f) => f.id === focusId)
+    if (!fp) return
+    navigate(`/kind/${fp.childId}/aandacht`, {
+      state: { highlightFocusId: focusId },
+    })
+  }
+
   function renderGroup([date, items]: [string, Occurrence[]]) {
     const timeless = items.filter((i) => !i.event.time)
     return (
@@ -119,6 +128,10 @@ export function Agenda() {
           // Reorder tonen voor tijdloze items als er meer dan één is die dag.
           const tIdx = ev.time ? -1 : timeless.findIndex((i) => i.event.id === ev.id)
           const showReorder = canEdit && tIdx >= 0 && timeless.length > 1
+          // Gekoppelde aandachtspunten die nog niet afgevinkt zijn.
+          const openFocus = ev.focusIds
+            .map((id) => focusPoints.find((f) => f.id === id))
+            .filter((f): f is NonNullable<typeof f> => !!f && f.status !== 'done')
           return (
             <div
               key={`${ev.id}-${o.date}`}
@@ -155,8 +168,27 @@ export function Agenda() {
                     )}
                     {rep && <span className="ev-rep">↻ {rep}</span>}
                   </span>
+                  {openFocus.length > 0 && (
+                    <span className="ev-focus">
+                      {openFocus.map((f) => (
+                        <span key={f.id} className="ev-focus-item">
+                          📌 {f.text}
+                        </span>
+                      ))}
+                    </span>
+                  )}
                 </span>
               </button>
+              {canEdit && openFocus.length > 0 && (
+                <button
+                  className="agenda-memo-btn focus"
+                  aria-label="Naar aandachtspunt"
+                  title="Naar aandachtspunt"
+                  onClick={() => goToFocus(openFocus[0].id)}
+                >
+                  📌
+                </button>
+              )}
               {canEdit && (
                 <button
                   className="agenda-memo-btn"

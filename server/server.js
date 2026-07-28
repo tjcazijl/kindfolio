@@ -189,6 +189,10 @@ db.exec(`
     memo_id TEXT, resource_id TEXT,
     PRIMARY KEY (memo_id, resource_id)
   );
+  CREATE TABLE IF NOT EXISTS event_focus (
+    event_id TEXT, focus_id TEXT,
+    PRIMARY KEY (event_id, focus_id)
+  );
 `)
 
 // --- Migratie: account_id-kolom toevoegen aan bestaande DB's + oude data koppelen ---
@@ -395,7 +399,7 @@ const mapComment = (r) => ({
   id: r.id, targetType: r.target_type, targetId: r.target_id,
   authorEmail: r.author_email, text: r.text || '', createdAt: r.created_at,
 })
-const mapEvent = (r, childIds) => ({
+const mapEvent = (r, childIds, focusIds) => ({
   id: r.id, title: r.title, notes: r.notes || '',
   type: r.type || 'uitje', date: r.date, time: r.time || undefined,
   freq: r.freq || 'none', everyN: r.every_n || 1,
@@ -404,6 +408,7 @@ const mapEvent = (r, childIds) => ({
   sortOrder: r.sort_order || 0,
   subjects: r.subjects ? JSON.parse(r.subjects) : [],
   childIds: childIds || [],
+  focusIds: focusIds || [],
   createdAt: r.created_at, updatedAt: r.updated_at,
 })
 
@@ -940,10 +945,18 @@ add('GET', /^\/api\/state$/, (req, res) => {
     .all(acc)) {
     ;(eventLinks[l.event_id] ||= []).push(l.child_id)
   }
+  const focusLinks = {}
+  for (const l of db
+    .prepare(
+      'SELECT ef.event_id, ef.focus_id FROM event_focus ef JOIN events e ON e.id = ef.event_id WHERE e.account_id = ?',
+    )
+    .all(acc)) {
+    ;(focusLinks[l.event_id] ||= []).push(l.focus_id)
+  }
   const events = db
     .prepare('SELECT * FROM events WHERE account_id = ? ORDER BY date ASC, time ASC')
     .all(acc)
-    .map((r) => mapEvent(r, eventLinks[r.id] || []))
+    .map((r) => mapEvent(r, eventLinks[r.id] || [], focusLinks[r.id] || []))
   const focusPoints = db
     .prepare('SELECT * FROM focus_points WHERE account_id = ? ORDER BY created_at DESC')
     .all(acc)
@@ -1381,6 +1394,21 @@ const EVENT_TYPES = new Set(['uitje', 'taak', 'les'])
 const EVENT_FREQ = new Set(['none', 'daily', 'weekly', 'monthly', 'yearly'])
 const WEEKDAYS = new Set(['ma', 'di', 'wo', 'do', 'vr', 'za', 'zo'])
 
+// Koppelt aandachtspunten aan een agenda-item. Een punt dat nog op "voor later"
+// stond gaat daarmee naar "nu oefenen" — je gaat er immers mee aan de slag.
+function setEventFocus(eventId, accountId, focusIds) {
+  if (!Array.isArray(focusIds)) return
+  const valid = [...new Set(focusIds)].filter((fid) =>
+    db.prepare('SELECT id FROM focus_points WHERE id = ? AND account_id = ?').get(fid, accountId),
+  )
+  db.prepare('DELETE FROM event_focus WHERE event_id = ?').run(eventId)
+  for (const fid of valid) {
+    db.prepare('INSERT OR IGNORE INTO event_focus (event_id,focus_id) VALUES (?,?)').run(eventId, fid)
+    db.prepare("UPDATE focus_points SET status = 'open', updated_at = ? WHERE id = ? AND status = 'later'").run(now(), fid)
+  }
+  return valid
+}
+
 // Valideert childIds tegen het account en ontdubbelt.
 function validChildIds(list, accountId) {
   if (!Array.isArray(list)) return []
@@ -1427,7 +1455,8 @@ add('POST', /^\/api\/events$/, async (req, res) => {
   const childIds = validChildIds(body.childIds, req.accountId)
   for (const cid of childIds)
     db.prepare('INSERT OR IGNORE INTO event_children (event_id,child_id) VALUES (?,?)').run(ev.id, cid)
-  sendJson(res, 201, mapEvent(ev, childIds))
+  const focusIds = setEventFocus(ev.id, req.accountId, body.focusIds) || []
+  sendJson(res, 201, mapEvent(ev, childIds, focusIds))
 })
 
 add('PATCH', /^\/api\/events\/([^/]+)$/, async (req, res, m) => {
@@ -1467,11 +1496,18 @@ add('PATCH', /^\/api\/events\/([^/]+)$/, async (req, res, m) => {
   } else {
     childIds = db.prepare('SELECT child_id FROM event_children WHERE event_id = ?').all(m[1]).map((r) => r.child_id)
   }
+  let focusIds
+  if (Array.isArray(body.focusIds)) {
+    focusIds = setEventFocus(m[1], req.accountId, body.focusIds)
+  } else {
+    focusIds = db.prepare('SELECT focus_id FROM event_focus WHERE event_id = ?').all(m[1]).map((r) => r.focus_id)
+  }
   sendJson(
     res, 200,
     mapEvent(
       { ...existing, title, notes, type, date, time, freq, every_n: everyN, weekdays, until_date: until, sort_order: sortOrder, subjects },
       childIds,
+      focusIds,
     ),
   )
 })
@@ -1481,6 +1517,7 @@ add('DELETE', /^\/api\/events\/([^/]+)$/, (req, res, m) => {
   const ev = db.prepare('SELECT id FROM events WHERE id = ? AND account_id = ?').get(m[1], req.accountId)
   if (!ev) return sendJson(res, 404, { error: 'niet gevonden' })
   db.prepare('DELETE FROM event_children WHERE event_id = ?').run(m[1])
+  db.prepare('DELETE FROM event_focus WHERE event_id = ?').run(m[1])
   db.prepare('DELETE FROM events WHERE id = ?').run(m[1])
   sendJson(res, 200, { ok: true })
 })
@@ -1648,6 +1685,7 @@ add('DELETE', /^\/api\/focus\/([^/]+)$/, (req, res, m) => {
   if (!requireEditor(req, res)) return
   const fp = db.prepare('SELECT id FROM focus_points WHERE id = ? AND account_id = ?').get(m[1], req.accountId)
   if (!fp) return sendJson(res, 404, { error: 'niet gevonden' })
+  db.prepare('DELETE FROM event_focus WHERE focus_id = ?').run(m[1])
   db.prepare('DELETE FROM focus_points WHERE id = ?').run(m[1])
   sendJson(res, 200, { ok: true })
 })

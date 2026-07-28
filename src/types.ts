@@ -94,6 +94,7 @@ export interface AgendaEvent {
   sortOrder: number // handmatige volgorde binnen een dag
   subjects: string[] // vakgebieden/categorieën
   childIds: string[] // leeg = gezinsbreed
+  focusIds: string[] // gekoppelde aandachtspunten
   createdAt: number
   updatedAt: number
 }

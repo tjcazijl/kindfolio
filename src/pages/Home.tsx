@@ -4,6 +4,7 @@ import { useData } from '../store'
 import { ChildForm } from '../components/ChildForm'
 import { childAge, formatDateNumeric, todayISO } from '../utils/dates'
 import { expandEvents } from '../utils/recurrence'
+import { EVENT_META } from '../utils/events'
 import {
   CHANGELOG,
   LATEST_UPDATE_ID,
@@ -31,11 +32,12 @@ export function Home() {
     return map
   }, [memos])
 
-  // Bolletje op het agenda-icoon: staat er iets voor vandaag gepland?
-  const hasAgendaToday = useMemo(() => {
+  // Wat staat er vandaag gepland? (ook voor het bolletje op het agenda-icoon)
+  const vandaag = useMemo(() => {
     const t = todayISO()
-    return expandEvents(events, t, t).length > 0
+    return expandEvents(events, t, t)
   }, [events])
+  const hasAgendaToday = vandaag.length > 0
 
   const [adding, setAdding] = useState(false)
   const [updateSeen, setUpdateSeen] = useState(latestSeenUpdate())
@@ -201,6 +203,54 @@ export function Home() {
             </button>
           )
         ))}
+
+      {vandaag.length > 0 && (
+        <section className="today">
+          <div className="today-head">
+            <span className="today-title">📅 Vandaag</span>
+            <button className="link-btn" onClick={() => navigate('/agenda')}>
+              Agenda ›
+            </button>
+          </div>
+          {vandaag.map((o) => {
+            const ev = o.event
+            const meta = EVENT_META[ev.type]
+            const kids = ev.childIds
+              .map((id) => children.find((c) => c.id === id))
+              .filter(Boolean)
+            return (
+              <button
+                key={`${ev.id}-${o.date}`}
+                className="today-item"
+                onClick={() => navigate(`/agenda/${ev.id}`)}
+              >
+                <span className={`ev-ic sm ${ev.type}`}>{meta.icon}</span>
+                <span className="today-main">
+                  <span className="today-item-title">{ev.title}</span>
+                  {(ev.time || kids.length > 0) && (
+                    <span className="today-item-meta">
+                      {ev.time && <span className="ev-time">{ev.time}</span>}
+                      {kids.length > 0 && (
+                        <span className="ev-kids">
+                          {kids.map((c) => (
+                            <span
+                              key={c!.id}
+                              className="ev-dot"
+                              style={{ background: c!.color }}
+                            />
+                          ))}
+                          {kids.map((c) => c!.name).join(', ')}
+                        </span>
+                      )}
+                    </span>
+                  )}
+                </span>
+                <span className="chev">›</span>
+              </button>
+            )
+          })}
+        </section>
+      )}
 
       <footer className="home-footer">
         <button className="link-btn" onClick={() => navigate('/updates')}>

@@ -10,6 +10,16 @@ export interface Update {
 
 export const CHANGELOG: Update[] = [
   {
+    id: '2026-07-28',
+    date: '2026-07-28',
+    title: 'Aandachtspunten koppelen aan je agenda',
+    items: [
+      'Koppel bij een agenda-item de aandachtspunten waar je aan wilt werken. Staat een punt nog op “voor later”? Door het te koppelen schuift het vanzelf naar “nu oefenen”.',
+      'In de agendaregel staat een 📌-knop naast de notitie-knop: één tik brengt je bij het aandachtspunt, de tweede vinkt het af.',
+      'Op je beginscherm staat nu de planning van vandaag, onder de kinderen en de memo-knop. De kindkaartjes zijn wat compacter zodat alles op één scherm past.',
+    ],
+  },
+  {
     id: '2026-07-26',
     date: '2026-07-26',
     title: 'Overzichtelijker: dagen, agenda & subcategorieën',

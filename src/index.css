@@ -2285,3 +2285,75 @@ body {
 .role-badge.commenter { background: var(--uitje-bg); color: var(--uitje); }
 .role-badge.invite { background: #f1efe8; color: var(--muted); }
 .role-badge.geen { background: var(--taak-bg); color: var(--taak); }
+
+/* ---- Home: compactere kindkaarten (maakt ruimte voor de planning) ---- */
+.child-grid { grid-template-columns: repeat(3, 1fr); gap: 10px; }
+.child-grid .child-card { padding: 12px 6px; gap: 5px; }
+.child-grid .child-card .avatar { width: 40px; height: 40px; font-size: 19px; }
+.child-grid .child-name { font-size: 14px; }
+.child-grid .child-meta { font-size: 11px; line-height: 1.3; }
+
+/* ---- Home: planning van vandaag ---- */
+.today {
+  margin-top: 20px;
+  padding-top: 16px;
+  border-top: 1px solid var(--line);
+}
+.today-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 10px;
+}
+.today-title { font-weight: 800; font-size: 15px; }
+.today-item {
+  width: 100%;
+  text-align: left;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 10px 12px;
+  margin-bottom: 8px;
+  cursor: pointer;
+  font: inherit;
+  color: inherit;
+}
+.today-main { flex: 1; min-width: 0; }
+.today-item-title { display: block; font-weight: 650; font-size: 14.5px; }
+.today-item-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 10px;
+  margin-top: 2px;
+  font-size: 12px;
+  color: var(--muted);
+}
+.ev-ic.sm { width: 34px; height: 34px; border-radius: 10px; font-size: 16px; }
+.today-item .chev { color: var(--muted); font-size: 18px; flex-shrink: 0; }
+
+/* ---- Agenda: gekoppelde aandachtspunten ---- */
+.ev-focus {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin-top: 5px;
+}
+.ev-focus-item {
+  font-size: 12px;
+  color: var(--focus);
+  background: var(--focus-bg);
+  border-radius: 6px;
+  padding: 2px 7px;
+  align-self: flex-start;
+}
+.agenda-memo-btn.focus { background: var(--focus-bg); border-color: #e6d2ab; }
+
+/* ---- Aandachtspunt waar je vanuit de agenda naartoe springt ---- */
+.fp.highlight {
+  border-color: var(--focus);
+  box-shadow: 0 0 0 3px var(--focus-bg);
+}

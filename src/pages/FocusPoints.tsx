@@ -1,5 +1,5 @@
-import { useMemo, useState } from 'react'
-import { useNavigate, useParams } from 'react-router-dom'
+import { useEffect, useMemo, useRef, useState } from 'react'
+import { useLocation, useNavigate, useParams } from 'react-router-dom'
 import { useData } from '../store'
 import type { FocusPoint, FocusStatus } from '../types'
 import { formatDateNumeric } from '../utils/dates'
@@ -27,7 +27,22 @@ export function FocusPoints() {
     subjects: accountSubjects,
   } = useData()
 
-  const [tab, setTab] = useState<FocusStatus>('open')
+  // Vanuit de agenda kun je rechtstreeks naar één aandachtspunt springen.
+  const location = useLocation()
+  const highlightId = (location.state as any)?.highlightFocusId as
+    | string
+    | undefined
+  const highlighted = focusPoints.find((f) => f.id === highlightId)
+
+  const [tab, setTab] = useState<FocusStatus>(highlighted?.status ?? 'open')
+  const markRef = useRef<HTMLDivElement>(null)
+
+  // Het aangewezen punt in beeld brengen zodra de lijst er staat.
+  useEffect(() => {
+    if (highlightId && markRef.current) {
+      markRef.current.scrollIntoView({ block: 'center' })
+    }
+  }, [highlightId])
   const [adding, setAdding] = useState(false)
   const [text, setText] = useState('')
   const [subject, setSubject] = useState('')
@@ -137,7 +152,13 @@ export function FocusPoints() {
         )}
 
         {list.map((f) => (
-          <div key={f.id} className={`fp ${f.status === 'done' ? 'done' : ''}`}>
+          <div
+            key={f.id}
+            ref={f.id === highlightId ? markRef : undefined}
+            className={`fp ${f.status === 'done' ? 'done' : ''} ${
+              f.id === highlightId ? 'highlight' : ''
+            }`}
+          >
             <button
               className="fp-check"
               onClick={() => canEdit && toggleDone(f)}

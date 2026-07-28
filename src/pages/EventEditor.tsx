@@ -24,7 +24,8 @@ const UNIT: Record<Exclude<EventFreq, 'none'>, [string, string]> = {
 export function EventEditor() {
   const { eventId } = useParams()
   const navigate = useNavigate()
-  const { children, events, addEvent, editEvent, removeEvent } = useData()
+  const { children, events, focusPoints, addEvent, editEvent, removeEvent } =
+    useData()
   const isNew = !eventId
   const existing = eventId ? events.find((e) => e.id === eventId) : undefined
 
@@ -34,6 +35,8 @@ export function EventEditor() {
   const [time, setTime] = useState(existing?.time || '')
   const [childIds, setChildIds] = useState<string[]>(existing?.childIds || [])
   const [subjects, setSubjects] = useState<string[]>(existing?.subjects || [])
+  const [focusIds, setFocusIds] = useState<string[]>(existing?.focusIds || [])
+  const [showAllFocus, setShowAllFocus] = useState(false)
   const [freq, setFreq] = useState<EventFreq>(existing?.freq || 'none')
   const [everyN, setEveryN] = useState(existing?.everyN || 1)
   const [weekdays, setWeekdays] = useState<string[]>(existing?.weekdays || [])
@@ -52,6 +55,11 @@ export function EventEditor() {
   function toggleSubject(s: string) {
     setSubjects((prev) =>
       prev.includes(s) ? prev.filter((x) => x !== s) : [...prev, s],
+    )
+  }
+  function toggleFocus(id: string) {
+    setFocusIds((prev) =>
+      prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id],
     )
   }
   function toggleWeekday(code: string) {
@@ -90,6 +98,7 @@ export function EventEditor() {
         until: until || null,
         subjects,
         childIds,
+        focusIds,
         notes: notes.trim(),
       }
       const saved = isNew ? await addEvent(data) : await editEvent(eventId!, data)
@@ -200,6 +209,91 @@ export function EventEditor() {
         </span>
         <SubjectPicker selected={subjects} onToggle={toggleSubject} />
       </div>
+
+      {(() => {
+        // Alleen punten van de gekozen kinderen (of van iedereen als het item
+        // gezinsbreed is). Afgeronde punten laten we weg.
+        const relevant = focusPoints.filter(
+          (f) =>
+            f.status !== 'done' &&
+            (childIds.length === 0 || childIds.includes(f.childId)),
+        )
+        const nu = relevant.filter((f) => f.status === 'open')
+        const later = relevant.filter((f) => f.status === 'later')
+        // Al gekoppelde punten altijd tonen, ook als ze buiten de filter vallen.
+        const gekoppeld = focusPoints.filter(
+          (f) => focusIds.includes(f.id) && !relevant.some((r) => r.id === f.id),
+        )
+        const zichtbaar = showAllFocus ? [...nu, ...later] : nu
+        const lijst = [...zichtbaar, ...gekoppeld]
+        if (relevant.length === 0 && gekoppeld.length === 0) return null
+
+        const naam = (cid: string) =>
+          children.length > 1
+            ? children.find((c) => c.id === cid)?.name
+            : undefined
+
+        return (
+          <div className="field">
+            <span className="field-label">
+              Aandachtspunten nu <span className="fl-opt">(optioneel)</span>
+            </span>
+            {lijst.length === 0 ? (
+              <p className="hint">
+                Niets om nu aan te werken.{' '}
+                {later.length > 0 && (
+                  <button
+                    type="button"
+                    className="link-btn"
+                    onClick={() => setShowAllFocus(true)}
+                  >
+                    Toon “voor later” ({later.length})
+                  </button>
+                )}
+              </p>
+            ) : (
+              <>
+                <div className="chips">
+                  {lijst.map((f) => {
+                    const on = focusIds.includes(f.id)
+                    const kind = naam(f.childId)
+                    return (
+                      <button
+                        key={f.id}
+                        type="button"
+                        className={`chip ${on ? 'on' : ''}`}
+                        onClick={() => toggleFocus(f.id)}
+                      >
+                        {f.status === 'later' && !on ? '🔭 ' : '📌 '}
+                        {f.text}
+                        {kind ? ` · ${kind}` : ''}
+                      </button>
+                    )
+                  })}
+                </div>
+                <p className="hint">
+                  Koppel waar je bij dit item aan wilt werken.
+                  {!showAllFocus && later.length > 0 && (
+                    <>
+                      {' '}
+                      <button
+                        type="button"
+                        className="link-btn"
+                        onClick={() => setShowAllFocus(true)}
+                      >
+                        Ook “voor later” tonen ({later.length})
+                      </button>
+                    </>
+                  )}
+                  {showAllFocus && later.length > 0 && (
+                    <> Een punt van “voor later” gaat door het koppelen naar “nu oefenen”.</>
+                  )}
+                </p>
+              </>
+            )}
+          </div>
+        )
+      })()}
 
       <label className="field">
         <span className="field-label">Herhalen</span>
