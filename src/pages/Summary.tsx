@@ -16,6 +16,14 @@ import { openSummaryPrint } from '../utils/summaryPrint'
 
 const PERIODS: Period[] = ['week', 'maand', 'kwartaal']
 
+// Kopjes boven de bewaarde samenvattingen.
+const SAVED_TAB_LABEL: Record<string, string> = {
+  week: 'Weken',
+  maand: 'Maanden',
+  kwartaal: 'Kwartalen',
+  eigen: 'Eigen',
+}
+
 function formatMoment(ts: number): string {
   return new Date(ts).toLocaleDateString('nl-NL', {
     day: 'numeric',
@@ -115,6 +123,30 @@ export function Summary() {
     [summaries, effectiveChildId],
   )
 
+  // Bewaarde samenvattingen per soort periode, zodat weken niet tussen
+  // maanden en kwartalen door lopen.
+  const savedGroups = useMemo(() => {
+    const order = ['week', 'maand', 'kwartaal', 'eigen']
+    const map = new Map<string, typeof childSummaries>()
+    for (const s of childSummaries) {
+      const key = order.includes(s.period) ? s.period : 'eigen'
+      if (!map.has(key)) map.set(key, [])
+      map.get(key)!.push(s)
+    }
+    return order
+      .filter((k) => map.has(k))
+      .map((k) => [k, map.get(k)!] as const)
+  }, [childSummaries])
+
+  // Tab kiezen: onthoud de keuze, maar val terug als die leeg raakt.
+  const [savedTab, setSavedTab] = useState<string | null>(null)
+  const activeTab =
+    savedTab && savedGroups.some(([k]) => k === savedTab)
+      ? savedTab
+      : (savedGroups[0]?.[0] ?? null)
+  const shownSummaries =
+    savedGroups.find(([k]) => k === activeTab)?.[1] ?? []
+
   async function run() {
     if (!child || filteredMemos.length === 0) return
     setLoading(true)
@@ -124,7 +156,9 @@ export function Summary() {
         childId: child.id,
         start: range.start,
         end: range.end,
-        period,
+        // Een eigen datumreeks is geen week/maand/kwartaal — apart bewaren,
+        // zodat het onder het juiste tabje terechtkomt.
+        period: custom ? 'eigen' : period,
         periodLabel: subject ? `${subject} · ${range.label}` : range.label,
         includePhotos: false,
         withPhotos,
@@ -404,11 +438,24 @@ export function Summary() {
           </p>
         ))}
 
-      {/* Bewaarde samenvattingen — in beide modi. */}
+      {/* Bewaarde samenvattingen — in beide modi, gegroepeerd per soort. */}
       {childSummaries.length > 0 && (
         <section className="saved-summaries">
           <h2 className="saved-title">Bewaarde samenvattingen</h2>
-          {childSummaries.map((s) => {
+          {savedGroups.length > 1 && (
+            <div className="seg saved-seg">
+              {savedGroups.map(([key, list]) => (
+                <button
+                  key={key}
+                  className={`seg-btn ${activeTab === key ? 'on' : ''}`}
+                  onClick={() => setSavedTab(key)}
+                >
+                  {SAVED_TAB_LABEL[key] ?? key} · {list.length}
+                </button>
+              ))}
+            </div>
+          )}
+          {shownSummaries.map((s) => {
                 const open = expandedId === s.id
                 return (
                   <div key={s.id} className="summary-item">

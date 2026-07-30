@@ -2357,3 +2357,6 @@ body {
   border-color: var(--focus);
   box-shadow: 0 0 0 3px var(--focus-bg);
 }
+
+/* ---- Bewaarde samenvattingen: tabs per soort periode ---- */
+.saved-seg { margin: 4px 0 12px; }

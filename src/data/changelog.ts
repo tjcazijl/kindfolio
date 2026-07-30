@@ -10,6 +10,15 @@ export interface Update {
 
 export const CHANGELOG: Update[] = [
   {
+    id: '2026-07-30',
+    date: '2026-07-30',
+    title: 'Bewaarde samenvattingen per soort',
+    items: [
+      'Je bewaarde samenvattingen staan nu onder tabjes: weken bij weken, maanden bij maanden, en zo ook kwartalen en eigen periodes. Geen lange lijst meer door elkaar.',
+      'Een samenvatting over een eigen datumreeks wordt voortaan ook als zodanig bewaard (die belandde eerder bij de weken).',
+    ],
+  },
+  {
     id: '2026-07-28',
     date: '2026-07-28',
     title: 'Aandachtspunten koppelen aan je agenda',
