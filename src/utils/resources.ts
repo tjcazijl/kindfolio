@@ -1,4 +1,5 @@
-import type { ResourceType, ResourceStatus } from '../types'
+import type { Resource, ResourceType, ResourceStatus } from '../types'
+import { todayISO, toISODate } from './dates'
 
 export const RESOURCE_META: Record<
   ResourceType,
@@ -48,6 +49,25 @@ export function isBook(type: ResourceType): boolean {
 }
 export function isFinished(status?: ResourceStatus): boolean {
   return !!status && FINISHED.includes(status)
+}
+
+/**
+ * Hoeveel dagen een net afgevinkt boek nog kiesbaar blijft bij een memo.
+ * Zo maakt het niet uit of je eerst afvinkt of eerst de notitie schrijft.
+ */
+export const RECENT_FINISHED_DAYS = 3
+
+/** Is dit boek pas net op "gelezen"/"afgerond" gezet? */
+export function isRecentlyFinished(r: Resource): boolean {
+  if (!isFinished(r.status)) return false
+  // De opgegeven leesdatum telt; anders het moment van bijwerken.
+  const iso = r.readDate || (r.updatedAt ? toISODate(new Date(r.updatedAt)) : '')
+  if (!iso) return false
+  const dagen = Math.round(
+    (Date.parse(todayISO() + 'T00:00:00') - Date.parse(iso + 'T00:00:00')) /
+      86400000,
+  )
+  return dagen >= 0 && dagen <= RECENT_FINISHED_DAYS
 }
 
 /** Zet een link om naar iets dat de browser kan openen (met protocol). */

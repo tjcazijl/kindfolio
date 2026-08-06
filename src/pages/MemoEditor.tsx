@@ -15,7 +15,7 @@ import { useLiveSpeech } from '../hooks/useLiveSpeech'
 import { formatDateLong, todayISO } from '../utils/dates'
 import { effectiveSubcats } from '../utils/subjects'
 import { MOODS } from '../utils/mood'
-import { RESOURCE_META, isFinished } from '../utils/resources'
+import { RESOURCE_META, isFinished, isRecentlyFinished } from '../utils/resources'
 import type { MoodKey } from '../types'
 
 export function MemoEditor() {
@@ -689,9 +689,13 @@ export function MemoEditor() {
           Leermiddelen <span className="fl-opt">(optioneel)</span>
         </span>
         {(() => {
-          // Gelezen/afgeronde boeken niet aanbieden (tenzij al gekoppeld).
+          // Gelezen/afgeronde boeken niet aanbieden — behalve wat je net hebt
+          // afgevinkt, zodat de volgorde van afvinken en noteren niet uitmaakt.
           const pickable = resources.filter(
-            (r) => !isFinished(r.status) || resourceIds.includes(r.id),
+            (r) =>
+              !isFinished(r.status) ||
+              isRecentlyFinished(r) ||
+              resourceIds.includes(r.id),
           )
           return pickable.length > 0 ? (
             <>
@@ -704,13 +708,23 @@ export function MemoEditor() {
                       type="button"
                       className={`chip ${on ? 'on' : ''}`}
                       onClick={() => toggleResource(r.id)}
+                      title={
+                        isFinished(r.status)
+                          ? 'Net afgerond — nog even te kiezen'
+                          : undefined
+                      }
                     >
                       {RESOURCE_META[r.type].icon} {r.title}
+                      {isFinished(r.status) && <span className="chip-done"> ✓</span>}
                     </button>
                   )
                 })}
               </div>
-              <p className="hint">Tik aan welke je bij deze memo gebruikte.</p>
+              <p className="hint">
+                Tik aan welke je bij deze memo gebruikte.
+                {pickable.some((r) => isFinished(r.status)) &&
+                  ' Boeken met ✓ heb je net afgerond.'}
+              </p>
             </>
           ) : (
             <p className="hint">

@@ -2360,3 +2360,6 @@ body {
 
 /* ---- Bewaarde samenvattingen: tabs per soort periode ---- */
 .saved-seg { margin: 4px 0 12px; }
+
+/* Net afgerond leermiddel dat nog even kiesbaar is bij een memo. */
+.chip-done { opacity: 0.6; font-size: 12px; }

@@ -10,6 +10,14 @@ export interface Update {
 
 export const CHANGELOG: Update[] = [
   {
+    id: '2026-08-06',
+    date: '2026-08-06',
+    title: 'Net gelezen boeken blijven nog even kiesbaar',
+    items: [
+      'Zet je een boek op “gelezen”, dan kun je het daarna nog een paar dagen aan een memo koppelen. De volgorde waarin je afvinkt en noteert maakt dus niet meer uit — met een ✓ zie je welke boeken je net hebt afgerond.',
+    ],
+  },
+  {
     id: '2026-07-30',
     date: '2026-07-30',
     title: 'Bewaarde samenvattingen per soort',
