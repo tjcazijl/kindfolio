@@ -2168,7 +2168,14 @@ ${memoText}`
   if (!aiRes.ok) {
     const t = await aiRes.text()
     if (aiRes.status === 401) return sendJson(res, 500, { error: 'Server-API-sleutel ongeldig' })
-    if (aiRes.status === 429) return sendJson(res, 429, { error: 'Te veel verzoeken of tegoed op. Probeer het later opnieuw.' })
+    // Tegoed op: geen technische melding, maar een duidelijk alternatief.
+    if (/credit balance is too low/i.test(t)) {
+      return sendJson(res, 503, {
+        error:
+          'De AI-samenvatting is even niet beschikbaar (het tegoed op de server is op). Je kunt wel een samenvatting zonder AI maken: zet AI uit bij Instellingen — je krijgt dan alle memo’s netjes op datum onder elkaar.',
+      })
+    }
+    if (aiRes.status === 429) return sendJson(res, 429, { error: 'Te veel verzoeken. Probeer het later opnieuw.' })
     return sendJson(res, 502, { error: 'AI-fout: ' + t.slice(0, 200) })
   }
   const json = await aiRes.json()
