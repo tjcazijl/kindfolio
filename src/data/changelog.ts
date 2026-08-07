@@ -10,6 +10,14 @@ export interface Update {
 
 export const CHANGELOG: Update[] = [
   {
+    id: '2026-08-07',
+    date: '2026-08-07',
+    title: 'Zie wie een memo leuk vindt',
+    items: [
+      'Bij het aantal duimpjes onder een memo zie je nu wie er geliked heeft: houd je muis erboven, of tik erop als je de telefoon gebruikt.',
+    ],
+  },
+  {
     id: '2026-08-06',
     date: '2026-08-06',
     title: 'Net gelezen boeken blijven nog even kiesbaar',

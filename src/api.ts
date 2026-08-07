@@ -414,9 +414,10 @@ export const deleteMemo = (id: string) =>
   req<{ ok: boolean }>(`/memos/${id}`, { method: 'DELETE' })
 
 export const likeMemo = (id: string) =>
-  req<{ likes: number; likedByMe: boolean }>(`/memos/${id}/like`, {
-    method: 'POST',
-  })
+  req<{ likes: number; likedByMe: boolean; likedBy: string[] }>(
+    `/memos/${id}/like`,
+    { method: 'POST' },
+  )
 
 // ---- Foto's ----
 

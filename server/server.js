@@ -308,7 +308,7 @@ function accountSettings(accId) {
     subcategories: row && row.subcategories ? JSON.parse(row.subcategories) : {},
   }
 }
-const mapMemo = (r, resourceIds) => ({
+const mapMemo = (r, resourceIds, likedBy) => ({
   id: r.id, childId: r.child_id, date: r.date, text: r.text || '',
   subjects: r.subjects ? JSON.parse(r.subjects) : [],
   photoIds: r.photo_ids ? JSON.parse(r.photo_ids) : [],
@@ -317,6 +317,7 @@ const mapMemo = (r, resourceIds) => ({
   mood: r.mood || undefined,
   likeCount: r.like_count ?? 0,
   likedByMe: !!r.liked,
+  likedBy: likedBy || [],
   createdAt: r.created_at, updatedAt: r.updated_at,
 })
 const mapFocus = (r) => ({
@@ -926,12 +927,26 @@ add('GET', /^\/api\/state$/, (req, res) => {
     .all(acc)) {
     ;(memoResLinks[l.memo_id] ||= []).push(l.resource_id)
   }
+  // Wie heeft wat leuk gevonden — zodat de tijdlijn de namen kan tonen.
+  const memoLikeNames = {}
+  for (const l of db
+    .prepare(
+      `SELECT ml.memo_id, u.email FROM memo_likes ml
+       JOIN memos m ON m.id = ml.memo_id
+       JOIN users u ON u.id = ml.user_id
+       WHERE m.account_id = ? ORDER BY ml.created_at ASC`,
+    )
+    .all(acc)) {
+    ;(memoLikeNames[l.memo_id] ||= []).push(displayName(l.email))
+  }
   const memos = db.prepare(
     `SELECT *,
        (SELECT COUNT(*) FROM memo_likes l WHERE l.memo_id = memos.id) AS like_count,
        (SELECT COUNT(*) FROM memo_likes l WHERE l.memo_id = memos.id AND l.user_id = ?) AS liked
      FROM memos WHERE account_id = ? ORDER BY date DESC, created_at DESC`,
-  ).all(req.userId, acc).map((r) => mapMemo(r, memoResLinks[r.id] || []))
+  ).all(req.userId, acc).map((r) =>
+    mapMemo(r, memoResLinks[r.id] || [], memoLikeNames[r.id] || []),
+  )
   const summaries = db.prepare('SELECT * FROM summaries WHERE account_id = ? ORDER BY created_at DESC').all(acc).map(mapSummary)
   const comments = db
     .prepare('SELECT * FROM comments WHERE account_id = ? ORDER BY created_at ASC')
@@ -1644,9 +1659,20 @@ add('POST', /^\/api\/memos\/([^/]+)\/like$/, (req, res, m) => {
   } else {
     db.prepare('INSERT INTO memo_likes (memo_id,user_id,created_at) VALUES (?,?,?)').run(m[1], req.userId, now())
   }
-  const likes = db.prepare('SELECT COUNT(*) AS c FROM memo_likes WHERE memo_id = ?').get(m[1]).c
-  sendJson(res, 200, { likes, likedByMe: !existing })
+  const likers = memoLikers(m[1])
+  sendJson(res, 200, { likes: likers.length, likedByMe: !existing, likedBy: likers })
 })
+
+// Namen van iedereen die deze memo leuk vindt (oudste eerst).
+function memoLikers(memoId) {
+  return db
+    .prepare(
+      `SELECT u.email FROM memo_likes ml JOIN users u ON u.id = ml.user_id
+       WHERE ml.memo_id = ? ORDER BY ml.created_at ASC`,
+    )
+    .all(memoId)
+    .map((r) => displayName(r.email))
+}
 
 // --- Aandachtspunten (focus points) ---
 add('POST', /^\/api\/focus$/, async (req, res) => {

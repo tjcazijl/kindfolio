@@ -295,6 +295,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
     },
     likeMemo: async (id) => {
       // Optimistisch togglen; bij fout terugdraaien via reload.
+      const mij = (accountEmail || '').split('@')[0] || 'ik'
       setMemos((prev) =>
         prev.map((m) =>
           m.id === id
@@ -302,6 +303,9 @@ export function DataProvider({ children }: { children: ReactNode }) {
                 ...m,
                 likedByMe: !m.likedByMe,
                 likeCount: (m.likeCount ?? 0) + (m.likedByMe ? -1 : 1),
+                likedBy: m.likedByMe
+                  ? (m.likedBy ?? []).filter((n) => n !== mij)
+                  : [...(m.likedBy ?? []), mij],
               }
             : m,
         ),
@@ -310,7 +314,9 @@ export function DataProvider({ children }: { children: ReactNode }) {
         const r = await apiLikeMemo(id)
         setMemos((prev) =>
           prev.map((m) =>
-            m.id === id ? { ...m, likedByMe: r.likedByMe, likeCount: r.likes } : m,
+            m.id === id
+              ? { ...m, likedByMe: r.likedByMe, likeCount: r.likes, likedBy: r.likedBy }
+              : m,
           ),
         )
       } catch {

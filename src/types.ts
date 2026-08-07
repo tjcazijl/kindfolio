@@ -25,6 +25,7 @@ export interface Memo {
   mood?: MoodKey // reactie van het kind ("Hoe ging het?")
   likeCount?: number
   likedByMe?: boolean
+  likedBy?: string[] // namen van wie het leuk vindt (oudste eerst)
   createdAt: number
   updatedAt: number
 }

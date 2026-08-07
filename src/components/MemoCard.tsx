@@ -55,6 +55,22 @@ function MemoText({ text, hasPhotos }: { text: string; hasPhotos: boolean }) {
   )
 }
 
+// "a", "a en b", "a, b en c"
+function joinNl(names: string[]): string {
+  if (names.length <= 1) return names[0] || ''
+  return `${names.slice(0, -1).join(', ')} en ${names[names.length - 1]}`
+}
+
+// "Jij en Myranda vinden dit leuk" — eigen naam wordt "jij" en staat vooraan.
+function likeText(names: string[], myEmail: string | null): string {
+  if (!names.length) return ''
+  const mij = (myEmail || '').split('@')[0]
+  const anderen = names.filter((n) => n !== mij)
+  const lijst = names.length > anderen.length ? ['jij', ...anderen] : anderen
+  const zin = `${joinNl(lijst)} ${lijst.length === 1 ? 'vindt' : 'vinden'} dit leuk`
+  return zin.charAt(0).toUpperCase() + zin.slice(1)
+}
+
 interface Props {
   memo: Memo
   child: Child
@@ -65,10 +81,12 @@ interface Props {
 // onderaan een like-knop en reacties.
 export function MemoCard({ memo, child, canEdit }: Props) {
   const navigate = useNavigate()
-  const { likeMemo, comments } = useData()
+  const { likeMemo, comments, accountEmail } = useData()
   const [showComments, setShowComments] = useState(false)
+  const [showLikers, setShowLikers] = useState(false)
 
   const likeCount = memo.likeCount ?? 0
+  const likers = likeText(memo.likedBy ?? [], accountEmail)
   const commentCount = comments.filter(
     (c) => c.targetType === 'memo' && c.targetId === memo.id,
   ).length
@@ -116,7 +134,21 @@ export function MemoCard({ memo, child, canEdit }: Props) {
 
       {(likeCount > 0 || commentCount > 0) && (
         <div className="post-stats">
-          {likeCount > 0 && <span>👍 {likeCount}</span>}
+          {likeCount > 0 &&
+            (likers ? (
+              // Hover toont de namen; op de telefoon tik je erop.
+              <button
+                type="button"
+                className="stat-likes"
+                title={likers}
+                aria-label={likers}
+                onClick={() => setShowLikers((v) => !v)}
+              >
+                👍 {likeCount}
+              </button>
+            ) : (
+              <span>👍 {likeCount}</span>
+            ))}
           {commentCount > 0 && (
             <button className="link-btn" onClick={() => setShowComments(true)}>
               {commentCount} reactie{commentCount === 1 ? '' : 's'}
@@ -124,6 +156,8 @@ export function MemoCard({ memo, child, canEdit }: Props) {
           )}
         </div>
       )}
+
+      {showLikers && likers && <p className="post-likers">{likers}</p>}
 
       <div className="post-actions">
         <button
