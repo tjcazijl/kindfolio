@@ -423,7 +423,7 @@ export function Settings() {
           ✨ Wat is er nieuw
         </button>
         <br />
-        Kindfolio v{__APP_VERSION__} · alpha
+        Kindfolio v{__APP_VERSION__}
       </p>
 
       {pdfOpen && (

@@ -348,8 +348,8 @@ export function Summary() {
 
       {aiEnabled && aiOp && (
         <div className="banner warn">
-          Je hebt de {ai?.aiLimit} AI-samenvattingen van de alpha-versie
-          gebruikt. Meer nodig? Mail even naar{' '}
+          Je hebt je {ai?.aiLimit} AI-samenvattingen gebruikt. Meer nodig? Mail
+          even naar{' '}
           <a href="mailto:info@kindfolio.nl">info@kindfolio.nl</a>. Een
           samenvatting <strong>zonder AI</strong> kun je gewoon blijven maken —
           zet AI uit bij Instellingen.

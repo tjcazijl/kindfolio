@@ -2094,10 +2094,10 @@ function formatDateLong(iso) {
   }
 }
 
-// Hoeveel AI-samenvattingen een portfolio in totaal mag maken (alpha-fase).
+// Hoeveel AI-samenvattingen een portfolio in totaal mag maken.
 const AI_LIMIT = Number(process.env.PORTFOLIO_AI_LIMIT || 3)
 const AI_LIMIT_MESSAGE =
-  `Je hebt de ${AI_LIMIT} AI-samenvattingen van de alpha-versie gebruikt. ` +
+  `Je hebt je ${AI_LIMIT} AI-samenvattingen gebruikt. ` +
   'Wil je er meer? Mail dan even naar info@kindfolio.nl, dan kijken we mee. ' +
   'Een samenvatting zónder AI kun je gewoon blijven maken: zet AI uit bij Instellingen — ' +
   'je krijgt dan alle memo’s netjes op datum onder elkaar.'

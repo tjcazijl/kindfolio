@@ -15,7 +15,7 @@ export const CHANGELOG: Update[] = [
     title: 'Kindfolio staat open voor iedereen',
     items: [
       'Aanmelden kan nu zonder uitnodigingscode. Vertel het gerust door aan andere gezinnen die thuisonderwijs geven.',
-      'AI-samenvattingen zijn in deze fase beperkt tot 3 per portfolio, omdat ze geld kosten op de server. Heb je er meer nodig? Mail naar info@kindfolio.nl, dan kijken we mee.',
+      'AI-samenvattingen zijn beperkt tot 3 per portfolio, omdat ze geld kosten op de server. Heb je er meer nodig? Mail naar info@kindfolio.nl, dan kijken we mee.',
       'Samenvattingen zónder AI blijven onbeperkt — zet AI uit bij Instellingen en je krijgt alle memo’s netjes op datum onder elkaar.',
     ],
   },
