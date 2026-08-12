@@ -126,6 +126,22 @@ export function Summary() {
     [summaries, effectiveChildId],
   )
 
+  // Bij welke dag hoort een foto? Afgeleid uit de memo's, zodat ook eerder
+  // bewaarde samenvattingen dagkoppen krijgen zonder de opslag te wijzigen.
+  const photoDay = useMemo(() => {
+    const map = new Map<string, string>()
+    for (const m of memos) for (const id of m.photoIds) map.set(id, m.date)
+    return map
+  }, [memos])
+
+  /** Foto's van een bewaarde samenvatting, elk met de dag waarop ze horen. */
+  function summaryPhotos(ids: string[]) {
+    return ids.map((id) => {
+      const iso = photoDay.get(id)
+      return { url: photoUrl(id), day: iso ? formatDateLong(iso) : undefined }
+    })
+  }
+
   // Bewaarde samenvattingen per soort periode, zodat weken niet tussen
   // maanden en kwartalen door lopen.
   const savedGroups = useMemo(() => {
@@ -199,14 +215,21 @@ export function Summary() {
     const title = subject
       ? `${child.name} — ${subject} — ${range.label}`
       : `${child.name} — ${range.label}`
-    const urls = withPhotos
-      ? filteredMemos.flatMap((m) => m.photoIds).slice(0, 60).map(photoUrl)
+    const fotos = withPhotos
+      ? filteredMemos
+          .flatMap((m) =>
+            m.photoIds.map((id) => ({
+              url: photoUrl(id),
+              day: formatDateLong(m.date),
+            })),
+          )
+          .slice(0, 60)
       : []
     openSummaryPrint(
       title,
       `${child.name} · ${filteredMemos.length} memo${filteredMemos.length === 1 ? '' : "'s"}`,
       body,
-      urls,
+      fotos,
     )
   }
 
@@ -555,7 +578,7 @@ export function Summary() {
                                 `${child?.name ?? ''} — ${s.periodLabel}`,
                                 `${child?.name ?? ''} · gemaakt op ${formatMoment(s.createdAt)}`,
                                 s.text,
-                                s.photoIds.map(photoUrl),
+                                summaryPhotos(s.photoIds),
                               )
                             }
                           >

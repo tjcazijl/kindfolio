@@ -10,6 +10,14 @@ export interface Update {
 
 export const CHANGELOG: Update[] = [
   {
+    id: '2026-08-12b',
+    date: '2026-08-12',
+    title: "Foto's per dag in de PDF",
+    items: [
+      "In de PDF staan de foto's nu gegroepeerd onder de dag waarop ze gemaakt zijn, in plaats van als één grote verzameling onderaan. Dit geldt ook voor samenvattingen die je eerder al bewaard had.",
+    ],
+  },
+  {
     id: '2026-08-12',
     date: '2026-08-12',
     title: 'Kindfolio staat open voor iedereen',
