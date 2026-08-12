@@ -164,6 +164,11 @@ db.exec(`
     update_id TEXT, user_id TEXT, created_at INTEGER,
     PRIMARY KEY (update_id, user_id)
   );
+  -- Eén rij per geslaagde AI-samenvatting; bepaalt het verbruik per portfolio.
+  CREATE TABLE IF NOT EXISTS ai_usage (
+    id TEXT PRIMARY KEY, account_id TEXT, user_id TEXT, created_at INTEGER
+  );
+  CREATE INDEX IF NOT EXISTS ai_usage_account ON ai_usage (account_id);
   CREATE TABLE IF NOT EXISTS update_comments (
     id TEXT PRIMARY KEY, update_id TEXT, user_id TEXT, email TEXT,
     author_name TEXT, text TEXT, created_at INTEGER
@@ -417,7 +422,6 @@ const mapEvent = (r, childIds, focusIds) => ({
 const SECRET =
   process.env.PORTFOLIO_SECRET ||
   crypto.createHash('sha256').update('pf-fallback').digest('hex')
-const INVITE_CODE = process.env.PORTFOLIO_INVITE_CODE || ''
 const COOKIE_NAME = 'pf_session'
 const COOKIE_MAX_AGE = 60 * 60 * 24 * 365
 
@@ -745,17 +749,10 @@ add('POST', /^\/api\/register$/, async (req, res) => {
   const body = await readJson(req)
   const email = String(body.email || '').trim().toLowerCase()
   const password = String(body.password || '')
-  const code = String(body.code || '')
   const invited = db.prepare('SELECT id FROM invites WHERE email = ?').get(email)
-  // Code-check is niet hoofdlettergevoelig.
-  const codeOk = !!INVITE_CODE && code.toLowerCase() === INVITE_CODE.toLowerCase()
-  // Uitgenodigden (lerares) mogen registreren zonder beta-code.
-  if (INVITE_CODE && !codeOk && !invited) {
-    return sendJson(res, 403, { error: 'Ongeldige of ontbrekende uitnodigingscode.' })
-  }
-  // Eigen portfolio krijg je alleen bij een normale aanmelding (geldige beta-code),
-  // niet als je puur via een uitnodiging registreert (dan ben je meelezer).
-  const wantsOwn = !invited || codeOk
+  // Aanmelden staat open voor iedereen. Wie via een uitnodiging binnenkomt
+  // wordt meelezer bij dat portfolio en krijgt geen eigen portfolio.
+  const wantsOwn = !invited
   if (!isEmail(email)) return sendJson(res, 400, { error: 'Ongeldig e-mailadres.' })
   if (password.length < 8) {
     return sendJson(res, 400, { error: 'Wachtwoord moet minstens 8 tekens zijn.' })
@@ -2097,9 +2094,33 @@ function formatDateLong(iso) {
   }
 }
 
-add('GET', /^\/api\/summary\/available$/, (req, res) =>
-  sendJson(res, 200, { available: !!ANTHROPIC_KEY }),
-)
+// Hoeveel AI-samenvattingen een portfolio in totaal mag maken (alpha-fase).
+const AI_LIMIT = Number(process.env.PORTFOLIO_AI_LIMIT || 3)
+const AI_LIMIT_MESSAGE =
+  `Je hebt de ${AI_LIMIT} AI-samenvattingen van de alpha-versie gebruikt. ` +
+  'Wil je er meer? Mail dan even naar info@kindfolio.nl, dan kijken we mee. ' +
+  'Een samenvatting zónder AI kun je gewoon blijven maken: zet AI uit bij Instellingen — ' +
+  'je krijgt dan alle memo’s netjes op datum onder elkaar.'
+
+function aiUsed(accountId) {
+  return db.prepare('SELECT COUNT(*) AS c FROM ai_usage WHERE account_id = ?').get(accountId).c
+}
+/** Beheerders kennen geen limiet, zodat support en tests niet vastlopen. */
+function aiLimitReached(req) {
+  if (isAdminUser(req.userId)) return false
+  return aiUsed(req.accountId) >= AI_LIMIT
+}
+
+add('GET', /^\/api\/summary\/available$/, (req, res) => {
+  const onbeperkt = isAdminUser(req.userId)
+  const gebruikt = aiUsed(req.accountId)
+  sendJson(res, 200, {
+    available: !!ANTHROPIC_KEY,
+    aiLimit: onbeperkt ? null : AI_LIMIT,
+    aiUsed: gebruikt,
+    aiLeft: onbeperkt ? null : Math.max(0, AI_LIMIT - gebruikt),
+  })
+})
 
 add('POST', /^\/api\/summary$/, async (req, res) => {
   if (!requireEditor(req, res)) return
@@ -2107,6 +2128,10 @@ add('POST', /^\/api\/summary$/, async (req, res) => {
   const useAi = body.ai !== false
   if (useAi && !ANTHROPIC_KEY) {
     return sendJson(res, 400, { error: 'Er is op de server nog geen Claude API-sleutel ingesteld.' })
+  }
+  // Vóór de aanroep controleren, zodat een geweigerd verzoek geen tegoed kost.
+  if (useAi && aiLimitReached(req)) {
+    return sendJson(res, 403, { error: AI_LIMIT_MESSAGE, aiLimitReached: true })
   }
   const child = db.prepare('SELECT * FROM children WHERE id = ? AND account_id = ?').get(body.childId, req.accountId)
   if (!child) return sendJson(res, 404, { error: 'Kind niet gevonden' })
@@ -2206,6 +2231,9 @@ ${memoText}`
   }
   const json = await aiRes.json()
   text = (json.content || []).filter((b) => b.type === 'text').map((b) => b.text).join('\n')
+  // Pas aftekenen als de AI daadwerkelijk iets teruggaf.
+  db.prepare('INSERT INTO ai_usage (id,account_id,user_id,created_at) VALUES (?,?,?,?)')
+    .run(uid(), req.accountId, req.userId, now())
   }
 
   // Optioneel: lijst van gelezen boeken uit deze periode onderaan de samenvatting.

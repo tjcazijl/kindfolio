@@ -10,6 +10,16 @@ export interface Update {
 
 export const CHANGELOG: Update[] = [
   {
+    id: '2026-08-12',
+    date: '2026-08-12',
+    title: 'Kindfolio staat open voor iedereen',
+    items: [
+      'Aanmelden kan nu zonder uitnodigingscode. Vertel het gerust door aan andere gezinnen die thuisonderwijs geven.',
+      'AI-samenvattingen zijn in deze fase beperkt tot 3 per portfolio, omdat ze geld kosten op de server. Heb je er meer nodig? Mail naar info@kindfolio.nl, dan kijken we mee.',
+      'Samenvattingen zónder AI blijven onbeperkt — zet AI uit bij Instellingen en je krijgt alle memo’s netjes op datum onder elkaar.',
+    ],
+  },
+  {
     id: '2026-08-07',
     date: '2026-08-07',
     title: 'Zie wie een memo leuk vindt',

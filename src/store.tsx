@@ -93,7 +93,6 @@ interface DataContextValue {
   register: (
     email: string,
     password: string,
-    code: string,
   ) => Promise<{ needsVerification?: boolean }>
   logout: () => Promise<void>
   reload: () => Promise<void>
@@ -201,8 +200,8 @@ export function DataProvider({ children }: { children: ReactNode }) {
   )
 
   const register = useCallback(
-    async (email: string, password: string, code: string) => {
-      const r = await apiRegister(email, password, code)
+    async (email: string, password: string) => {
+      const r = await apiRegister(email, password)
       if (!r.needsVerification) await reload()
       return r
     },

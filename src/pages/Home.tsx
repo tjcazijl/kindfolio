@@ -257,7 +257,7 @@ export function Home() {
           ✨ Wat is er nieuw
         </button>
         <p className="version-note">
-          Kindfolio v{__APP_VERSION__} · bèta
+          Kindfolio v{__APP_VERSION__} · alpha
         </p>
       </footer>
     </div>

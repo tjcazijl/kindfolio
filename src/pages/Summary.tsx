@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useData } from '../store'
-import { generateSummary, photoUrl, summaryAvailable } from '../api'
+import { generateSummary, photoUrl, summaryAvailable, type AiStatus } from '../api'
 import { Markdown } from '../components/Markdown'
 import { Comments } from '../components/Comments'
 import { Lightbox } from '../components/Lightbox'
@@ -43,7 +43,8 @@ export function Summary() {
     canEdit,
     aiEnabled,
   } = useData()
-  const [available, setAvailable] = useState<boolean | null>(null)
+  const [ai, setAi] = useState<AiStatus | null>(null)
+  const available = ai ? ai.available : null
 
   const [childId, setChildId] = useState<string>('')
   const [period, setPeriod] = useState<Period>('week')
@@ -69,8 +70,10 @@ export function Summary() {
   )
 
   useEffect(() => {
-    if (aiEnabled) summaryAvailable().then(setAvailable)
+    if (aiEnabled) summaryAvailable().then(setAi)
   }, [aiEnabled])
+  // Tegoed op = alleen nog samenvattingen zonder AI mogelijk.
+  const aiOp = !!ai && ai.aiLeft !== null && ai.aiLeft <= 0
 
   const customValid = !!customStart && !!customEnd && customStart <= customEnd
   const range = useMemo(
@@ -168,8 +171,11 @@ export function Summary() {
       })
       await reload()
       setExpandedId(saved.id)
+      if (aiEnabled) summaryAvailable().then(setAi)
     } catch (e: any) {
       setError(e?.message || 'Er ging iets mis.')
+      // Bij een limietfout meteen de teller bijwerken, zodat de melding klopt.
+      if (aiEnabled) summaryAvailable().then(setAi)
     } finally {
       setLoading(false)
     }
@@ -340,6 +346,22 @@ export function Summary() {
         </div>
       )}
 
+      {aiEnabled && aiOp && (
+        <div className="banner warn">
+          Je hebt de {ai?.aiLimit} AI-samenvattingen van de alpha-versie
+          gebruikt. Meer nodig? Mail even naar{' '}
+          <a href="mailto:info@kindfolio.nl">info@kindfolio.nl</a>. Een
+          samenvatting <strong>zonder AI</strong> kun je gewoon blijven maken —
+          zet AI uit bij Instellingen.
+        </div>
+      )}
+
+      {aiEnabled && !aiOp && ai?.aiLeft != null && (
+        <p className="hint">
+          Nog {ai.aiLeft} van de {ai.aiLimit} AI-samenvattingen beschikbaar.
+        </p>
+      )}
+
       <label className="field">
         <span className="field-label">Kind</span>
         <select
@@ -382,7 +404,7 @@ export function Summary() {
               loading ||
               filteredMemos.length === 0 ||
               (custom && !customValid) ||
-              (aiEnabled && available === false)
+              (aiEnabled && (available === false || aiOp))
             }
             onClick={run}
           >

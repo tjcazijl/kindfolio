@@ -92,13 +92,12 @@ export interface RegisterResult {
 export async function register(
   email: string,
   password: string,
-  code: string,
 ): Promise<RegisterResult> {
   const res = await fetch('/api/register', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     credentials: 'same-origin',
-    body: JSON.stringify({ email, password, code }),
+    body: JSON.stringify({ email, password }),
   })
   if (!res.ok) {
     let msg = 'Registreren mislukt'
@@ -508,10 +507,18 @@ export const deletePhoto = (id: string) =>
 
 // ---- AI-samenvatting (server-side) ----
 
+export interface AiStatus {
+  available: boolean
+  /** Maximum aantal AI-samenvattingen; null = onbeperkt (beheerder). */
+  aiLimit: number | null
+  aiUsed: number
+  aiLeft: number | null
+}
+
 export const summaryAvailable = () =>
-  req<{ available: boolean }>('/summary/available')
-    .then((r) => r.available)
-    .catch(() => false)
+  req<AiStatus>('/summary/available').catch(
+    (): AiStatus => ({ available: false, aiLimit: null, aiUsed: 0, aiLeft: null }),
+  )
 
 export interface SummaryParams {
   childId: string

@@ -10,7 +10,6 @@ export function Login() {
   const [mode, setMode] = useState<Mode>('login')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
-  const [code, setCode] = useState('')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [notice, setNotice] = useState<string | null>(null)
@@ -58,7 +57,7 @@ export function Login() {
       if (mode === 'login') {
         await login(email.trim(), password)
       } else if (mode === 'register') {
-        const r = await register(email.trim(), password, code.trim())
+        const r = await register(email.trim(), password)
         if (r.needsVerification) {
           setRegisteredEmail(email.trim())
           setBusy(false)
@@ -212,16 +211,6 @@ export function Login() {
               {showPw ? 'Verberg' : 'Toon'}
             </button>
           </div>
-          {mode === 'register' && (
-            <input
-              type="text"
-              className="input"
-              value={code}
-              onChange={(e) => setCode(e.target.value)}
-              placeholder="Uitnodigingscode"
-              autoComplete="off"
-            />
-          )}
           <button className="btn primary full big" disabled={busy} type="submit">
             {busy
               ? 'Even geduld…'
@@ -241,7 +230,7 @@ export function Login() {
         <p className="hint center">
           {mode === 'login'
             ? 'Je blijft hierna ingelogd op dit apparaat.'
-            : 'Voor de beta heb je een uitnodigingscode nodig.'}
+            : 'Gratis en voor iedereen — je hebt geen uitnodiging meer nodig.'}
         </p>
 
         {!isStandalone() && (
