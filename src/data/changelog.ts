@@ -10,6 +10,15 @@ export interface Update {
 
 export const CHANGELOG: Update[] = [
   {
+    id: '2026-08-12c',
+    date: '2026-08-12',
+    title: 'Aandachtspunten direct inplannen',
+    items: [
+      'Naast elk aandachtspunt staat nu een 📅-knop. Eén tik en er staat een agenda-item klaar met het punt, het kind en het vakgebied al ingevuld — je hoeft alleen nog een datum te kiezen.',
+      'Staat er al iets in de agenda? Dan krijgt het icoon een groen vinkje en zie je meteen de eerstvolgende datum. Zo is in één oogopslag duidelijk wat er ingepland is en wat nog niet.',
+    ],
+  },
+  {
     id: '2026-08-12b',
     date: '2026-08-12',
     title: "Foto's per dag in de PDF",

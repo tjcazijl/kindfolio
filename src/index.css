@@ -2108,6 +2108,23 @@ body {
 .fp-actions { display: flex; gap: 14px; margin-top: 8px; }
 .fp-actions .link-btn { font-size: 13px; }
 .subj-badge { font-size: 11px; font-weight: 700; padding: 2px 8px; border-radius: 6px; background: var(--focus-bg); color: var(--focus); }
+/* Agenda-knop rechts in de regel: vinkje zodra er een item aan hangt. */
+.fp-agenda {
+  position: relative; flex-shrink: 0; align-self: flex-start;
+  width: 38px; height: 38px; border-radius: 10px;
+  border: 1px solid var(--line); background: #fff;
+  font-size: 17px; line-height: 1; cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+}
+.fp-agenda.on { border-color: var(--green); background: var(--focus-bg); }
+.fp-agenda-ok {
+  position: absolute; right: -5px; bottom: -5px;
+  width: 17px; height: 17px; border-radius: 50%;
+  background: var(--green); color: #fff;
+  font-size: 10px; font-weight: 700;
+  display: flex; align-items: center; justify-content: center;
+}
+.fp-planned { font-weight: 600; color: var(--green); font-style: normal; }
 .fp-add { margin-top: 16px; display: flex; flex-direction: column; gap: 10px; padding: 14px; border: 1.5px dashed var(--line); border-radius: var(--radius); background: #fbfaf6; }
 .add-fp { margin-top: 12px; }
 

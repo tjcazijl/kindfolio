@@ -1,8 +1,9 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useLocation, useNavigate, useParams } from 'react-router-dom'
 import { useData } from '../store'
-import type { FocusPoint, FocusStatus } from '../types'
-import { formatDateNumeric } from '../utils/dates'
+import type { AgendaEvent, FocusPoint, FocusStatus } from '../types'
+import { formatDateNumeric, formatDateShort, todayISO } from '../utils/dates'
+import { expandEvents } from '../utils/recurrence'
 
 const TABS: { key: FocusStatus; label: string }[] = [
   { key: 'open', label: 'Nu oefenen' },
@@ -20,6 +21,7 @@ export function FocusPoints() {
   const {
     children,
     focusPoints,
+    events,
     addFocus,
     editFocus,
     removeFocus,
@@ -72,6 +74,44 @@ export function FocusPoints() {
     () => [...new Set([...accountSubjects, ...(child?.subjects || [])])],
     [accountSubjects, child],
   )
+
+  // Welk agenda-item hoort bij welk aandachtspunt, en wanneer is het eerstvolgend?
+  const planned = useMemo(() => {
+    const map = new Map<string, { event: AgendaEvent; date: string }>()
+    const linked = events.filter((e) => e.focusIds.length > 0)
+    if (linked.length === 0) return map
+    const from = todayISO()
+    const tot = `${Number(from.slice(0, 4)) + 1}${from.slice(4)}`
+    for (const occ of expandEvents(linked, from, tot)) {
+      for (const fid of occ.event.focusIds) if (!map.has(fid)) map.set(fid, occ)
+    }
+    // Alleen in het verleden gepland? Dan toch tonen, met die datum.
+    for (const ev of linked) {
+      for (const fid of ev.focusIds) {
+        if (!map.has(fid)) map.set(fid, { event: ev, date: ev.date })
+      }
+    }
+    return map
+  }, [events])
+
+  /** Agenda-icoon: naar het gekoppelde item, of een nieuw item aanmaken. */
+  function goToAgenda(f: FocusPoint) {
+    const hit = planned.get(f.id)
+    if (hit) {
+      navigate(`/agenda/${hit.event.id}`)
+      return
+    }
+    navigate('/agenda/nieuw', {
+      state: {
+        focusPrefill: {
+          focusIds: [f.id],
+          childIds: [f.childId],
+          subjects: f.subject ? [f.subject] : [],
+          title: f.text,
+        },
+      },
+    })
+  }
 
   if (!child)
     return (
@@ -171,6 +211,11 @@ export function FocusPoints() {
               <div className="fp-title">{f.text}</div>
               <div className="fp-meta">
                 {f.subject && <span className="subj-badge">{f.subject}</span>}
+                {planned.has(f.id) && (
+                  <span className="fp-planned">
+                    📅 {formatDateShort(planned.get(f.id)!.date)}
+                  </span>
+                )}
                 <span className="fp-src">
                   {f.sourceMemoId ? 'uit een memo' : 'los toegevoegd'} ·{' '}
                   {formatDateNumeric(isoFromTs(f.createdAt))}
@@ -194,6 +239,26 @@ export function FocusPoints() {
                 </div>
               )}
             </div>
+            {/* Bij een afgerond punt alleen nog de doorklik naar wat er
+                gepland stond, zodat je dat kunt aanpassen of weghalen. */}
+            {canEdit && (f.status !== 'done' || planned.has(f.id)) && (
+              <button
+                className={`fp-agenda${planned.has(f.id) ? ' on' : ''}`}
+                onClick={() => goToAgenda(f)}
+                title={
+                  planned.has(f.id)
+                    ? `Ingepland op ${formatDateShort(planned.get(f.id)!.date)} — open het agenda-item`
+                    : 'Zet dit aandachtspunt in de agenda'
+                }
+                aria-label={
+                  planned.has(f.id)
+                    ? `Ingepland op ${formatDateShort(planned.get(f.id)!.date)}`
+                    : 'In de agenda zetten'
+                }
+              >
+                📅{planned.has(f.id) && <span className="fp-agenda-ok">✓</span>}
+              </button>
+            )}
           </div>
         ))}
       </div>

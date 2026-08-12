@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { useNavigate, useParams } from 'react-router-dom'
+import { useLocation, useNavigate, useParams } from 'react-router-dom'
 import { useData } from '../store'
 import type { EventFreq, EventType } from '../types'
 import { EVENT_ORDER, EVENT_META } from '../utils/events'
@@ -29,13 +29,28 @@ export function EventEditor() {
   const isNew = !eventId
   const existing = eventId ? events.find((e) => e.id === eventId) : undefined
 
-  const [title, setTitle] = useState(existing?.title || '')
-  const [type, setType] = useState<EventType>(existing?.type || 'uitje')
+  // Vanuit een aandachtspunt kom je hier met het punt al gekoppeld.
+  const location = useLocation()
+  const prefill = (location.state as any)?.focusPrefill as
+    | { focusIds?: string[]; childIds?: string[]; subjects?: string[]; title?: string }
+    | undefined
+
+  const [title, setTitle] = useState(existing?.title || prefill?.title || '')
+  // Oefenen aan een aandachtspunt is een les, geen uitje.
+  const [type, setType] = useState<EventType>(
+    existing?.type || (prefill ? 'les' : 'uitje'),
+  )
   const [date, setDate] = useState(existing?.date || todayISO())
   const [time, setTime] = useState(existing?.time || '')
-  const [childIds, setChildIds] = useState<string[]>(existing?.childIds || [])
-  const [subjects, setSubjects] = useState<string[]>(existing?.subjects || [])
-  const [focusIds, setFocusIds] = useState<string[]>(existing?.focusIds || [])
+  const [childIds, setChildIds] = useState<string[]>(
+    existing?.childIds || prefill?.childIds || [],
+  )
+  const [subjects, setSubjects] = useState<string[]>(
+    existing?.subjects || prefill?.subjects || [],
+  )
+  const [focusIds, setFocusIds] = useState<string[]>(
+    existing?.focusIds || prefill?.focusIds || [],
+  )
   const [showAllFocus, setShowAllFocus] = useState(false)
   const [freq, setFreq] = useState<EventFreq>(existing?.freq || 'none')
   const [everyN, setEveryN] = useState(existing?.everyN || 1)
