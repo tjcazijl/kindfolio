@@ -166,7 +166,9 @@ db.exec(`
   );
   -- Eén rij per geslaagde AI-samenvatting; bepaalt het verbruik per portfolio.
   CREATE TABLE IF NOT EXISTS ai_usage (
-    id TEXT PRIMARY KEY, account_id TEXT, user_id TEXT, created_at INTEGER
+    id TEXT PRIMARY KEY, account_id TEXT, user_id TEXT,
+    kind TEXT,                          -- samenvatting | foto
+    created_at INTEGER
   );
   CREATE INDEX IF NOT EXISTS ai_usage_account ON ai_usage (account_id);
   CREATE TABLE IF NOT EXISTS update_comments (
@@ -240,6 +242,8 @@ for (const sql of [
   'ALTER TABLE events ADD COLUMN subjects TEXT',
   'ALTER TABLE resources ADD COLUMN subjects TEXT',
   'ALTER TABLE resources ADD COLUMN read_date TEXT',
+  'ALTER TABLE ai_usage ADD COLUMN kind TEXT',
+  'ALTER TABLE account_settings ADD COLUMN photo_ai INTEGER DEFAULT 0',
 ]) {
   try {
     db.exec(sql)
@@ -305,12 +309,14 @@ const DEFAULT_SUBJECTS = [
   'Bewegen', 'Sociaal', 'Uitstapje', 'Overig',
 ]
 function accountSettings(accId) {
-  const row = db.prepare('SELECT subjects, ai_enabled, subcategories FROM account_settings WHERE account_id = ?').get(accId)
+  const row = db.prepare('SELECT subjects, ai_enabled, subcategories, photo_ai FROM account_settings WHERE account_id = ?').get(accId)
   return {
     subjects: row && row.subjects ? JSON.parse(row.subjects) : DEFAULT_SUBJECTS,
     aiEnabled: row ? row.ai_enabled !== 0 : true,
     // { "Taal": ["Woordenschat","Spelling"], ... }
     subcategories: row && row.subcategories ? JSON.parse(row.subcategories) : {},
+    // Foto's naar de AI sturen als schrijfhulp: bewust standaard uit.
+    photoAiEnabled: row ? row.photo_ai === 1 : false,
   }
 }
 const mapMemo = (r, resourceIds, likedBy) => ({
@@ -1023,10 +1029,13 @@ add('POST', /^\/api\/settings$/, async (req, res) => {
       if (cleaned.length) subcategories[String(k)] = cleaned
     }
   }
+  const huidig = accountSettings(req.accountId)
+  const photoAi =
+    body.photoAiEnabled === undefined ? huidig.photoAiEnabled : !!body.photoAiEnabled
   db.prepare(
-    'INSERT INTO account_settings (account_id,subjects,ai_enabled,subcategories) VALUES (?,?,?,?) ON CONFLICT(account_id) DO UPDATE SET subjects=excluded.subjects, ai_enabled=excluded.ai_enabled, subcategories=excluded.subcategories',
-  ).run(req.accountId, JSON.stringify(subjects), aiEnabled, JSON.stringify(subcategories))
-  sendJson(res, 200, { subjects, aiEnabled: !!aiEnabled, subcategories })
+    'INSERT INTO account_settings (account_id,subjects,ai_enabled,subcategories,photo_ai) VALUES (?,?,?,?,?) ON CONFLICT(account_id) DO UPDATE SET subjects=excluded.subjects, ai_enabled=excluded.ai_enabled, subcategories=excluded.subcategories, photo_ai=excluded.photo_ai',
+  ).run(req.accountId, JSON.stringify(subjects), aiEnabled, JSON.stringify(subcategories), photoAi ? 1 : 0)
+  sendJson(res, 200, { subjects, aiEnabled: !!aiEnabled, subcategories, photoAiEnabled: photoAi })
 })
 
 // Beheeroverzicht, gegroepeerd per portfolio: de eigenaar met daaronder de
@@ -2094,31 +2103,40 @@ function formatDateLong(iso) {
   }
 }
 
-// Hoeveel AI-samenvattingen een portfolio in totaal mag maken.
-const AI_LIMIT = Number(process.env.PORTFOLIO_AI_LIMIT || 3)
+// Ruime bovengrens per gezin, puur om weglopende kosten door een fout af te
+// vangen — geen quotum dat je in normaal gebruik hoort te raken.
+const AI_MONTH_LIMIT = Number(process.env.PORTFOLIO_AI_LIMIT || 50)
+const AI_WINDOW_MS = 30 * 24 * 60 * 60 * 1000
 const AI_LIMIT_MESSAGE =
-  `Je hebt je ${AI_LIMIT} AI-samenvattingen gebruikt. ` +
-  'Wil je er meer? Mail dan even naar info@kindfolio.nl, dan kijken we mee. ' +
-  'Een samenvatting zónder AI kun je gewoon blijven maken: zet AI uit bij Instellingen — ' +
-  'je krijgt dan alle memo’s netjes op datum onder elkaar.'
+  `Er zijn deze maand al ${AI_MONTH_LIMIT} AI-verzoeken gedaan vanuit dit portfolio. ` +
+  'Die grens zit er alleen om fouten af te vangen — kom je er in gewoon gebruik tegenaan, ' +
+  'mail dan even naar info@kindfolio.nl, dan zetten we hem omhoog. ' +
+  'Een samenvatting zónder AI kun je gewoon blijven maken: zet AI uit bij Instellingen.'
 
-function aiUsed(accountId) {
-  return db.prepare('SELECT COUNT(*) AS c FROM ai_usage WHERE account_id = ?').get(accountId).c
+/** AI-verzoeken van dit portfolio in de afgelopen 30 dagen. */
+function aiUsedThisMonth(accountId) {
+  return db
+    .prepare('SELECT COUNT(*) AS c FROM ai_usage WHERE account_id = ? AND created_at > ?')
+    .get(accountId, now() - AI_WINDOW_MS).c
 }
 /** Beheerders kennen geen limiet, zodat support en tests niet vastlopen. */
 function aiLimitReached(req) {
   if (isAdminUser(req.userId)) return false
-  return aiUsed(req.accountId) >= AI_LIMIT
+  return aiUsedThisMonth(req.accountId) >= AI_MONTH_LIMIT
+}
+function logAiUse(req, kind) {
+  db.prepare('INSERT INTO ai_usage (id,account_id,user_id,kind,created_at) VALUES (?,?,?,?,?)')
+    .run(uid(), req.accountId, req.userId, kind, now())
 }
 
 add('GET', /^\/api\/summary\/available$/, (req, res) => {
   const onbeperkt = isAdminUser(req.userId)
-  const gebruikt = aiUsed(req.accountId)
+  const gebruikt = aiUsedThisMonth(req.accountId)
   sendJson(res, 200, {
     available: !!ANTHROPIC_KEY,
-    aiLimit: onbeperkt ? null : AI_LIMIT,
+    aiLimit: onbeperkt ? null : AI_MONTH_LIMIT,
     aiUsed: gebruikt,
-    aiLeft: onbeperkt ? null : Math.max(0, AI_LIMIT - gebruikt),
+    aiLeft: onbeperkt ? null : Math.max(0, AI_MONTH_LIMIT - gebruikt),
   })
 })
 
@@ -2196,7 +2214,8 @@ ${memoText}`
       try {
         const row = db.prepare('SELECT mime FROM photos WHERE id = ? AND account_id = ?').get(id, req.accountId)
         if (!row) continue
-        const data = fs.readFileSync(path.join(PHOTO_DIR, id)).toString('base64')
+        // Ontsleutelen: op schijf staan de foto's versleuteld opgeslagen.
+        const data = decryptPhoto(fs.readFileSync(path.join(PHOTO_DIR, id))).toString('base64')
         content.push({ type: 'image', source: { type: 'base64', media_type: row.mime || 'image/jpeg', data } })
       } catch {}
     }
@@ -2232,8 +2251,7 @@ ${memoText}`
   const json = await aiRes.json()
   text = (json.content || []).filter((b) => b.type === 'text').map((b) => b.text).join('\n')
   // Pas aftekenen als de AI daadwerkelijk iets teruggaf.
-  db.prepare('INSERT INTO ai_usage (id,account_id,user_id,created_at) VALUES (?,?,?,?)')
-    .run(uid(), req.accountId, req.userId, now())
+  logAiUse(req, 'samenvatting')
   }
 
   // Optioneel: lijst van gelezen boeken uit deze periode onderaan de samenvatting.
@@ -2275,6 +2293,98 @@ ${memoText}`
   db.prepare('INSERT INTO summaries (id,account_id,child_id,period,period_label,start,end,text,photo_ids,created_at) VALUES (?,?,?,?,?,?,?,?,?,?)')
     .run(saved.id, req.accountId, saved.child_id, saved.period, saved.period_label, saved.start, saved.end, saved.text, saved.photo_ids, saved.created_at)
   sendJson(res, 200, mapSummary(saved))
+})
+
+// --- Schrijfhulp: beschrijf wat er op de foto's te zien is ---
+// Levert een ruwe eerste tekst waar de ouder zelf op verder schrijft.
+const PHOTO_AI_MODEL = process.env.PORTFOLIO_PHOTO_MODEL || 'claude-sonnet-5'
+const PHOTO_AI_MAX = 4 // meer foto's kost snel veel meer, en voegt weinig toe
+
+add('POST', /^\/api\/photo-describe$/, async (req, res) => {
+  if (!requireEditor(req, res)) return
+  if (!ANTHROPIC_KEY) {
+    return sendJson(res, 400, { error: 'Er is op de server nog geen Claude API-sleutel ingesteld.' })
+  }
+  if (!accountSettings(req.accountId).photoAiEnabled) {
+    return sendJson(res, 403, {
+      error: 'De foto-schrijfhulp staat uit. Je kunt hem aanzetten bij Instellingen.',
+    })
+  }
+  if (aiLimitReached(req)) return sendJson(res, 403, { error: AI_LIMIT_MESSAGE })
+
+  const body = await readJson(req)
+  const child = db
+    .prepare('SELECT * FROM children WHERE id = ? AND account_id = ?')
+    .get(body.childId, req.accountId)
+  if (!child) return sendJson(res, 404, { error: 'Kind niet gevonden' })
+
+  const ids = Array.isArray(body.photoIds) ? body.photoIds.slice(0, PHOTO_AI_MAX) : []
+  const images = []
+  for (const id of ids) {
+    try {
+      const row = db.prepare('SELECT mime FROM photos WHERE id = ? AND account_id = ?').get(id, req.accountId)
+      if (!row) continue
+      const data = decryptPhoto(fs.readFileSync(path.join(PHOTO_DIR, id))).toString('base64')
+      images.push({
+        type: 'image',
+        source: { type: 'base64', media_type: ALLOWED_IMAGE_MIME.has(row.mime) ? row.mime : 'image/jpeg', data },
+      })
+    } catch (e) {
+      console.error('[foto-ai] foto overslaan:', id, (e && e.message) || e)
+    }
+  }
+  if (!images.length) return sendJson(res, 400, { error: "Geen foto's om te bekijken." })
+
+  const leeftijd = child.birth_year ? `${new Date().getFullYear() - child.birth_year} jaar` : null
+  const een = images.length === 1
+  const instructie = `Je helpt een ouder die thuisonderwijs geeft met het schrijven van een logboeknotitie.
+
+Hieronder ${een ? 'staat een foto' : `staan ${images.length} foto's`} van ${child.name}${leeftijd ? ` (${leeftijd})` : ''}.
+
+Beschrijf in het Nederlands wat je op ${een ? 'de foto' : "de foto's"} ziet gebeuren, als ruwe aanzet waar de ouder zelf op verder schrijft. Houd je aan het volgende:
+- Schrijf 2 tot 4 zinnen, lopende tekst, geen kopjes of opsomming.
+- Beschrijf alleen wat je daadwerkelijk ziet. Verzin geen namen, plaatsen, gesprekken of leerdoelen.
+- Weet je niet zeker wat iets is, schrijf dat dan open ("iets van hout", "een werkje met kleuren").
+- Noem het kind bij de naam ${child.name}.
+- Schrijf nuchter en concreet, niet enthousiast of wervend. Geen uitroeptekens.
+- Geen inleiding als "Op de foto zie je" — begin direct bij wat er gebeurt.`
+
+  let aiRes
+  try {
+    aiRes = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        'x-api-key': ANTHROPIC_KEY,
+        'anthropic-version': '2023-06-01',
+      },
+      body: JSON.stringify({
+        model: PHOTO_AI_MODEL,
+        max_tokens: 600,
+        // Denken uit: dit is een korte beschrijving, geen redeneerklus.
+        thinking: { type: 'disabled' },
+        messages: [{ role: 'user', content: [...images, { type: 'text', text: instructie }] }],
+      }),
+    })
+  } catch {
+    return sendJson(res, 502, { error: 'Kon Anthropic niet bereiken' })
+  }
+  if (!aiRes.ok) {
+    const t = await aiRes.text()
+    if (aiRes.status === 401) return sendJson(res, 500, { error: 'Server-API-sleutel ongeldig' })
+    if (/credit balance is too low/i.test(t)) {
+      return sendJson(res, 503, {
+        error: 'De schrijfhulp is even niet beschikbaar (het tegoed op de server is op).',
+      })
+    }
+    if (aiRes.status === 429) return sendJson(res, 429, { error: 'Te veel verzoeken. Probeer het zo nog eens.' })
+    return sendJson(res, 502, { error: 'AI-fout: ' + t.slice(0, 200) })
+  }
+  const json = await aiRes.json()
+  const text = (json.content || []).filter((b) => b.type === 'text').map((b) => b.text).join('\n').trim()
+  if (!text) return sendJson(res, 502, { error: 'De AI gaf geen tekst terug.' })
+  logAiUse(req, 'foto')
+  sendJson(res, 200, { text, photoCount: images.length })
 })
 
 // Samenvatting bewerken (tekst bijschaven na het genereren).

@@ -75,11 +75,13 @@ interface DataContextValue {
   accounts: AccountAccess[]
   subjects: string[]
   aiEnabled: boolean
+  photoAiEnabled: boolean
   voiceEnabled: boolean
   subcategories: Record<string, string[]>
   saveSettings: (data: {
     subjects?: string[]
     aiEnabled?: boolean
+    photoAiEnabled?: boolean
     subcategories?: Record<string, string[]>
   }) => Promise<void>
   switchAccount: (id: string) => Promise<void>
@@ -142,6 +144,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
   const [accounts, setAccounts] = useState<AccountAccess[]>([])
   const [subjects, setSubjects] = useState<string[]>([])
   const [aiEnabled, setAiEnabled] = useState(true)
+  const [photoAiEnabled, setPhotoAiEnabled] = useState(false)
   const [voiceEnabled, setVoiceEnabled] = useState(false)
   const [subcategories, setSubcategories] = useState<Record<string, string[]>>(
     {},
@@ -164,6 +167,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
       setAccountId(state.account?.id ?? null)
       setSubjects(state.account?.subjects ?? [])
       setAiEnabled(state.account?.aiEnabled ?? true)
+      setPhotoAiEnabled(!!state.account?.photoAiEnabled)
       setVoiceEnabled(!!state.account?.voiceEnabled)
       setSubcategories(state.account?.subcategories ?? {})
       fetchAccounts()
@@ -249,6 +253,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
     accounts,
     subjects,
     aiEnabled,
+    photoAiEnabled,
     voiceEnabled,
     subcategories,
     saveSettings: async (data) => {

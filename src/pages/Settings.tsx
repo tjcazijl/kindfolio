@@ -27,6 +27,7 @@ export function Settings() {
     subjects,
     subcategories,
     aiEnabled,
+    photoAiEnabled,
     saveSettings,
     children,
     memos,
@@ -184,6 +185,26 @@ export function Settings() {
               className="toggle"
               checked={aiEnabled}
               onChange={(e) => saveSettings({ aiEnabled: e.target.checked })}
+            />
+          </label>
+        )}
+
+        <p className="hint fotohulp-hint">
+          <strong>Foto's beschrijven als schrijfhulp.</strong> Zet je dit aan,
+          dan verschijnt bij het maken van een memo een knop die aan Claude
+          vraagt wat er op je foto's te zien is. Je krijgt een ruwe eerste tekst
+          waar je zelf op verder schrijft — je hoeft hem niet te gebruiken.
+          Let op: je foto's worden dan naar Anthropic gestuurd om bekeken te
+          worden. Daarom staat dit standaard uit.
+        </p>
+        {canEdit && (
+          <label className="toggle-row">
+            <span>Foto-schrijfhulp bij een memo</span>
+            <input
+              type="checkbox"
+              className="toggle"
+              checked={photoAiEnabled}
+              onChange={(e) => saveSettings({ photoAiEnabled: e.target.checked })}
             />
           </label>
         )}

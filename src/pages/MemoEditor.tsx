@@ -3,6 +3,7 @@ import { useLocation, useNavigate, useParams } from 'react-router-dom'
 import { useData } from '../store'
 import {
   deletePhoto,
+  describePhotos,
   fetchPhotoBlob,
   rotateImageBlob,
   uploadBlob,
@@ -34,6 +35,7 @@ export function MemoEditor() {
     saveSettings,
     updateChild,
     voiceEnabled,
+    photoAiEnabled,
   } = useData()
   const isNew = !memoId
   const existing = memoId ? memos.find((m) => m.id === memoId) : undefined
@@ -68,6 +70,9 @@ export function MemoEditor() {
     existing?.subjects || prefill?.subjects || [],
   )
   const [photoIds, setPhotoIds] = useState<string[]>(existing?.photoIds || [])
+  // Schrijfhulp: laat de AI vertellen wat er op de foto's staat.
+  const [describing, setDescribing] = useState(false)
+  const [describeError, setDescribeError] = useState<string | null>(null)
   // In bewerkmodus: extra kinderen om een kopie van deze memo voor te maken.
   const [addChildIds, setAddChildIds] = useState<string[]>([])
   // Gekoppelde leermiddelen.
@@ -259,6 +264,22 @@ export function MemoEditor() {
     if (remaining <= 0) setLightboxIndex(null)
     else setLightboxIndex(Math.min(lightboxIndex, remaining - 1))
     await removePhoto(id)
+  }
+
+  /** Vraagt de AI om een eerste beschrijving; vult aan, overschrijft nooit. */
+  async function describe() {
+    const kindId = childId || selectedChildIds[0]
+    if (!kindId || photoIds.length === 0) return
+    setDescribing(true)
+    setDescribeError(null)
+    try {
+      const r = await describePhotos(kindId, photoIds)
+      setText((huidig) => (huidig.trim() ? `${huidig.trimEnd()}\n\n${r.text}` : r.text))
+    } catch (e: any) {
+      setDescribeError(e?.message || 'Beschrijven mislukt')
+    } finally {
+      setDescribing(false)
+    }
   }
 
   async function save(asDraft = false) {
@@ -576,6 +597,23 @@ export function MemoEditor() {
                 : '“Inspreken” = nauwkeurig (even wachten na stop). “Live” = direct meelezen (Chrome/Safari).'}
           </p>
         ) : null}
+        {photoAiEnabled && photoIds.length > 0 && (
+          <>
+            <button
+              type="button"
+              className="btn outline white-bg full foto-hulp"
+              disabled={describing || (!childId && selectedChildIds.length === 0)}
+              onClick={describe}
+            >
+              {describing ? '⏳ Even kijken…' : "✨ Beschrijf mijn foto's"}
+            </button>
+            <p className="hint">
+              Je krijgt een ruwe aanzet onder je tekst — zelf aanvullen en
+              bijschaven hoort erbij.
+            </p>
+          </>
+        )}
+        {describeError && <p className="error-text">{describeError}</p>}
         {voice.error && <p className="error-text">{voice.error}</p>}
         {live.error && <p className="error-text">{live.error}</p>}
       </div>

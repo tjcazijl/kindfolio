@@ -10,6 +10,16 @@ export interface Update {
 
 export const CHANGELOG: Update[] = [
   {
+    id: '2026-08-13',
+    date: '2026-08-13',
+    title: "Foto's laten beschrijven als schrijfhulp",
+    items: [
+      'Kost het je moeite om op te schrijven wat je gedaan hebt? Zet bij Instellingen de foto-schrijfhulp aan, dan verschijnt bij het maken van een memo een knop die aan Claude vraagt wat er op je foto\u2019s te zien is. Je krijgt een ruwe aanzet onder je eigen tekst \u2014 aanvullen en bijschaven doe je zelf.',
+      'Dit staat standaard uit, want je foto\u2019s gaan er wel voor naar Anthropic. Je zet het per portfolio zelf aan en weer uit.',
+      'Ook opgelost: bij een AI-samenvatting m\u00e9t foto\u2019s kwamen de foto\u2019s door de versleuteling onleesbaar aan. Dat werkt nu.',
+    ],
+  },
+  {
     id: '2026-08-12c',
     date: '2026-08-12',
     title: 'Aandachtspunten direct inplannen',
@@ -32,7 +42,7 @@ export const CHANGELOG: Update[] = [
     title: 'Kindfolio staat open voor iedereen',
     items: [
       'Aanmelden kan nu zonder uitnodigingscode. Vertel het gerust door aan andere gezinnen die thuisonderwijs geven.',
-      'AI-samenvattingen zijn beperkt tot 3 per portfolio, omdat ze geld kosten op de server. Heb je er meer nodig? Mail naar info@kindfolio.nl, dan kijken we mee.',
+      'Er geldt een ruime bovengrens van 50 AI-verzoeken per maand per portfolio, puur om fouten af te vangen. In gewoon gebruik merk je daar niets van.',
       'Samenvattingen zónder AI blijven onbeperkt — zet AI uit bij Instellingen en je krijgt alle memo’s netjes op datum onder elkaar.',
     ],
   },

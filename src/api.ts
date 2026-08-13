@@ -141,6 +141,7 @@ export interface AppState {
     voiceEnabled?: boolean
     subjects: string[]
     aiEnabled: boolean
+    photoAiEnabled?: boolean
     subcategories?: Record<string, string[]>
   }
 }
@@ -148,11 +149,19 @@ export interface AppState {
 export const saveSettings = (data: {
   subjects?: string[]
   aiEnabled?: boolean
+  photoAiEnabled?: boolean
   subcategories?: Record<string, string[]>
 }) =>
   req<{ subjects: string[]; aiEnabled: boolean }>('/settings', {
     method: 'POST',
     body: JSON.stringify(data),
+  })
+
+/** Schrijfhulp: laat de AI beschrijven wat er op de foto's te zien is. */
+export const describePhotos = (childId: string, photoIds: string[]) =>
+  req<{ text: string; photoCount: number }>('/photo-describe', {
+    method: 'POST',
+    body: JSON.stringify({ childId, photoIds }),
   })
 
 export const fetchState = () => req<AppState>('/state')
