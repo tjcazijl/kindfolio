@@ -37,9 +37,10 @@ systemd-unit, `chmod 600`). **Commit deze nooit.**
 | `PORTFOLIO_PHOTO_KEY` | 64 hex-tekens (32 bytes) — versleutelt foto's op schijf (AES-256-GCM). Bewaar deze sleutel óók buiten de server: zonder sleutel zijn de foto's onleesbaar. Bestaande onversleutelde foto's worden bij opstarten automatisch versleuteld. |
 | `PORTFOLIO_ANTHROPIC_KEY` | Anthropic API-sleutel voor samenvattingen |
 | `PORTFOLIO_MODEL` | Claude-model (default `claude-sonnet-4-6`) |
+| `PORTFOLIO_AI_LIMIT` | Aantal AI-samenvattingen per portfolio (default 3). Bij het bereiken krijgt de gebruiker de melding om contact op te nemen; samenvatten zónder AI blijft onbeperkt. Elk gebruik komt als rij in de tabel `ai_usage` — met `DELETE FROM ai_usage WHERE account_id = '…'` zet je het voor één portfolio terug. |
 | `PORTFOLIO_SENDGRID_KEY` | SendGrid-sleutel voor verificatie-/uitnodigingsmails |
 | `PORTFOLIO_ADMIN_EMAIL` | E-mailadres(sen) met beheerrechten (komma-gescheiden) |
-| `PORTFOLIO_INVITE_CODE` | Optionele bèta-code die bij registratie vereist is |
+| `PORTFOLIO_INVITE_CODE` | Optionele code die bij registratie vereist is. **Leeg laten** voor open registratie — sinds v0.22 vraagt het inlogscherm er niet meer om, dus met een gevulde waarde kan niemand meer een account maken. |
 | `PORTFOLIO_REQUIRE_VERIFY` | `true` om e-mailverificatie te verplichten |
 | `PORTFOLIO_WHISPER_BIN` | Pad naar de `whisper-cli`-binary (spraak-naar-tekst). Leeg = inspreken uit. |
 | `PORTFOLIO_WHISPER_MODEL` | Pad naar het ggml-model, bijv. `ggml-base.bin` (`small` = beter NL maar trager) |
@@ -87,6 +88,112 @@ ssh your-server 'systemctl restart portfolio-api'
 Zet `API_TARGET` in je omgeving om tegen een andere backend te draaien. Draait
 die backend achter basic auth, maak dan een (gitignored) bestand `.dev-auth` met
 `gebruiker:wachtwoord`; de dev-proxy stuurt dat automatisch mee.
+
+## Landingspagina op kindfolio.nl
+
+De map `landing/` is een gewone statische site (`index.html`, `styles.css`,
+`assets/`) — geen build, geen Node. Hij hoort op `kindfolio.nl`; de app blijft op
+`app.kindfolio.nl`.
+
+**Uitgangssituatie:** DNS wordt beheerd bij Hostnet. `kindfolio.nl` en `www`
+wijzen naar `91.184.0.200` (parkeerpagina van Hostnet), `app.kindfolio.nl` naar
+`178.104.39.203` (de eigen server bij Hetzner).
+
+### 1. Bestanden naar de server
+
+```bash
+ssh SERVER 'sudo mkdir -p /var/www/kindfolio-site && sudo chown -R $USER:$USER /var/www/kindfolio-site'
+rsync -az --delete landing/ SERVER:/var/www/kindfolio-site/
+```
+
+### 2. nginx-serverblok
+
+`/etc/nginx/sites-available/kindfolio-site`:
+
+```nginx
+server {
+    listen 80;
+    listen [::]:80;
+    server_name kindfolio.nl www.kindfolio.nl;
+
+    root /var/www/kindfolio-site;
+    index index.html;
+
+    location / {
+        try_files $uri $uri/ =404;
+    }
+
+    # Afbeeldingen en stylesheet mogen lang gecachet worden.
+    location ~* \.(?:jpg|png|svg|webp|css)$ {
+        expires 30d;
+        add_header Cache-Control "public";
+    }
+
+    # index.html juist niet — anders zien bezoekers oude tekst.
+    location = /index.html {
+        add_header Cache-Control "no-cache";
+    }
+}
+```
+
+Aanzetten en testen:
+
+```bash
+sudo ln -s /etc/nginx/sites-available/kindfolio-site /etc/nginx/sites-enabled/
+sudo nginx -t && sudo systemctl reload nginx
+```
+
+### 3. DNS omzetten bij Hostnet
+
+In het Hostnet-paneel, bij de DNS-records van `kindfolio.nl`:
+
+| Type | Naam | Van | Naar |
+|---|---|---|---|
+| A | `@` | 91.184.0.200 | **178.104.39.203** |
+| A of CNAME | `www` | 91.184.0.200 | **178.104.39.203** (of CNAME naar `kindfolio.nl`) |
+
+> **Laat de MX-records met rust.** De e-mail van `kindfolio.nl` loopt via Hostnet;
+> die records staan los van de A-records. Verwijder ook geen TXT/SPF-records.
+
+Zet de TTL een dag van tevoren laag (300 s) als je de omschakeling kort wilt
+houden. Controleren of het is doorgekomen:
+
+```bash
+dig +short kindfolio.nl A
+```
+
+### 4. HTTPS-certificaat
+
+Pas draaien nadat de DNS naar de server wijst, anders faalt de validatie:
+
+```bash
+sudo certbot --nginx -d kindfolio.nl -d www.kindfolio.nl
+```
+
+Certbot voegt zelf het `listen 443`-blok en de HTTP→HTTPS-omleiding toe.
+
+### 5. Controleren
+
+```bash
+curl -sI https://kindfolio.nl | head -1
+curl -sI https://www.kindfolio.nl | head -1
+curl -sI https://app.kindfolio.nl | head -1
+```
+
+Alle drie moeten `200` of `301` geven, en de app moet nog gewoon werken.
+
+### Bijwerken na een tekstwijziging
+
+```bash
+rsync -az --delete landing/ SERVER:/var/www/kindfolio-site/
+```
+
+### Alternatief zonder eigen server
+
+Heb je bij Hostnet een hostingpakket (geen kale domeinregistratie), dan kun je de
+drie onderdelen van `landing/` ook gewoon in de webroot van dat pakket zetten via
+FTP of het bestandsbeheer. Dan hoeft er niets aan DNS of nginx te veranderen en
+regelt Hostnet het certificaat. Nadeel: site en app staan dan op twee plekken.
 
 ## Back-up
 
