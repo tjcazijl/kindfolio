@@ -2337,17 +2337,27 @@ add('POST', /^\/api\/photo-describe$/, async (req, res) => {
 
   const leeftijd = child.birth_year ? `${new Date().getFullYear() - child.birth_year} jaar` : null
   const een = images.length === 1
-  const instructie = `Je helpt een ouder die thuisonderwijs geeft met het schrijven van een logboeknotitie.
+  const vakken = Array.isArray(body.subjects)
+    ? body.subjects.map((s) => String(s).trim()).filter(Boolean).slice(0, 8)
+    : []
+  const instructie = `Je schrijft mee aan het logboek van een ouder die thuisonderwijs geeft in Nederland. Daarin legt de ouder per dag vast wat het kind gedaan en geleerd heeft.
 
-Hieronder ${een ? 'staat een foto' : `staan ${images.length} foto's`} van ${child.name}${leeftijd ? ` (${leeftijd})` : ''}.
+Hieronder ${een ? 'staat een foto' : `staan ${images.length} foto's, in volgorde,`} van ${child.name}${leeftijd ? ` (${leeftijd})` : ''}${een ? '' : ' tijdens één bezigheid'}.${vakken.length ? `\nDe ouder heeft hier deze vakgebieden bij gekozen: ${vakken.join(', ')}.` : ''}
 
-Beschrijf in het Nederlands wat je op ${een ? 'de foto' : "de foto's"} ziet gebeuren, als ruwe aanzet waar de ouder zelf op verder schrijft. Houd je aan het volgende:
-- Schrijf 2 tot 4 zinnen, lopende tekst, geen kopjes of opsomming.
-- Beschrijf alleen wat je daadwerkelijk ziet. Verzin geen namen, plaatsen, gesprekken of leerdoelen.
-- Weet je niet zeker wat iets is, schrijf dat dan open ("iets van hout", "een werkje met kleuren").
+Schrijf een korte logboeknotitie in het Nederlands, als aanzet waar de ouder zelf op verder schrijft. Houd je aan het volgende:
+- Vertel het als een klein verhaal van wat ${child.name} deed${een ? '' : ', in de volgorde van de foto\'s: waar begon het mee, wat kwam daarna'}. Verleden of tegenwoordige tijd, zoals een ouder het zou opschrijven.
+- Laat blijken wat er geoefend of geleerd wordt. Dat mag als slotzin ("Dit draagt bij aan evenwicht en motoriek") of verweven in het verhaal ("die lost hij op met behulp van de plus-sommen"). Houd het bescheiden: "oefent", "draagt bij aan" — niet "beheerst" of "kan nu".
+- 2 tot 5 zinnen, lopende tekst, geen kopjes of opsomming.
+- Schrijf actief, met ${child.name} als onderwerp van de zin. Dus "${child.name} rekende de sommen uit", niet "de sommen werden uitgerekend".
+- Beschrijf géén beeldelementen: geen ondergrond, licht, kleding, of wat er in een hand gehouden wordt. Het gaat om wat er gebeurt, niet om hoe de foto eruitziet.
+- Wees concreet: noem gerust de sommen, de titel van een boek of waar het kind mee bezig was, zolang je het duidelijk kunt lezen. Kun je het niet goed zien, beschrijf het dan algemeen ("een rij aftreksommen") in plaats van een getal te gokken.
+- Verzin geen namen van anderen, plaatsen of gesprekken. Weet je iets niet zeker, houd het dan algemeen in plaats van het te raden.
 - Noem het kind bij de naam ${child.name}.
-- Schrijf nuchter en concreet, niet enthousiast of wervend. Geen uitroeptekens.
-- Geen inleiding als "Op de foto zie je" — begin direct bij wat er gebeurt.`
+- Schrijf nuchter, zoals een ouder het zelf opschrijft. Geen uitroeptekens en geen aanmoediging ("wat knap!").
+- Begin direct bij wat er gebeurde, zonder inleiding als "Op de foto zie je".
+
+Voorbeeld van de toon en lengte die we zoeken:
+"Kay heeft vandaag op rolschaatsen gestaan. Dit zorgt voor beweging en draagt bij aan evenwicht en motoriek."`
 
   let aiRes
   try {

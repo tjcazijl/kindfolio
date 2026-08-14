@@ -158,10 +158,14 @@ export const saveSettings = (data: {
   })
 
 /** Schrijfhulp: laat de AI beschrijven wat er op de foto's te zien is. */
-export const describePhotos = (childId: string, photoIds: string[]) =>
+export const describePhotos = (
+  childId: string,
+  photoIds: string[],
+  subjects: string[] = [],
+) =>
   req<{ text: string; photoCount: number }>('/photo-describe', {
     method: 'POST',
-    body: JSON.stringify({ childId, photoIds }),
+    body: JSON.stringify({ childId, photoIds, subjects }),
   })
 
 export const fetchState = () => req<AppState>('/state')

@@ -273,7 +273,7 @@ export function MemoEditor() {
     setDescribing(true)
     setDescribeError(null)
     try {
-      const r = await describePhotos(kindId, photoIds)
+      const r = await describePhotos(kindId, photoIds, subjects)
       setText((huidig) => (huidig.trim() ? `${huidig.trimEnd()}\n\n${r.text}` : r.text))
     } catch (e: any) {
       setDescribeError(e?.message || 'Beschrijven mislukt')
