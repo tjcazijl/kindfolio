@@ -10,6 +10,15 @@ export interface Update {
 
 export const CHANGELOG: Update[] = [
   {
+    id: '2026-08-13b',
+    date: '2026-08-13',
+    title: 'Kindfolio 1.0 \ud83c\udf89',
+    items: [
+      'De b\u00e8tafase zit erop: Kindfolio staat op versie 1.0. Dank aan iedereen die de afgelopen maanden meegedacht heeft \u2014 de agenda, de leermiddelenlijst en de aandachtspunten kwamen allemaal uit jullie vragen.',
+      'Er verandert niets aan je gegevens of aan hoe de app werkt; het is een streep onder de opbouwfase. We bouwen gewoon verder \u2014 blijf vooral melden wat er mist of niet lekker loopt.',
+    ],
+  },
+  {
     id: '2026-08-13',
     date: '2026-08-13',
     title: "Foto's laten beschrijven als schrijfhulp",
