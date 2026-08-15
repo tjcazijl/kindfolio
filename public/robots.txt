@@ -1,0 +1,4 @@
+# De app zelf staat achter een login; er is niets te indexeren.
+# De vindbare pagina is https://kindfolio.nl/
+User-agent: *
+Disallow: /

@@ -1,0 +1,6 @@
+# kindfolio.nl — de landingspagina mag volledig geïndexeerd worden.
+User-agent: *
+Allow: /
+Disallow: /stats.html
+
+Sitemap: https://kindfolio.nl/sitemap.xml
