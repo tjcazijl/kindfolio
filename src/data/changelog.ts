@@ -10,6 +10,15 @@ export interface Update {
 
 export const CHANGELOG: Update[] = [
   {
+    id: '2026-08-15',
+    date: '2026-08-15',
+    title: 'E\u00e9n dictafoon in plaats van twee inspreekknoppen',
+    items: [
+      'De knop \u201cLive\u201d heet nu \u201cDictafoon\u201d en is de enige manier van inspreken. Je ziet je woorden verschijnen terwijl je praat.',
+      'De oude knop \u201cInspreken\u201d is verdwenen. Die zette je opname op onze eigen server om, maar dat duurde ongeveer net zo lang als de opname zelf \u2014 in de praktijk te traag om prettig te gebruiken.',
+    ],
+  },
+  {
     id: '2026-08-13b',
     date: '2026-08-13',
     title: 'Kindfolio 1.0 \ud83c\udf89',

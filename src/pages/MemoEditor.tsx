@@ -11,7 +11,6 @@ import {
 } from '../api'
 import { PhotoGrid } from '../components/PhotoGrid'
 import { Lightbox } from '../components/Lightbox'
-import { useVoiceRecorder } from '../hooks/useVoiceRecorder'
 import { useLiveSpeech } from '../hooks/useLiveSpeech'
 import { formatDateLong, todayISO } from '../utils/dates'
 import { effectiveSubcats } from '../utils/subjects'
@@ -34,7 +33,6 @@ export function MemoEditor() {
     resources,
     saveSettings,
     updateChild,
-    voiceEnabled,
     photoAiEnabled,
   } = useData()
   const isNew = !memoId
@@ -106,15 +104,8 @@ export function MemoEditor() {
   const cameraInput = useRef<HTMLInputElement>(null)
   const libraryInput = useRef<HTMLInputElement>(null)
 
-  // Twee manieren van inspreken: server-transcriptie (nauwkeurig) en live
-  // (Web Speech, direct meelezen in Chrome/Safari).
-  const voice = useVoiceRecorder((chunk) => {
-    setText((prev) => (prev ? `${prev} ${chunk}` : chunk).trim())
-  })
+  // Dictafoon: spraakherkenning in de browser zelf, tekst loopt live mee.
   const live = useLiveSpeech((full) => setText(full))
-  const fmtSec = (s: number) =>
-    `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`
-  const voiceBusy = voice.recording || voice.transcribing
 
   // Als de memo's later binnenkomen, vul het formulier alsnog.
   useEffect(() => {
@@ -301,7 +292,6 @@ export function MemoEditor() {
       alert('Voeg iets toe: tekst, een foto, een vakgebied of een leermiddel.')
       return
     }
-    if (voice.recording) voice.cancel()
     if (live.listening) live.stop()
     // Reflectie ("Hoe ging het?") — altijd meesturen, ook leeg (dan wissen).
     const reflection = {
@@ -359,7 +349,6 @@ export function MemoEditor() {
   }
 
   async function cancel() {
-    if (voice.recording) voice.cancel()
     if (live.listening) live.stop()
     if (stagedPhotos.current.size) {
       await Promise.all([...stagedPhotos.current].map((id) => deletePhoto(id)))
@@ -560,43 +549,22 @@ export function MemoEditor() {
           onChange={(e) => setText(e.target.value)}
           placeholder="Wat heeft je kind vandaag gedaan en geleerd?"
         />
-        {((voiceEnabled && voice.supported) || live.supported) && (
-          <div className="voice-row">
-            {voiceEnabled && voice.supported && (
-              <button
-                type="button"
-                className={`btn ${voice.recording ? 'recording' : 'outline white-bg'}`}
-                disabled={voice.transcribing || live.listening}
-                onClick={() => (voice.recording ? voice.stop() : voice.start())}
-              >
-                {voice.transcribing
-                  ? '⏳ Omzetten…'
-                  : voice.recording
-                    ? `⏹ Stop (${fmtSec(voice.seconds)})`
-                    : '🎤 Inspreken'}
-              </button>
-            )}
-            {live.supported && (
-              <button
-                type="button"
-                className={`btn ${live.listening ? 'recording' : 'outline white-bg'}`}
-                disabled={voiceBusy}
-                onClick={() => (live.listening ? live.stop() : live.start(text))}
-              >
-                {live.listening ? '⏹ Stop' : '⚡ Live'}
-              </button>
-            )}
-          </div>
+        {live.supported && (
+          <>
+            <button
+              type="button"
+              className={`btn full ${live.listening ? 'recording' : 'outline white-bg'}`}
+              onClick={() => (live.listening ? live.stop() : live.start(text))}
+            >
+              {live.listening ? '⏹ Stop' : '🎤 Dictafoon'}
+            </button>
+            <p className="hint">
+              {live.listening
+                ? 'Je ziet de tekst verschijnen terwijl je praat. Tik op stop als je klaar bent.'
+                : 'Praat in plaats van typen — de tekst loopt mee terwijl je spreekt.'}
+            </p>
+          </>
         )}
-        {(voiceEnabled && voice.supported) || live.supported ? (
-          <p className="hint">
-            {voice.recording
-              ? 'Spreek rustig in; tik op stop, dan verschijnt de tekst.'
-              : live.listening
-                ? 'Je ziet de tekst live verschijnen. Tik op stop als je klaar bent.'
-                : '“Inspreken” = nauwkeurig (even wachten na stop). “Live” = direct meelezen (Chrome/Safari).'}
-          </p>
-        ) : null}
         {photoAiEnabled && photoIds.length > 0 && (
           <>
             <button
@@ -614,7 +582,6 @@ export function MemoEditor() {
           </>
         )}
         {describeError && <p className="error-text">{describeError}</p>}
-        {voice.error && <p className="error-text">{voice.error}</p>}
         {live.error && <p className="error-text">{live.error}</p>}
       </div>
 

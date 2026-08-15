@@ -76,7 +76,6 @@ interface DataContextValue {
   subjects: string[]
   aiEnabled: boolean
   photoAiEnabled: boolean
-  voiceEnabled: boolean
   subcategories: Record<string, string[]>
   saveSettings: (data: {
     subjects?: string[]
@@ -145,7 +144,6 @@ export function DataProvider({ children }: { children: ReactNode }) {
   const [subjects, setSubjects] = useState<string[]>([])
   const [aiEnabled, setAiEnabled] = useState(true)
   const [photoAiEnabled, setPhotoAiEnabled] = useState(false)
-  const [voiceEnabled, setVoiceEnabled] = useState(false)
   const [subcategories, setSubcategories] = useState<Record<string, string[]>>(
     {},
   )
@@ -168,7 +166,6 @@ export function DataProvider({ children }: { children: ReactNode }) {
       setSubjects(state.account?.subjects ?? [])
       setAiEnabled(state.account?.aiEnabled ?? true)
       setPhotoAiEnabled(!!state.account?.photoAiEnabled)
-      setVoiceEnabled(!!state.account?.voiceEnabled)
       setSubcategories(state.account?.subcategories ?? {})
       fetchAccounts()
         .then(setAccounts)
@@ -254,7 +251,6 @@ export function DataProvider({ children }: { children: ReactNode }) {
     subjects,
     aiEnabled,
     photoAiEnabled,
-    voiceEnabled,
     subcategories,
     saveSettings: async (data) => {
       await apiSaveSettings(data)
