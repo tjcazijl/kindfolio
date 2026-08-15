@@ -106,6 +106,12 @@ ssh SERVER 'sudo mkdir -p /var/www/kindfolio-site && sudo chown -R $USER:$USER /
 rsync -az --delete landing/ SERVER:/var/www/kindfolio-site/
 ```
 
+> **Let op:** `--delete` ruimt alles op wat niet in `landing/` staat. Zet daarom
+> nooit gegenereerde bestanden in `/var/www/kindfolio-site/` — het GoAccess-rapport
+> staat om die reden in `/var/www/kindfolio-stats/` en wordt via een `alias` in het
+> serverblok geserveerd op `/stats.html`.
+
+
 ### 2. nginx-serverblok
 
 `/etc/nginx/sites-available/kindfolio-site`:
