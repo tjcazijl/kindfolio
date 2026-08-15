@@ -106,6 +106,8 @@ export function MemoEditor() {
 
   // Dictafoon: spraakherkenning in de browser zelf, tekst loopt live mee.
   const live = useLiveSpeech((full) => setText(full))
+  // Schrijfhulp kan alleen iets als er foto's bij deze memo staan.
+  const hulpBeschikbaar = photoAiEnabled && photoIds.length > 0
 
   // Als de memo's later binnenkomen, vul het formulier alsnog.
   useEffect(() => {
@@ -549,35 +551,39 @@ export function MemoEditor() {
           onChange={(e) => setText(e.target.value)}
           placeholder="Wat heeft je kind vandaag gedaan en geleerd?"
         />
-        {live.supported && (
+        {/* Dictafoon en schrijfhulp vullen allebei dit tekstveld, dus staan ze
+            er samen direct onder met één regel uitleg. */}
+        {(live.supported || hulpBeschikbaar) && (
           <>
-            <button
-              type="button"
-              className={`btn full ${live.listening ? 'recording' : 'outline white-bg'}`}
-              onClick={() => (live.listening ? live.stop() : live.start(text))}
-            >
-              {live.listening ? '⏹ Stop' : '🎤 Dictafoon'}
-            </button>
+            <div className="voice-row">
+              {live.supported && (
+                <button
+                  type="button"
+                  className={`btn ${live.listening ? 'recording' : 'outline white-bg'}`}
+                  onClick={() => (live.listening ? live.stop() : live.start(text))}
+                >
+                  {live.listening ? '⏹ Stop' : '🎤 Dictafoon'}
+                </button>
+              )}
+              {hulpBeschikbaar && (
+                <button
+                  type="button"
+                  className="btn outline white-bg"
+                  disabled={describing || (!childId && selectedChildIds.length === 0)}
+                  onClick={describe}
+                >
+                  {describing ? '⏳ Even kijken…' : '✨ Schrijfhulp'}
+                </button>
+              )}
+            </div>
             <p className="hint">
               {live.listening
                 ? 'Je ziet de tekst verschijnen terwijl je praat. Tik op stop als je klaar bent.'
-                : 'Praat in plaats van typen — de tekst loopt mee terwijl je spreekt.'}
-            </p>
-          </>
-        )}
-        {photoAiEnabled && photoIds.length > 0 && (
-          <>
-            <button
-              type="button"
-              className="btn outline white-bg full foto-hulp"
-              disabled={describing || (!childId && selectedChildIds.length === 0)}
-              onClick={describe}
-            >
-              {describing ? '⏳ Even kijken…' : "✨ Beschrijf mijn foto's"}
-            </button>
-            <p className="hint">
-              Je krijgt een ruwe aanzet onder je tekst — zelf aanvullen en
-              bijschaven hoort erbij.
+                : describing
+                  ? 'Even kijken wat er op je foto’s staat…'
+                  : hulpBeschikbaar
+                    ? 'Inspreken, of je foto’s laten beschrijven — je eigen tekst blijft altijd staan.'
+                    : 'Praat in plaats van typen — de tekst loopt mee terwijl je spreekt.'}
             </p>
           </>
         )}
