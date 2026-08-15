@@ -2399,3 +2399,27 @@ body {
 
 /* Foto-schrijfhulp bij een memo. */
 .fotohulp-hint { margin-top: 18px; padding-top: 14px; border-top: 1px solid var(--line); }
+
+/* Melding dat er een nieuwe versie klaarstaat (boven de tabbalk). */
+.update-banner {
+  position: fixed;
+  left: 12px;
+  right: 12px;
+  bottom: calc(var(--tabbar-h) + env(safe-area-inset-bottom) + 10px);
+  z-index: 60;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 12px 10px 16px;
+  border-radius: var(--radius);
+  background: var(--ink);
+  color: #fff;
+  font-size: 14px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.2);
+}
+.update-banner .btn {
+  background: #fff;
+  color: var(--ink);
+  flex-shrink: 0;
+}

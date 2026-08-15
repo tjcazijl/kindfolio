@@ -18,6 +18,7 @@ import { Login } from './pages/Login'
 import { ResetPassword } from './pages/ResetPassword'
 import { AccountSwitcher } from './components/AccountSwitcher'
 import { InstallPrompt } from './components/InstallPrompt'
+import { UpdateBanner } from './components/UpdateBanner'
 import { useData } from './store'
 
 export function App() {
@@ -39,12 +40,14 @@ export function App() {
     return (
       <>
         <Login />
+        <UpdateBanner />
         <InstallPrompt auto={false} />
       </>
     )
 
   return (
     <div className="app">
+      <UpdateBanner />
       <InstallPrompt />
       <AccountSwitcher />
       <main className="content">

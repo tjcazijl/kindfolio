@@ -10,6 +10,15 @@ export interface Update {
 
 export const CHANGELOG: Update[] = [
   {
+    id: '2026-08-15b',
+    date: '2026-08-15',
+    title: 'Melding als er een nieuwe versie klaarstaat',
+    items: [
+      'Tot nu toe kreeg je updates pas te zien na twee keer opnieuw opstarten \u2014 en wie de app nooit echt afsluit, bleef soms weken op een oude versie hangen. Voortaan verschijnt er onderin een berichtje zodra er een nieuwe versie klaarstaat.',
+      'Je bepaalt zelf wanneer je vernieuwt: er wordt nooit uit zichzelf herladen, zodat een memo waar je middenin zit niet verloren gaat.',
+    ],
+  },
+  {
     id: '2026-08-15',
     date: '2026-08-15',
     title: 'E\u00e9n dictafoon in plaats van twee inspreekknoppen',

@@ -30,7 +30,9 @@ export default defineConfig({
     react(),
     useHttps && basicSsl(),
     VitePWA({
-      registerType: 'autoUpdate',
+      // 'prompt': een nieuwe versie wacht tot de gebruiker hem accepteert.
+      // Nooit vanzelf herladen — dat kan een half getypte memo wegvagen.
+      registerType: 'prompt',
       includeAssets: [
         'favicon.png',
         'apple-touch-icon.png',
@@ -57,9 +59,8 @@ export default defineConfig({
         navigateFallback: '/index.html',
         // API-verzoeken nooit door de service worker afhandelen.
         navigateFallbackDenylist: [/^\/api/],
-        // Nieuwe versie meteen activeren i.p.v. blijven hangen op een oude.
-        skipWaiting: true,
-        clientsClaim: true,
+        // Bewust géén skipWaiting/clientsClaim: de nieuwe versie blijft klaarstaan
+        // tot de gebruiker in de melding op "Vernieuwen" tikt.
         cleanupOutdatedCaches: true,
       },
     }),

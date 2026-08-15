@@ -4,6 +4,8 @@ import { HashRouter } from 'react-router-dom'
 import { App } from './App'
 import { DataProvider } from './store'
 import { initPwaInstall } from './utils/pwaInstall'
+// Registreert de service worker bij het opstarten, los van in- of uitgelogd.
+import './utils/swUpdate'
 import './index.css'
 
 initPwaInstall()
