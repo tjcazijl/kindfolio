@@ -37,28 +37,19 @@ systemd-unit, `chmod 600`). **Commit deze nooit.**
 | `PORTFOLIO_PHOTO_KEY` | 64 hex-tekens (32 bytes) — versleutelt foto's op schijf (AES-256-GCM). Bewaar deze sleutel óók buiten de server: zonder sleutel zijn de foto's onleesbaar. Bestaande onversleutelde foto's worden bij opstarten automatisch versleuteld. |
 | `PORTFOLIO_ANTHROPIC_KEY` | Anthropic API-sleutel voor samenvattingen |
 | `PORTFOLIO_MODEL` | Claude-model (default `claude-sonnet-4-6`) |
-| `PORTFOLIO_AI_LIMIT` | Aantal AI-samenvattingen per portfolio (default 3). Bij het bereiken krijgt de gebruiker de melding om contact op te nemen; samenvatten zónder AI blijft onbeperkt. Elk gebruik komt als rij in de tabel `ai_usage` — met `DELETE FROM ai_usage WHERE account_id = '…'` zet je het voor één portfolio terug. |
+| `PORTFOLIO_AI_LIMIT` | AI-verzoeken per portfolio per 30 dagen (default 50) — samenvattingen, foto-schrijfhulp en kerndoelvoorstellen samen. Een vangnet tegen weglopende kosten, geen quotum; samenvatten zónder AI blijft onbeperkt. Elk gebruik komt als rij in de tabel `ai_usage` — met `DELETE FROM ai_usage WHERE account_id = '…'` zet je het voor één portfolio terug. |
 | `PORTFOLIO_SENDGRID_KEY` | SendGrid-sleutel voor verificatie-/uitnodigingsmails |
 | `PORTFOLIO_ADMIN_EMAIL` | E-mailadres(sen) met beheerrechten (komma-gescheiden) |
 | `PORTFOLIO_INVITE_CODE` | Optionele code die bij registratie vereist is. **Leeg laten** voor open registratie — sinds v0.22 vraagt het inlogscherm er niet meer om, dus met een gevulde waarde kan niemand meer een account maken. |
 | `PORTFOLIO_REQUIRE_VERIFY` | `true` om e-mailverificatie te verplichten |
-| `PORTFOLIO_WHISPER_BIN` | Pad naar de `whisper-cli`-binary (spraak-naar-tekst). Leeg = inspreken uit. |
-| `PORTFOLIO_WHISPER_MODEL` | Pad naar het ggml-model, bijv. `ggml-base.bin` (`small` = beter NL maar trager) |
+| `PORTFOLIO_PHOTO_MODEL` | Model voor de foto-schrijfhulp (default `claude-sonnet-5`) |
+| `PORTFOLIO_KD_MODEL` | Model voor de kerndoel- en periodevoorstellen (default `claude-sonnet-5`) |
 
-### Spraak-naar-tekst (whisper.cpp, lokaal)
+### Inspreken
 
-Vereist `ffmpeg` en whisper.cpp op de server (geen externe dienst):
-
-```bash
-apt-get install -y build-essential cmake ffmpeg
-git clone --depth 1 https://github.com/ggerganov/whisper.cpp /opt/whisper.cpp
-cd /opt/whisper.cpp && cmake -B build -DCMAKE_BUILD_TYPE=Release && cmake --build build -j
-sh ./models/download-ggml-model.sh base    # ~142 MB
-```
-
-Zet daarna `PORTFOLIO_WHISPER_BIN`/`PORTFOLIO_WHISPER_MODEL`. De browser neemt op met
-`MediaRecorder`, de server zet om naar 16kHz-WAV (ffmpeg) en transcribeert lokaal
-(één tegelijk); de audio wordt na afloop verwijderd.
+Het inspreken gebeurt in de browser zelf (Web Speech API) — er gaat geen audio
+naar de server en er is niets voor te installeren. Werkt in Chrome en Safari;
+in Firefox is de knop er niet.
 
 ## API (alles onder `/api`, sessie vereist)
 
@@ -67,6 +58,22 @@ Zet daarna `PORTFOLIO_WHISPER_BIN`/`PORTFOLIO_WHISPER_MODEL`. De browser neemt o
 - `POST /api/memos` · `PATCH /api/memos/:id` · `DELETE /api/memos/:id`
 - `POST /api/photos` (ruwe afbeelding-body) → `{ id }` · `GET /api/photos/:id` · `DELETE /api/photos/:id`
 - `GET/POST /api/feedback` + stemmen/reacties/status (gedeeld prikbord)
+- `POST /api/periods` · `PATCH /api/periods/:id` · `DELETE /api/periods/:id`
+- `PUT  /api/kerndoelen/carrier` — de kerndoelen van één memo/leermiddel/agenda-item/periode
+- `POST /api/kerndoelen/review` — een kerndoel per kind overnemen, weggooien of losmaken
+- `GET/POST/DELETE /api/kerndoelen/scan` — de AI met terugwerkende kracht door de memo's
+
+### Kerndoelen en periodes
+
+De twee SLO-lijsten (40 po, 45 vo) staan als constante `KERNDOELEN` in
+`server.js`, dus er is niets extra's te deployen. Welke set bij een kind hoort
+staat in `children.kerndoelen_set`; elke koppeling in `kerndoel_links` onthoudt
+zelf uit welke set hij komt, zodat een overstap niets hoeft om te zetten.
+
+De AI-doorloop (`/api/kerndoelen/scan`) draait als taak in het geheugen van het
+proces, één per portfolio. Bij een herstart is een lopende scan weg; de
+voorstellen die al weggeschreven zijn blijven staan en `memos.kd_scanned`
+zorgt dat een tweede ronde alleen het resterende werk doet.
 
 ## Frontend opnieuw deployen
 
