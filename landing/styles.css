@@ -248,3 +248,82 @@ footer { background: #fff; }
 
 .closing-mark { background: none; box-shadow: none; border-radius: 0; }
 .closing-mark img { width: 100%; height: 100%; }
+
+/* ---------- Artikelpagina (/kerndoelen) ---------- */
+:root {
+  --sunk: #f2efe6;
+  --ai: #7a5ea8;
+  --ai-soft: #f0ebf7;
+  --vo: #8a5a2b;
+  --vo-soft: #f6ece0;
+  --ochre-soft: #fbf3e2;
+  --ochre-line: #ecd9ab;
+  --paper-shadow: 0 1px 2px rgba(35, 41, 31, .05), 0 8px 24px rgba(35, 41, 31, .05);
+}
+.artikel { width: min(660px, calc(100% - 44px)); margin-inline: auto; padding-block: 54px 84px; display: flex; flex-direction: column; gap: 48px; }
+.artikel-kop { display: flex; flex-direction: column; gap: 14px; }
+.artikel-kop h1 { margin: 0; font-size: clamp(34px, 6.4vw, 52px); line-height: 1.06; font-weight: 700; letter-spacing: -.032em; text-wrap: balance; }
+.artikel-kop .lead { margin: 0; color: var(--muted); font-size: 19px; line-height: 1.6; }
+.art-sec { display: flex; flex-direction: column; gap: 15px; }
+.art-sec > * { margin: 0; }
+.art-sec h2 { font-size: clamp(24px, 4.2vw, 30px); line-height: 1.16; font-weight: 700; letter-spacing: -.024em; text-wrap: balance; }
+.art-sec p, .artikel li { line-height: 1.65; }
+.art-sec em { font-style: normal; color: var(--green); font-weight: 650; }
+.art-uitleg { font-size: 14.5px; line-height: 1.6; color: var(--muted); }
+
+/* Nagebouwde app-onderdelen: wat je straks echt op je scherm ziet. */
+.art-scherm { background: var(--card); border: 1px solid var(--line); border-radius: var(--radius); box-shadow: var(--paper-shadow); padding: 16px 17px; display: flex; flex-direction: column; gap: 12px; }
+.art-scherm-kop { font-size: 12.5px; font-weight: 700; color: var(--muted); letter-spacing: .05em; text-transform: uppercase; }
+.art-schakel { display: flex; align-items: center; justify-content: space-between; gap: 14px; font-weight: 600; font-size: 16px; }
+.art-tg { flex: none; width: 46px; height: 27px; border-radius: 99px; background: var(--line); position: relative; }
+.art-tg.aan { background: var(--green); }
+.art-tg::after { content: ""; position: absolute; top: 3px; left: 3px; width: 21px; height: 21px; border-radius: 50%; background: var(--card); }
+.art-tg.aan::after { left: auto; right: 3px; }
+.art-keus { display: flex; gap: 12px; align-items: flex-start; border: 1.5px solid var(--line); border-radius: 12px; padding: 12px 13px; }
+.art-keus.aan { border-color: var(--green); background: var(--green-soft); }
+.art-bol { flex: none; width: 19px; height: 19px; margin-top: 3px; border-radius: 50%; border: 2px solid var(--line); background: var(--card); }
+.art-keus.aan .art-bol { border-color: var(--green); border-width: 6px; }
+.art-keus b { display: block; font-size: 15.5px; font-weight: 650; }
+.art-keus span { display: block; font-size: 14px; line-height: 1.5; color: var(--muted); margin-top: 1px; }
+
+.art-kaart { background: var(--card); border: 1px solid var(--line); border-radius: var(--radius); box-shadow: var(--paper-shadow); padding: 17px 18px; display: flex; flex-direction: column; gap: 7px; }
+.art-kaart.warm { background: var(--ochre-soft); border-color: var(--ochre-line); box-shadow: none; }
+.art-kaart.voorstel { border-style: dashed; border-color: var(--ai); box-shadow: none; }
+.art-kaart-kop { display: flex; align-items: baseline; gap: 9px; flex-wrap: wrap; }
+.art-kaart-kop b { font-size: 17px; letter-spacing: -.01em; }
+.art-vlag { font-size: 10.5px; font-weight: 700; letter-spacing: .03em; background: var(--ai-soft); color: var(--ai); border-radius: 99px; padding: 3px 8px; }
+.art-meta { font-size: 14px; color: var(--muted); }
+.art-citaat { font-size: 14.5px; line-height: 1.55; color: var(--muted); background: var(--sunk); border-radius: 9px; padding: 9px 11px; }
+.art-kaart.warm .art-citaat { background: transparent; padding: 0; font-style: italic; }
+
+/* Het blok over wat er de deur uit gaat: bewust ander gewicht. */
+.art-buiten { background: var(--ai-soft); border-radius: var(--radius); padding: 24px; display: flex; flex-direction: column; gap: 15px; }
+.art-buiten h2 { margin: 0; color: var(--ai); font-size: clamp(23px, 4vw, 28px); line-height: 1.16; font-weight: 700; letter-spacing: -.024em; }
+.art-buiten p { margin: 0; }
+.art-lijst { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 12px; }
+.art-lijst li { display: flex; gap: 12px; align-items: flex-start; font-size: 16px; line-height: 1.55; }
+.art-teken { flex: none; width: 21px; font-weight: 700; color: var(--ai); text-align: center; }
+.art-teken.nee { color: var(--green); }
+
+.art-tabel-rol { overflow-x: auto; }
+.art-tabel { border-collapse: collapse; width: 100%; min-width: 420px; background: var(--card); border-radius: var(--radius); overflow: hidden; box-shadow: var(--paper-shadow); font-size: 15px; }
+.art-tabel th, .art-tabel td { padding: 11px 14px; text-align: left; border-bottom: 1px solid var(--line); vertical-align: top; }
+.art-tabel thead th { background: var(--sunk); font-size: 11.5px; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); font-weight: 700; }
+.art-tabel tbody tr:last-child td { border-bottom: 0; }
+.art-tabel td:first-child { font-weight: 700; font-variant-numeric: tabular-nums; width: 1%; white-space: nowrap; }
+.art-tag { display: inline-block; font-size: 10.5px; font-weight: 800; letter-spacing: .06em; border-radius: 5px; padding: 2px 6px; vertical-align: 1px; }
+.art-tag.po { background: var(--green-soft); color: var(--green); }
+.art-tag.vo { background: var(--vo-soft); color: var(--vo); }
+
+/* Genummerd, omdat dit echt een volgorde is. */
+.art-stappen { list-style: none; counter-reset: s; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 16px; }
+.art-stappen li { counter-increment: s; display: flex; gap: 15px; align-items: flex-start; }
+.art-stappen li::before { content: counter(s); flex: none; display: grid; place-items: center; width: 28px; height: 28px; border-radius: 50%; background: var(--green); color: #fff; font-size: 14px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.art-stappen li > div { display: flex; flex-direction: column; gap: 3px; }
+.art-stappen b { font-size: 16.5px; font-weight: 650; letter-spacing: -.01em; }
+.art-stappen span { font-size: 15px; line-height: 1.55; color: var(--muted); }
+
+.art-slot { border-top: 1px solid var(--line); padding-top: 30px; display: flex; flex-direction: column; align-items: flex-start; gap: 16px; }
+.art-slot p { margin: 0; }
+.art-terug { color: var(--green); font-weight: 600; font-size: 15px; }
+.art-terug:hover { text-decoration: underline; }
