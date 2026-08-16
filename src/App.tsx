@@ -5,6 +5,7 @@ import { FocusPoints } from './pages/FocusPoints'
 import { MemoView } from './pages/MemoView'
 import { MemoEditor } from './pages/MemoEditor'
 import { Summary } from './pages/Summary'
+import { KerndoelScan } from './pages/KerndoelScan'
 import { Agenda } from './pages/Agenda'
 import { EventEditor } from './pages/EventEditor'
 import { EventDetail } from './pages/EventDetail'
@@ -22,7 +23,7 @@ import { UpdateBanner } from './components/UpdateBanner'
 import { useData } from './store'
 
 export function App() {
-  const { loading, authRequired } = useData()
+  const { loading, authRequired, kerndoelenEnabled } = useData()
 
   // Wachtwoord-reset is een publieke pagina (gebruiker is uitgelogd).
   if (window.location.hash.startsWith('#/reset')) return <ResetPassword />
@@ -63,6 +64,7 @@ export function App() {
             element={<MemoEditor />}
           />
           <Route path="/samenvatting" element={<Summary />} />
+          <Route path="/kerndoelen/scan" element={<KerndoelScan />} />
           <Route path="/agenda" element={<Agenda />} />
           <Route path="/agenda/nieuw" element={<EventEditor />} />
           <Route path="/agenda/:eventId" element={<EventDetail />} />
@@ -87,7 +89,7 @@ export function App() {
         </NavLink>
         <NavLink to="/samenvatting" className="tab">
           <span className="tab-icon">✨</span>
-          <span>Samenvatting</span>
+          <span>{kerndoelenEnabled ? 'Terugblik' : 'Samenvatting'}</span>
         </NavLink>
         <NavLink to="/feedback" className="tab">
           <span className="tab-icon">💬</span>

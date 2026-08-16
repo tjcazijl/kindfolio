@@ -13,6 +13,8 @@ import {
 } from '../utils/resources'
 import { todayISO } from '../utils/dates'
 import { SubjectPicker } from '../components/SubjectPicker'
+import { KerndoelPicker, type KerndoelKeuze } from '../components/KerndoelPicker'
+import { linksVoor } from '../utils/kerndoelen'
 
 export function ResourceEditor() {
   const { resourceId } = useParams()
@@ -23,6 +25,9 @@ export function ResourceEditor() {
     addResource,
     editResource,
     removeResource,
+    kerndoelenEnabled,
+    kerndoelLinks,
+    saveKerndoelen,
   } = useData()
   const isNew = !resourceId
   const existing = resourceId ? resources.find((r) => r.id === resourceId) : undefined
@@ -38,6 +43,13 @@ export function ResourceEditor() {
   const [childIds, setChildIds] = useState<string[]>(existing?.childIds || [])
   const [saving, setSaving] = useState(false)
   const [confirmDelete, setConfirmDelete] = useState(false)
+  const [kerndoelen, setKerndoelenKeuze] = useState<KerndoelKeuze[]>(() =>
+    linksVoor(kerndoelLinks, 'resource', resourceId).map((l) => ({
+      childId: l.childId,
+      set: l.set,
+      nr: l.nr,
+    })),
+  )
 
   if (!isNew && !existing) return <div className="page">Laden…</div>
 
@@ -79,8 +91,21 @@ export function ResourceEditor() {
         notes: notes.trim(),
         childIds,
       }
-      if (isNew) await addResource(data)
-      else await editResource(resourceId!, data)
+      // Bij een nieuw leermiddel is het id er pas ná het opslaan; de gekozen
+      // kerndoelen gaan er daarom in een tweede stap achteraan.
+      const id = isNew
+        ? (await addResource(data)).id
+        : ((await editResource(resourceId!, data)), resourceId!)
+      if (kerndoelenEnabled) {
+        // Kinderen die van het leermiddel af zijn gehaald, mogen geen koppeling
+        // houden — die zou nergens meer zichtbaar zijn.
+        const geldig = childIds.length ? childIds : children.map((c) => c.id)
+        await saveKerndoelen(
+          'resource',
+          id,
+          kerndoelen.filter((k) => geldig.includes(k.childId)),
+        )
+      }
       navigate('/leermiddelen')
     } catch (err: any) {
       alert(err?.message || 'Opslaan mislukt')
@@ -232,6 +257,19 @@ export function ResourceEditor() {
         </span>
         <SubjectPicker selected={subjects} onToggle={toggleSubject} />
       </div>
+
+      {kerndoelenEnabled && (
+        <div className="field">
+          <span className="field-label">
+            Kerndoelen <span className="fl-opt">(optioneel)</span>
+          </span>
+          <KerndoelPicker
+            childIds={childIds}
+            value={kerndoelen}
+            onChange={setKerndoelenKeuze}
+          />
+        </div>
+      )}
 
       <label className="field">
         <span className="field-label">

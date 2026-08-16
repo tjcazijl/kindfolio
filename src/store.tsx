@@ -12,6 +12,10 @@ import type {
   Child,
   Comment,
   FocusPoint,
+  Kerndoel,
+  KerndoelCarrier,
+  KerndoelLink,
+  KerndoelSet,
   Memo,
   Resource,
   Summary,
@@ -37,6 +41,8 @@ import {
   updateSummary as apiUpdateSummary,
   fetchAccounts,
   fetchState,
+  saveKerndoelen as apiSaveKerndoelen,
+  reviewKerndoel as apiReviewKerndoel,
   login as apiLogin,
   logout as apiLogout,
   register as apiRegister,
@@ -76,13 +82,30 @@ interface DataContextValue {
   subjects: string[]
   aiEnabled: boolean
   photoAiEnabled: boolean
+  kerndoelenEnabled: boolean
+  kerndoelenAi: boolean
+  kerndoelen: Record<KerndoelSet, Kerndoel[]> | null
+  kerndoelLinks: KerndoelLink[]
   subcategories: Record<string, string[]>
   saveSettings: (data: {
     subjects?: string[]
     aiEnabled?: boolean
     photoAiEnabled?: boolean
+    kerndoelenEnabled?: boolean
+    kerndoelenAi?: boolean
     subcategories?: Record<string, string[]>
   }) => Promise<void>
+  saveKerndoelen: (
+    carrierType: KerndoelCarrier,
+    carrierId: string,
+    items: { childId: string; set: KerndoelSet; nr: number }[],
+  ) => Promise<void>
+  reviewKerndoel: (
+    childId: string,
+    set: KerndoelSet,
+    nr: number,
+    action: 'accept' | 'reject' | 'remove',
+  ) => Promise<void>
   switchAccount: (id: string) => Promise<void>
   addComment: (
     targetType: 'memo' | 'summary',
@@ -144,6 +167,13 @@ export function DataProvider({ children }: { children: ReactNode }) {
   const [subjects, setSubjects] = useState<string[]>([])
   const [aiEnabled, setAiEnabled] = useState(true)
   const [photoAiEnabled, setPhotoAiEnabled] = useState(false)
+  const [kerndoelenEnabled, setKerndoelenEnabled] = useState(false)
+  const [kerndoelenAi, setKerndoelenAi] = useState(false)
+  const [kerndoelen, setKerndoelen] = useState<Record<
+    KerndoelSet,
+    Kerndoel[]
+  > | null>(null)
+  const [kerndoelLinks, setKerndoelLinks] = useState<KerndoelLink[]>([])
   const [subcategories, setSubcategories] = useState<Record<string, string[]>>(
     {},
   )
@@ -166,6 +196,10 @@ export function DataProvider({ children }: { children: ReactNode }) {
       setSubjects(state.account?.subjects ?? [])
       setAiEnabled(state.account?.aiEnabled ?? true)
       setPhotoAiEnabled(!!state.account?.photoAiEnabled)
+      setKerndoelenEnabled(!!state.account?.kerndoelenEnabled)
+      setKerndoelenAi(!!state.account?.kerndoelenAi)
+      setKerndoelen(state.kerndoelen ?? null)
+      setKerndoelLinks(state.kerndoelLinks ?? [])
       setSubcategories(state.account?.subcategories ?? {})
       fetchAccounts()
         .then(setAccounts)
@@ -251,9 +285,21 @@ export function DataProvider({ children }: { children: ReactNode }) {
     subjects,
     aiEnabled,
     photoAiEnabled,
+    kerndoelenEnabled,
+    kerndoelenAi,
+    kerndoelen,
+    kerndoelLinks,
     subcategories,
     saveSettings: async (data) => {
       await apiSaveSettings(data)
+      await reload()
+    },
+    saveKerndoelen: async (carrierType, carrierId, items) => {
+      await apiSaveKerndoelen(carrierType, carrierId, items)
+      await reload()
+    },
+    reviewKerndoel: async (childId, set, nr, action) => {
+      await apiReviewKerndoel(childId, set, nr, action)
       await reload()
     },
     switchAccount,

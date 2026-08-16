@@ -16,6 +16,13 @@
   --uitje-bg: #f6ecd8;
   --taak: #b0492f;
   --taak-bg: #f5e5e0;
+  /* Kerndoelen: de twee SLO-sets, en de kleur voor AI-voorstellen */
+  --kd-po: #2f6f4f;
+  --kd-po-bg: #e7efe9;
+  --kd-vo: #8a5a2b;
+  --kd-vo-bg: #f6ece0;
+  --kd-ai: #7a5ea8;
+  --kd-ai-bg: #f0ebf7;
 }
 
 * {
@@ -2422,4 +2429,349 @@ body {
   background: #fff;
   color: var(--ink);
   flex-shrink: 0;
+}
+
+/* ---------- Kerndoelen ---------- */
+
+/* Setje bij het nummer. Vanaf kerndoel 11 lopen de po- en vo-nummering uiteen,
+   dus een kaal nummer is onbruikbaar — zeker in iets dat je deelt. */
+.kd-set {
+  display: inline-block;
+  font-size: 9.5px;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  border-radius: 5px;
+  padding: 2px 5px;
+  vertical-align: 1px;
+  background: var(--kd-po-bg);
+  color: var(--kd-po);
+}
+.kd-set.vo {
+  background: var(--kd-vo-bg);
+  color: var(--kd-vo);
+}
+
+/* Keuze tussen twee opties (handmatig/AI, po/vo) */
+.kd-keuze {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  width: 100%;
+  text-align: left;
+  border: 1.5px solid var(--line);
+  border-radius: 12px;
+  background: #fff;
+  padding: 11px 12px;
+  margin-bottom: 8px;
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+}
+.kd-keuze.on {
+  border-color: var(--green);
+  background: var(--kd-po-bg);
+}
+.kd-keuze.vo.on {
+  border-color: var(--kd-vo);
+  background: var(--kd-vo-bg);
+}
+.kd-keuze.ai.on {
+  border-color: var(--kd-ai);
+  background: var(--kd-ai-bg);
+}
+.kd-bol {
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  border: 2px solid var(--line);
+  background: #fff;
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+.kd-keuze.on .kd-bol {
+  border-color: var(--green);
+  border-width: 6px;
+}
+.kd-keuze.vo.on .kd-bol {
+  border-color: var(--kd-vo);
+}
+.kd-keuze.ai.on .kd-bol {
+  border-color: var(--kd-ai);
+}
+.kd-keuze-t {
+  display: block;
+  font-weight: 650;
+  font-size: 14.5px;
+}
+.kd-keuze-s {
+  display: block;
+  font-size: 12.5px;
+  color: var(--muted);
+  line-height: 1.45;
+  margin-top: 2px;
+}
+.kd-ai-uitleg {
+  background: var(--kd-ai-bg);
+  border-radius: 11px;
+  padding: 10px 12px;
+}
+
+/* Kerndoelen aanvinken, per leergebied ingeklapt */
+.kd-picker {
+  margin-top: 4px;
+}
+.kd-gekozen {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 10px;
+}
+.kd-chip {
+  font-size: 12px;
+  line-height: 1.3;
+  border-radius: 99px;
+  padding: 5px 10px;
+  background: var(--kd-po-bg);
+  color: var(--green-dark);
+}
+.kd-chip.vo {
+  background: var(--kd-vo-bg);
+  color: var(--kd-vo);
+}
+.kd-groep {
+  border: 1.5px solid var(--line);
+  border-radius: 12px;
+  background: #fff;
+  margin-bottom: 7px;
+  overflow: hidden;
+}
+.kd-groep.open {
+  border-color: var(--green);
+}
+.kd-groep-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  border: 0;
+  background: none;
+  font: inherit;
+  color: inherit;
+  padding: 11px 12px;
+  cursor: pointer;
+  text-align: left;
+}
+.kd-lg {
+  flex: 1;
+  font-weight: 600;
+  font-size: 14px;
+}
+.kd-teller {
+  font-size: 11px;
+  font-weight: 700;
+  color: #fff;
+  background: var(--green);
+  border-radius: 99px;
+  padding: 2px 7px;
+}
+.kd-rijen {
+  border-top: 1px solid var(--line);
+  padding: 8px;
+}
+.kd-rij {
+  display: flex;
+  gap: 9px;
+  align-items: flex-start;
+  width: 100%;
+  text-align: left;
+  border: 1.5px solid var(--line);
+  border-radius: 10px;
+  background: #fff;
+  padding: 9px 10px;
+  margin-bottom: 6px;
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+}
+.kd-rij:last-child {
+  margin-bottom: 0;
+}
+.kd-rij.on {
+  border-color: var(--green);
+  background: var(--kd-po-bg);
+}
+.kd-rij.vo.on {
+  border-color: var(--kd-vo);
+  background: var(--kd-vo-bg);
+}
+.kd-vink {
+  width: 19px;
+  height: 19px;
+  flex-shrink: 0;
+  border-radius: 5px;
+  border: 2px solid var(--line);
+  background: #fff;
+  color: #fff;
+  font-size: 12px;
+  line-height: 15px;
+  text-align: center;
+  margin-top: 1px;
+}
+.kd-rij.on .kd-vink {
+  background: var(--green);
+  border-color: var(--green);
+}
+.kd-rij.vo.on .kd-vink {
+  background: var(--kd-vo);
+  border-color: var(--kd-vo);
+}
+.kd-tekst {
+  flex: 1;
+}
+.kd-nr {
+  display: block;
+  font-size: 13px;
+  line-height: 1.35;
+}
+.kd-wie {
+  display: block;
+  font-size: 11px;
+  color: var(--muted);
+  margin-top: 3px;
+}
+
+/* Voorstel van de AI, nog na te kijken */
+.kd-voorstel {
+  border: 1.5px dashed var(--kd-ai);
+  border-radius: 12px;
+  background: #fff;
+  padding: 11px 12px;
+  margin-bottom: 9px;
+}
+.kd-vk-kop {
+  display: flex;
+  gap: 7px;
+  align-items: baseline;
+  font-size: 13.5px;
+  line-height: 1.35;
+}
+.kd-vk-bewijs {
+  font-size: 11.5px;
+  color: var(--muted);
+  margin: 5px 0 0;
+}
+.kd-vk-citaat {
+  background: var(--bg);
+  border-radius: 8px;
+  padding: 7px 9px;
+  margin: 7px 0 0;
+  font-size: 12px;
+  color: var(--muted);
+  line-height: 1.45;
+}
+.kd-vk-acties {
+  display: flex;
+  gap: 7px;
+  margin-top: 9px;
+}
+.kd-vk-acties .btn {
+  flex: 1;
+}
+
+/* Dekking per leergebied */
+.kd-staaf {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 6px 0;
+}
+.kd-staaf-nm {
+  flex: 1;
+  font-size: 13px;
+}
+.kd-bar {
+  width: 86px;
+  height: 7px;
+  border-radius: 99px;
+  background: var(--line);
+  overflow: hidden;
+  flex-shrink: 0;
+}
+.kd-bar i {
+  display: block;
+  height: 100%;
+  background: var(--green);
+}
+.kd-bar.vo i {
+  background: var(--kd-vo);
+}
+.kd-staaf-n {
+  font-size: 11.5px;
+  color: var(--muted);
+  width: 38px;
+  text-align: right;
+}
+.kd-regel {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--line);
+  font-size: 13px;
+}
+.kd-regel:last-child {
+  border-bottom: 0;
+}
+.kd-regel-t {
+  line-height: 1.35;
+}
+.kd-regel-n {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  color: var(--muted);
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+/* Voortgangsbalk bij het doorlopen */
+.kd-voortgang {
+  height: 8px;
+  border-radius: 99px;
+  background: var(--line);
+  overflow: hidden;
+  margin: 10px 0 6px;
+}
+.kd-voortgang i {
+  display: block;
+  height: 100%;
+  background: var(--kd-ai);
+  transition: width 0.4s ease;
+}
+
+/* "Dit kind is 12 geworden" — één keer vragen, nooit zelf omzetten */
+.kd-nudge {
+  border: 1.5px solid #e6d2b8;
+  background: var(--kd-vo-bg);
+  border-radius: var(--radius);
+  padding: 13px 14px;
+  margin-bottom: 14px;
+}
+.kd-nudge p {
+  margin: 0 0 9px;
+  font-size: 13px;
+  line-height: 1.5;
+  color: #5f4526;
+}
+.kd-nudge-t {
+  font-weight: 650;
+  font-size: 14.5px;
+  color: #4a3519;
+}
+.kd-nudge-acties {
+  display: flex;
+  gap: 8px;
+}
+.kd-nudge-acties .btn {
+  flex: 1;
 }

@@ -8,6 +8,39 @@ export interface Child {
   subjects?: string[]
   // Extra subcategorieën per vakgebied, alleen voor dit kind.
   subcategories?: Record<string, string[]>
+  // Welke SLO-set voor dit kind geldt, en sinds wanneer die is omgezet.
+  kerndoelenSet: KerndoelSet
+  kerndoelenSetAt?: string
+  // Of de "dit kind is 12 geworden"-vraag al beantwoord is.
+  kerndoelenAsked?: boolean
+  createdAt: number
+}
+
+/** po = primair onderwijs (40 doelen), vo = onderbouw voortgezet (45 doelen). */
+export type KerndoelSet = 'po' | 'vo'
+
+export interface Kerndoel {
+  nr: number
+  /** Leergebied, bijv. "Rekenen en wiskunde". Beide sets delen dezelfde negen. */
+  lg: string
+  t: string
+  /** 1 bij de twee doelen die over de leeromgeving gaan, niet over het kind. */
+  school?: number
+}
+
+export type KerndoelCarrier = 'memo' | 'resource' | 'event'
+
+export interface KerndoelLink {
+  id: string
+  carrierType: KerndoelCarrier
+  carrierId: string
+  childId: string
+  set: KerndoelSet
+  nr: number
+  source: 'manual' | 'ai'
+  /** ok = telt mee, open = AI-voorstel dat nog nagekeken moet worden. */
+  status: 'ok' | 'open'
+  quote?: string
   createdAt: number
 }
 

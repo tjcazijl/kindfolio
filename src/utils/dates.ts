@@ -17,6 +17,16 @@ export function formatDateNumeric(iso: string): string {
   return y && m && d ? `${d}-${m}-${y}` : iso
 }
 
+/** "16 augustus 2026" — zonder weekdag, voor losse datums in een zin. */
+export function formatDateMonth(iso: string): string {
+  const d = new Date(iso + 'T00:00:00')
+  return d.toLocaleDateString('nl-NL', {
+    day: 'numeric',
+    month: 'long',
+    year: 'numeric',
+  })
+}
+
 export function formatDateLong(iso: string): string {
   const d = new Date(iso + 'T00:00:00')
   return d.toLocaleDateString('nl-NL', {

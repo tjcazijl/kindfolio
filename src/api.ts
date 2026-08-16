@@ -7,6 +7,10 @@ import type {
   EventType,
   FocusPoint,
   FocusStatus,
+  Kerndoel,
+  KerndoelCarrier,
+  KerndoelLink,
+  KerndoelSet,
   Memo,
   MoodKey,
   Resource,
@@ -132,6 +136,9 @@ export interface AppState {
   events: AgendaEvent[]
   focusPoints: FocusPoint[]
   resources: Resource[]
+  // Alleen aanwezig als de kerndoelen aanstaan.
+  kerndoelen?: Record<KerndoelSet, Kerndoel[]>
+  kerndoelLinks?: KerndoelLink[]
   account: {
     id: string
     ownerEmail: string
@@ -141,6 +148,8 @@ export interface AppState {
     subjects: string[]
     aiEnabled: boolean
     photoAiEnabled?: boolean
+    kerndoelenEnabled?: boolean
+    kerndoelenAi?: boolean
     subcategories?: Record<string, string[]>
   }
 }
@@ -149,12 +158,62 @@ export const saveSettings = (data: {
   subjects?: string[]
   aiEnabled?: boolean
   photoAiEnabled?: boolean
+  kerndoelenEnabled?: boolean
+  kerndoelenAi?: boolean
   subcategories?: Record<string, string[]>
 }) =>
   req<{ subjects: string[]; aiEnabled: boolean }>('/settings', {
     method: 'POST',
     body: JSON.stringify(data),
   })
+
+// ---- Kerndoelen ----
+/** Vervangt de bevestigde kerndoelen van één memo/leermiddel/agenda-item. */
+export const saveKerndoelen = (
+  carrierType: KerndoelCarrier,
+  carrierId: string,
+  items: { childId: string; set: KerndoelSet; nr: number }[],
+) =>
+  req<{ links: KerndoelLink[] }>('/kerndoelen/carrier', {
+    method: 'PUT',
+    body: JSON.stringify({ carrierType, carrierId, items }),
+  })
+
+/**
+ * Een kerndoel in één keer afhandelen voor één kind: een AI-voorstel overnemen
+ * of weggooien, of alles van dat kerndoel loskoppelen.
+ */
+export const reviewKerndoel = (
+  childId: string,
+  set: KerndoelSet,
+  nr: number,
+  action: 'accept' | 'reject' | 'remove',
+) =>
+  req<{ ok: boolean; aantal: number }>('/kerndoelen/review', {
+    method: 'POST',
+    body: JSON.stringify({ childId, set, nr, action }),
+  })
+
+export interface KerndoelScan {
+  status: 'stil' | 'bezig' | 'klaar' | 'fout' | 'gestopt'
+  error?: string
+  done: number
+  total?: number
+  gevonden?: number
+  gevondenVorigeKeer?: number
+  bezigMet?: string | null
+  /** Alleen als er niets loopt: de schatting vooraf. */
+  memos?: number
+  batches?: number
+  beschikbaar?: boolean
+  aiLeft?: number | null
+}
+
+export const fetchKerndoelScan = () => req<KerndoelScan>('/kerndoelen/scan')
+export const startKerndoelScan = () =>
+  req<{ status: string; total: number }>('/kerndoelen/scan', { method: 'POST' })
+export const stopKerndoelScan = () =>
+  req<{ ok: boolean }>('/kerndoelen/scan', { method: 'DELETE' })
 
 /** Schrijfhulp: laat de AI beschrijven wat er op de foto's te zien is. */
 export const describePhotos = (
@@ -326,6 +385,8 @@ export interface ChildInput {
   // array/object = eigen extra's, null = wissen, weglaten = ongewijzigd.
   subjects?: string[] | null
   subcategories?: Record<string, string[]> | null
+  kerndoelenSet?: KerndoelSet
+  kerndoelenAsked?: boolean
 }
 export const createChild = (data: ChildInput) =>
   req<Child>('/children', { method: 'POST', body: JSON.stringify(data) })

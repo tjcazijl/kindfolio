@@ -5,6 +5,7 @@ import { ChildForm } from '../components/ChildForm'
 import { childAge, formatDateNumeric, todayISO } from '../utils/dates'
 import { expandEvents } from '../utils/recurrence'
 import { EVENT_META } from '../utils/events'
+import { vraagOverstap } from '../utils/kerndoelen'
 import {
   CHANGELOG,
   LATEST_UPDATE_ID,
@@ -24,7 +25,19 @@ export function Home() {
     role,
     ownerEmail,
     addChild,
+    updateChild,
+    kerndoelenEnabled,
   } = useData()
+
+  // Kinderen die 12 zijn en nog op de po-set staan, zonder dat we het gevraagd
+  // hebben. Alleen relevant als de kerndoelen überhaupt aanstaan.
+  const overstappers = useMemo(
+    () =>
+      kerndoelenEnabled && canEdit
+        ? vraagOverstap(children, (c) => childAge(c) ?? null)
+        : [],
+    [children, kerndoelenEnabled, canEdit],
+  )
 
   const memoCounts = useMemo(() => {
     const map: Record<string, number> = {}
@@ -143,6 +156,34 @@ export function Home() {
           </button>
         </div>
       )}
+
+      {/* Eén keer vragen bij de twaalfde verjaardag — de app schakelt nooit zelf. */}
+      {overstappers.map((c) => (
+        <div key={c.id} className="kd-nudge">
+          <p className="kd-nudge-t">{c.name} is {childAge(c)} geworden 🎂</p>
+          <p>
+            Vanaf ongeveer deze leeftijd gelden de kerndoelen voor de onderbouw
+            van het voortgezet onderwijs. Zullen we overstappen? Wat je al hebt
+            vastgelegd blijft staan zoals het is.
+          </p>
+          <div className="kd-nudge-acties">
+            <button
+              className="btn primary"
+              onClick={() =>
+                updateChild(c.id, { kerndoelenSet: 'vo', kerndoelenAsked: true })
+              }
+            >
+              Overstappen
+            </button>
+            <button
+              className="btn outline white-bg"
+              onClick={() => updateChild(c.id, { kerndoelenAsked: true })}
+            >
+              Nog niet
+            </button>
+          </div>
+        </div>
+      ))}
 
       {loading && <p className="empty-note">Laden…</p>}
       {error && <div className="banner warn">Verbinden mislukt: {error}</div>}

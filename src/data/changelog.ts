@@ -10,6 +10,17 @@ export interface Update {
 
 export const CHANGELOG: Update[] = [
   {
+    id: '2026-08-16',
+    date: '2026-08-16',
+    title: 'SLO-kerndoelen bijhouden (als je dat wilt)',
+    items: [
+      'Nieuw bij Instellingen: “Kerndoelen bijhouden”. Staat het aan, dan kun je bij een memo, een leermiddel of een agenda-item aanvinken welke SLO-kerndoelen erbij horen, en zie je in de Terugblik wat er per leergebied is langsgekomen. Je bent hier nergens toe verplicht — laat je het uit, dan zie je er niets van.',
+      'Beide sets zitten erin: 40 kerndoelen voor het basisonderwijs en 45 voor de onderbouw van het voortgezet onderwijs. Welke set bij een kind hoort, stel je in op de pagina van dat kind. Meestal gaat dat rond het twaalfde jaar, maar dat bepaal je zelf: de app vraagt het één keer en schakelt nooit uit zichzelf.',
+      'Wat je al hebt gekoppeld blijft bij een overstap staan zoals het was. Elke koppeling onthoudt zelf uit welke set hij komt, dus je geschiedenis wordt nooit herschreven.',
+      'Je kunt Claude ook voorstellen laten doen. Die leest dan de tekst van je memo’s (geen foto’s) en stelt per kerndoel voor waar het terugkomt, met een citaat erbij als bewijs. Jij bevestigt of gooit weg — een voorstel telt pas mee als je het overneemt.',
+    ],
+  },
+  {
     id: '2026-08-15b',
     date: '2026-08-15',
     title: 'Melding als er een nieuwe versie klaarstaat',

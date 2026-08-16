@@ -3,6 +3,7 @@ import { useNavigate, useParams } from 'react-router-dom'
 import { useData } from '../store'
 import { MemoCard } from '../components/MemoCard'
 import { ChildForm } from '../components/ChildForm'
+import { ChildKerndoelen } from '../components/ChildKerndoelen'
 import { ChildSubjectsEditor } from '../components/ChildSubjectsEditor'
 import { childAge, formatDayHeading, periodRange, shiftPeriod } from '../utils/dates'
 
@@ -40,6 +41,7 @@ export function ChildTimeline() {
     canEdit,
     subjects: accountSubjects,
     subcategories: accountSubcats,
+    kerndoelenEnabled,
   } = useData()
   const [editing, setEditing] = useState(false)
   const [showSubjects, setShowSubjects] = useState(false)
@@ -141,6 +143,7 @@ export function ChildTimeline() {
           onSubmit={onSaveChild}
           onCancel={() => setEditing(false)}
         />
+        {kerndoelenEnabled && canEdit && <ChildKerndoelen child={child} />}
       </div>
     )
   }

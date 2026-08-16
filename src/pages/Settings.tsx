@@ -28,6 +28,8 @@ export function Settings() {
     subcategories,
     aiEnabled,
     photoAiEnabled,
+    kerndoelenEnabled,
+    kerndoelenAi,
     saveSettings,
     children,
     memos,
@@ -207,6 +209,88 @@ export function Settings() {
               onChange={(e) => saveSettings({ photoAiEnabled: e.target.checked })}
             />
           </label>
+        )}
+      </section>
+
+      <section className="card-section">
+        <h2>Kerndoelen</h2>
+        <p className="hint">
+          Houd bij welke <strong>SLO-kerndoelen</strong> er langskomen, en maak
+          daar een overzicht van dat je kunt laten zien. Je bent hier nergens toe
+          verplicht — laat je dit uit, dan zie je er verder niets van in de app.
+        </p>
+        {canEdit && (
+          <label className="toggle-row">
+            <span>Kerndoelen bijhouden</span>
+            <input
+              type="checkbox"
+              className="toggle"
+              checked={kerndoelenEnabled}
+              onChange={(e) =>
+                saveSettings({ kerndoelenEnabled: e.target.checked })
+              }
+            />
+          </label>
+        )}
+
+        {kerndoelenEnabled && canEdit && (
+          <>
+            <span className="field-label" style={{ marginTop: 14 }}>
+              Hoe wil je ze koppelen?
+            </span>
+            <button
+              type="button"
+              className={`kd-keuze ${kerndoelenAi ? '' : 'on'}`}
+              onClick={() => saveSettings({ kerndoelenAi: false })}
+            >
+              <span className="kd-bol" />
+              <span>
+                <span className="kd-keuze-t">Ik vink zelf aan</span>
+                <span className="kd-keuze-s">
+                  Bij een memo, een leermiddel of een agenda-item kies je zelf
+                  welke kerndoelen erbij horen. Kost niets en er gaat niets naar
+                  buiten.
+                </span>
+              </span>
+            </button>
+            <button
+              type="button"
+              className={`kd-keuze ai ${kerndoelenAi ? 'on' : ''}`}
+              onClick={() => saveSettings({ kerndoelenAi: true })}
+            >
+              <span className="kd-bol" />
+              <span>
+                <span className="kd-keuze-t">Laat de AI voorstellen doen ✨</span>
+                <span className="kd-keuze-s">
+                  Claude leest je memo's en stelt kerndoelen voor. Jij bevestigt
+                  of past aan — een voorstel telt pas mee als je het overneemt.
+                </span>
+              </span>
+            </button>
+            {kerndoelenAi && (
+              <>
+                <p className="hint kd-ai-uitleg">
+                  Hiervoor gaat de <strong>tekst</strong> van je memo's naar
+                  Anthropic — geen foto's. Het telt mee voor je AI-verzoeken per
+                  maand.
+                </p>
+                <button
+                  className="btn outline full"
+                  onClick={() => navigate('/kerndoelen/scan')}
+                >
+                  ✨ Mijn memo's doorlopen
+                </button>
+                <p className="hint">
+                  Voor memo's die je al eerder hebt geschreven. Nieuwe memo's
+                  vink je gewoon bij het schrijven aan.
+                </p>
+              </>
+            )}
+            <p className="hint">
+              Welke set bij een kind hoort — basisonderwijs of voortgezet — stel
+              je in op de pagina van dat kind.
+            </p>
+          </>
         )}
       </section>
 

@@ -4,6 +4,7 @@ import { generateSummary, photoUrl, summaryAvailable, type AiStatus } from '../a
 import { Markdown } from '../components/Markdown'
 import { Comments } from '../components/Comments'
 import { Lightbox } from '../components/Lightbox'
+import { KerndoelenOverzicht } from '../components/KerndoelenOverzicht'
 import {
   formatDateLong,
   formatDateNumeric,
@@ -42,7 +43,9 @@ export function Summary() {
     reload,
     canEdit,
     aiEnabled,
+    kerndoelenEnabled,
   } = useData()
+  const [tab, setTab] = useState<'samenvatting' | 'kerndoelen'>('samenvatting')
   const [ai, setAi] = useState<AiStatus | null>(null)
   const available = ai ? ai.available : null
 
@@ -354,14 +357,41 @@ export function Summary() {
     </>
   )
 
+  if (kerndoelenEnabled && tab === 'kerndoelen') {
+    return (
+      <div className="page">
+        <header className="page-head">
+          <h1>Terugblik</h1>
+          <p className="subtitle">Welke kerndoelen er zijn langsgekomen</p>
+        </header>
+        <div className="seg" style={{ marginBottom: 14 }}>
+          <button className="seg-btn" onClick={() => setTab('samenvatting')}>
+            Samenvattingen
+          </button>
+          <button className="seg-btn on">Kerndoelen</button>
+        </div>
+        <KerndoelenOverzicht />
+      </div>
+    )
+  }
+
   return (
     <div className="page">
       <header className="page-head">
-        <h1>Samenvatting</h1>
+        <h1>{kerndoelenEnabled ? 'Terugblik' : 'Samenvatting'}</h1>
         <p className="subtitle">
           {aiEnabled ? 'AI-overzicht per periode' : 'Memo-overzicht per periode'}
         </p>
       </header>
+
+      {kerndoelenEnabled && (
+        <div className="seg" style={{ marginBottom: 14 }}>
+          <button className="seg-btn on">Samenvattingen</button>
+          <button className="seg-btn" onClick={() => setTab('kerndoelen')}>
+            Kerndoelen
+          </button>
+        </div>
+      )}
 
       {aiEnabled && available === false && (
         <div className="banner warn">

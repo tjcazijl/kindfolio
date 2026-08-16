@@ -6,9 +6,12 @@ import {
   describePhotos,
   fetchPhotoBlob,
   rotateImageBlob,
+  saveKerndoelen as apiSaveKerndoelen,
   uploadBlob,
   uploadPhoto,
 } from '../api'
+import { KerndoelPicker, type KerndoelKeuze } from '../components/KerndoelPicker'
+import { linksVoor } from '../utils/kerndoelen'
 import { PhotoGrid } from '../components/PhotoGrid'
 import { Lightbox } from '../components/Lightbox'
 import { useLiveSpeech } from '../hooks/useLiveSpeech'
@@ -34,6 +37,9 @@ export function MemoEditor() {
     saveSettings,
     updateChild,
     photoAiEnabled,
+    kerndoelenEnabled,
+    kerndoelLinks,
+    reload,
   } = useData()
   const isNew = !memoId
   const existing = memoId ? memos.find((m) => m.id === memoId) : undefined
@@ -76,6 +82,13 @@ export function MemoEditor() {
   // Gekoppelde leermiddelen.
   const [resourceIds, setResourceIds] = useState<string[]>(
     existing?.resourceIds || [],
+  )
+  // Kerndoelen: alleen de bevestigde. AI-voorstellen worden in de Terugblik
+  // nagekeken, niet hier — dat zou het schrijven van een memo in de weg zitten.
+  const [kerndoelen, setKerndoelenKeuze] = useState<KerndoelKeuze[]>(() =>
+    linksVoor(kerndoelLinks, 'memo', memoId)
+      .filter((l) => l.status === 'ok')
+      .map((l) => ({ childId: l.childId, set: l.set, nr: l.nr })),
   )
   // Reflectie ("Hoe ging het?") — standaard dichtgeklapt tenzij al ingevuld.
   const [mood, setMood] = useState<MoodKey | undefined>(existing?.mood)
@@ -275,6 +288,20 @@ export function MemoEditor() {
     }
   }
 
+  /**
+   * Schrijft de gekozen kerndoelen weg per memo. Eén memo hoort bij één kind,
+   * dus elk memo krijgt alleen de keuzes die voor dat kind gemaakt zijn.
+   */
+  async function koppelKerndoelen(doelen: { id: string; childId: string }[]) {
+    if (!kerndoelenEnabled) return
+    for (const m of doelen) {
+      const items = kerndoelen.filter((k) => k.childId === m.childId)
+      // Ook bij een lege lijst opslaan: dan wordt een eerdere keuze gewist.
+      await apiSaveKerndoelen('memo', m.id, items)
+    }
+    await reload()
+  }
+
   async function save(asDraft = false) {
     if (isNew && selectedChildIds.length === 0) {
       alert('Kies minstens één kind.')
@@ -287,6 +314,7 @@ export function MemoEditor() {
       photoIds.length > 0 ||
       subjects.length > 0 ||
       resourceIds.length > 0 ||
+      kerndoelen.length > 0 ||
       !!mood ||
       attentionText.trim() ||
       followupText.trim()
@@ -305,7 +333,7 @@ export function MemoEditor() {
     setSaving(true)
     try {
       if (isNew) {
-        await addMemoMulti(selectedChildIds, {
+        const nieuw = await addMemoMulti(selectedChildIds, {
           date,
           text: text.trim(),
           subjects,
@@ -314,6 +342,8 @@ export function MemoEditor() {
           draft: asDraft,
           ...reflection,
         })
+        // Elk kind krijgt zijn eigen memo, dus ook zijn eigen koppelingen.
+        await koppelKerndoelen(nieuw.map((m) => ({ id: m.id, childId: m.childId })))
       } else if (memoId) {
         await editMemo(memoId, {
           date,
@@ -324,9 +354,10 @@ export function MemoEditor() {
           draft: asDraft,
           ...reflection,
         })
+        const kopieen = { id: memoId, childId: existing?.childId || childId || '' }
         // Extra kinderen: maak een aparte kopie-memo (met eigen foto-kopieën).
         if (addChildIds.length) {
-          await addMemoMulti(addChildIds, {
+          const extra = await addMemoMulti(addChildIds, {
             date,
             text: text.trim(),
             subjects,
@@ -336,6 +367,12 @@ export function MemoEditor() {
             copyAllPhotos: true,
             ...reflection,
           })
+          await koppelKerndoelen([
+            kopieen,
+            ...extra.map((m) => ({ id: m.id, childId: m.childId })),
+          ])
+        } else {
+          await koppelKerndoelen([kopieen])
         }
       }
       stagedPhotos.current.clear()
@@ -694,6 +731,19 @@ export function MemoEditor() {
           </button>
         )}
       </div>
+
+      {kerndoelenEnabled && (
+        <div className="field">
+          <span className="field-label">
+            Kerndoelen <span className="fl-opt">(optioneel)</span>
+          </span>
+          <KerndoelPicker
+            childIds={isNew ? selectedChildIds : [existing?.childId || childId || '']}
+            value={kerndoelen}
+            onChange={setKerndoelenKeuze}
+          />
+        </div>
+      )}
 
       <div className="field">
         <span className="field-label">

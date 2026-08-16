@@ -6,6 +6,8 @@ import { EVENT_ORDER, EVENT_META } from '../utils/events'
 import { WEEKDAYS, recurrenceLabel } from '../utils/recurrence'
 import { todayISO } from '../utils/dates'
 import { SubjectPicker } from '../components/SubjectPicker'
+import { KerndoelPicker, type KerndoelKeuze } from '../components/KerndoelPicker'
+import { linksVoor } from '../utils/kerndoelen'
 
 const FREQ_OPTIONS: { value: EventFreq; label: string }[] = [
   { value: 'none', label: 'Niet herhalen' },
@@ -24,8 +26,17 @@ const UNIT: Record<Exclude<EventFreq, 'none'>, [string, string]> = {
 export function EventEditor() {
   const { eventId } = useParams()
   const navigate = useNavigate()
-  const { children, events, focusPoints, addEvent, editEvent, removeEvent } =
-    useData()
+  const {
+    children,
+    events,
+    focusPoints,
+    addEvent,
+    editEvent,
+    removeEvent,
+    kerndoelenEnabled,
+    kerndoelLinks,
+    saveKerndoelen,
+  } = useData()
   const isNew = !eventId
   const existing = eventId ? events.find((e) => e.id === eventId) : undefined
 
@@ -57,6 +68,13 @@ export function EventEditor() {
   const [weekdays, setWeekdays] = useState<string[]>(existing?.weekdays || [])
   const [until, setUntil] = useState(existing?.until || '')
   const [notes, setNotes] = useState(existing?.notes || '')
+  const [kerndoelen, setKerndoelenKeuze] = useState<KerndoelKeuze[]>(() =>
+    linksVoor(kerndoelLinks, 'event', eventId).map((l) => ({
+      childId: l.childId,
+      set: l.set,
+      nr: l.nr,
+    })),
+  )
   const [saving, setSaving] = useState(false)
   const [confirmDelete, setConfirmDelete] = useState(false)
 
@@ -117,6 +135,14 @@ export function EventEditor() {
         notes: notes.trim(),
       }
       const saved = isNew ? await addEvent(data) : await editEvent(eventId!, data)
+      if (kerndoelenEnabled) {
+        const geldig = childIds.length ? childIds : children.map((c) => c.id)
+        await saveKerndoelen(
+          'event',
+          saved.id,
+          kerndoelen.filter((k) => geldig.includes(k.childId)),
+        )
+      }
       navigate(`/agenda/${saved.id}`)
     } catch (err: any) {
       alert(err?.message || 'Opslaan mislukt')
@@ -224,6 +250,19 @@ export function EventEditor() {
         </span>
         <SubjectPicker selected={subjects} onToggle={toggleSubject} />
       </div>
+
+      {kerndoelenEnabled && (
+        <div className="field">
+          <span className="field-label">
+            Kerndoelen <span className="fl-opt">(optioneel)</span>
+          </span>
+          <KerndoelPicker
+            childIds={childIds}
+            value={kerndoelen}
+            onChange={setKerndoelenKeuze}
+          />
+        </div>
+      )}
 
       {(() => {
         // Alleen punten van de gekozen kinderen (of van iedereen als het item

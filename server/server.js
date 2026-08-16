@@ -190,6 +190,25 @@ db.exec(`
     event_id TEXT, focus_id TEXT,
     PRIMARY KEY (event_id, focus_id)
   );
+  -- Koppeling tussen een SLO-kerndoel en iets in de app (memo, leermiddel of
+  -- agenda-item), altijd voor één kind. Welke set (po/vo) geldt, staat in de
+  -- koppeling zelf: dan hoeft er bij een overstap niets omgezet te worden en
+  -- wordt geschiedenis nooit herschreven.
+  CREATE TABLE IF NOT EXISTS kerndoel_links (
+    id TEXT PRIMARY KEY, account_id TEXT,
+    carrier_type TEXT,                   -- memo | resource | event
+    carrier_id TEXT,
+    child_id TEXT,
+    kd_set TEXT,                         -- po | vo
+    kd_nr INTEGER,
+    source TEXT DEFAULT 'manual',        -- manual | ai
+    status TEXT DEFAULT 'ok',            -- ok = telt mee | open = AI-voorstel
+    quote TEXT,                          -- citaat uit de memo, als bewijs
+    created_at INTEGER
+  );
+  CREATE INDEX IF NOT EXISTS kerndoel_links_account ON kerndoel_links (account_id);
+  CREATE UNIQUE INDEX IF NOT EXISTS kerndoel_links_uniek
+    ON kerndoel_links (carrier_type, carrier_id, child_id, kd_set, kd_nr);
 `)
 
 // --- Migratie: account_id-kolom toevoegen aan bestaande DB's + oude data koppelen ---
@@ -234,6 +253,16 @@ for (const sql of [
   'ALTER TABLE resources ADD COLUMN read_date TEXT',
   'ALTER TABLE ai_usage ADD COLUMN kind TEXT',
   'ALTER TABLE account_settings ADD COLUMN photo_ai INTEGER DEFAULT 0',
+  // Kerndoelen: standaard uit, en als ze aanstaan standaard handmatig aanvinken.
+  'ALTER TABLE account_settings ADD COLUMN kerndoelen INTEGER DEFAULT 0',
+  'ALTER TABLE account_settings ADD COLUMN kerndoelen_ai INTEGER DEFAULT 0',
+  // Per kind: welke set geldt, sinds wanneer, en of de 12-jaarsvraag al gesteld is.
+  'ALTER TABLE children ADD COLUMN kerndoelen_set TEXT',
+  'ALTER TABLE children ADD COLUMN kerndoelen_set_at TEXT',
+  'ALTER TABLE children ADD COLUMN kerndoelen_asked INTEGER DEFAULT 0',
+  // Onthoudt welke memo's de AI al bekeken heeft, zodat een tweede ronde
+  // alleen het nieuwe werk doet.
+  'ALTER TABLE memos ADD COLUMN kd_scanned INTEGER DEFAULT 0',
 ]) {
   try {
     db.exec(sql)
@@ -284,14 +313,136 @@ for (const u of db.prepare('SELECT id FROM users').all()) {
 const uid = () => crypto.randomUUID()
 const now = () => Date.now()
 
+// ---- SLO-kerndoelen ----
+// Twee sets: primair onderwijs (40) en de onderbouw van het voortgezet
+// onderwijs (45), beide uit de publicaties van SLO (2026). De nummers lopen
+// vanaf 11 uiteen — "kerndoel 26" betekent in de ene set iets heel anders dan
+// in de andere. Daarom hoort de set altijd bij het nummer, ook in een verslag.
+// `school: 1` markeert de twee doelen die over de leeromgeving gaan in plaats
+// van over het kind zelf.
+const KERNDOELEN = {
+  po: [
+    { nr: 1, lg: 'Nederlands', t: 'De school stimuleert de taalcompetentie van leerlingen.', school: 1 },
+    { nr: 2, lg: 'Nederlands', t: 'De leerling begrijpt teksten.' },
+    { nr: 3, lg: 'Nederlands', t: 'De leerling produceert teksten.' },
+    { nr: 4, lg: 'Nederlands', t: 'De leerling voert gesprekken.' },
+    { nr: 5, lg: 'Nederlands', t: 'De leerling ontwikkelt zich als bewuste taalgebruiker.' },
+    { nr: 6, lg: 'Nederlands', t: 'De leerling toont inzicht in taal als systeem.' },
+    { nr: 7, lg: 'Nederlands', t: 'De leerling verkent het gebruik van taal.' },
+    { nr: 8, lg: 'Nederlands', t: 'De leerling doet ervaring op met literatuur.' },
+    { nr: 9, lg: 'Nederlands', t: 'De leerling toont inzicht in literatuur.' },
+    { nr: 10, lg: 'Rekenen en wiskunde', t: 'De leerling redeneert en rekent met getallen en verhoudingen.' },
+    { nr: 11, lg: 'Rekenen en wiskunde', t: 'De leerling toont inzicht bij het handelen met grootheden.' },
+    { nr: 12, lg: 'Rekenen en wiskunde', t: 'De leerling interpreteert data.' },
+    { nr: 13, lg: 'Rekenen en wiskunde', t: 'De leerling toont inzicht in patronen en verbanden.' },
+    { nr: 14, lg: 'Rekenen en wiskunde', t: 'De leerling toont inzicht bij meetkundig handelen.' },
+    { nr: 15, lg: 'Rekenen en wiskunde', t: 'De leerling gebruikt wiskundige denk-werkwijzen.' },
+    { nr: 16, lg: 'Rekenen en wiskunde', t: 'De leerling gebruikt wiskundetaal en wiskundig gereedschap.' },
+    { nr: 17, lg: 'Rekenen en wiskunde', t: 'De leerling ontwikkelt een wiskundige attitude.' },
+    { nr: 18, lg: 'Rekenen en wiskunde', t: 'De leerling past wiskunde toe in bekende en nieuwe situaties.' },
+    { nr: 19, lg: 'Burgerschap', t: 'De school geeft vorm aan de democratische oefenplaats.', school: 1 },
+    { nr: 20, lg: 'Burgerschap', t: 'De leerling leert over samenleven in een democratische rechtsstaat.' },
+    { nr: 21, lg: 'Burgerschap', t: 'De leerling doet ervaringen op met democratische en maatschappelijke betrokkenheid.' },
+    { nr: 22, lg: 'Digitale geletterdheid', t: 'De leerling zet digitale technologie en digitale media in.' },
+    { nr: 23, lg: 'Digitale geletterdheid', t: 'De leerling creëert digitale producten.' },
+    { nr: 24, lg: 'Digitale geletterdheid', t: 'De leerling participeert in de gedigitaliseerde wereld.' },
+    { nr: 25, lg: 'Mens en maatschappij', t: 'De leerling onderzoekt vraagstukken over mens en samenleving.' },
+    { nr: 26, lg: 'Mens en maatschappij', t: 'De leerling verkent geografische verschijnselen.' },
+    { nr: 27, lg: 'Mens en maatschappij', t: 'De leerling verkent historische verschijnselen.' },
+    { nr: 28, lg: 'Mens en maatschappij', t: 'De leerling verkent hoe mensen met elkaar samenleven.' },
+    { nr: 29, lg: 'Mens en natuur', t: 'De leerling verkent de wereld vanuit natuurwetenschappelijk en technologisch perspectief.' },
+    { nr: 30, lg: 'Mens en natuur', t: 'De leerling toont inzicht in en experimenteert met natuurverschijnselen en technische systemen.' },
+    { nr: 31, lg: 'Mens en natuur', t: 'De leerling toont inzicht in organismen en hun gezondheid.' },
+    { nr: 32, lg: 'Mens en natuur', t: 'De leerling toont inzicht in en verkent systeem aarde.' },
+    { nr: 33, lg: 'Moderne vreemde talen', t: 'De leerling communiceert in het Engels.' },
+    { nr: 34, lg: 'Moderne vreemde talen', t: 'De leerling ontwikkelt zich als taal- en cultuurbewuste gebruiker van de Engelse taal.' },
+    { nr: 35, lg: 'Kunst en cultuur', t: 'De leerling ontwikkelt artistiek creatief vermogen.' },
+    { nr: 36, lg: 'Kunst en cultuur', t: 'De leerling maakt kunstzinnige uitingen.' },
+    { nr: 37, lg: 'Kunst en cultuur', t: 'De leerling maakt kunst en cultuur mee.' },
+    { nr: 38, lg: 'Bewegen en sport', t: 'De leerling ontwikkelt zich in het bewegen.' },
+    { nr: 39, lg: 'Bewegen en sport', t: 'De leerling beweegt samen met anderen.' },
+    { nr: 40, lg: 'Bewegen en sport', t: 'De leerling geeft betekenis aan bewegen.' },
+  ],
+  vo: [
+    { nr: 1, lg: 'Nederlands', t: 'De school stimuleert de taalcompetentie van leerlingen.', school: 1 },
+    { nr: 2, lg: 'Nederlands', t: 'De leerling begrijpt teksten.' },
+    { nr: 3, lg: 'Nederlands', t: 'De leerling produceert teksten.' },
+    { nr: 4, lg: 'Nederlands', t: 'De leerling voert gesprekken.' },
+    { nr: 5, lg: 'Nederlands', t: 'De leerling ontwikkelt zich als bewuste taalgebruiker.' },
+    { nr: 6, lg: 'Nederlands', t: 'De leerling toont inzicht in taal als systeem.' },
+    { nr: 7, lg: 'Nederlands', t: 'De leerling verkent het gebruik van taal.' },
+    { nr: 8, lg: 'Nederlands', t: 'De leerling doet ervaring op met literatuur.' },
+    { nr: 9, lg: 'Nederlands', t: 'De leerling toont inzicht in literatuur.' },
+    { nr: 10, lg: 'Rekenen en wiskunde', t: 'De leerling redeneert en rekent met getallen, grootheden en vergelijkingen.' },
+    { nr: 11, lg: 'Rekenen en wiskunde', t: 'De leerling interpreteert data en kansen.' },
+    { nr: 12, lg: 'Rekenen en wiskunde', t: 'De leerling toont inzicht in patronen en verbanden.' },
+    { nr: 13, lg: 'Rekenen en wiskunde', t: 'De leerling toont inzicht bij meetkundig handelen.' },
+    { nr: 14, lg: 'Rekenen en wiskunde', t: 'De leerling gebruikt wiskundige denk-werkwijzen.' },
+    { nr: 15, lg: 'Rekenen en wiskunde', t: 'De leerling gebruikt wiskundetaal en wiskundig gereedschap.' },
+    { nr: 16, lg: 'Rekenen en wiskunde', t: 'De leerling ontwikkelt een wiskundige attitude.' },
+    { nr: 17, lg: 'Rekenen en wiskunde', t: 'De leerling past wiskunde toe in bekende en nieuwe situaties.' },
+    { nr: 18, lg: 'Burgerschap', t: 'De school geeft vorm aan de democratische oefenplaats.', school: 1 },
+    { nr: 19, lg: 'Burgerschap', t: 'De leerling leert over samenleven in een democratische rechtsstaat.' },
+    { nr: 20, lg: 'Burgerschap', t: 'De leerling doet ervaringen op met democratische en maatschappelijke betrokkenheid.' },
+    { nr: 21, lg: 'Digitale geletterdheid', t: 'De leerling zet digitale technologie en digitale media in.' },
+    { nr: 22, lg: 'Digitale geletterdheid', t: 'De leerling creëert digitale producten.' },
+    { nr: 23, lg: 'Digitale geletterdheid', t: 'De leerling participeert in de gedigitaliseerde wereld.' },
+    { nr: 24, lg: 'Mens en maatschappij', t: 'De leerling onderzoekt vraagstukken over mens en samenleving.' },
+    { nr: 25, lg: 'Mens en maatschappij', t: 'De leerling onderzoekt geografische verschijnselen.' },
+    { nr: 26, lg: 'Mens en maatschappij', t: 'De leerling onderzoekt historische verschijnselen.' },
+    { nr: 27, lg: 'Mens en maatschappij', t: 'De leerling onderzoekt economische verschijnselen.' },
+    { nr: 28, lg: 'Mens en maatschappij', t: 'De leerling onderzoekt hoe mensen samenleven.' },
+    { nr: 29, lg: 'Mens en natuur', t: 'De leerling verkent en verklaart de wereld vanuit natuurwetenschappelijk en technologisch perspectief.' },
+    { nr: 30, lg: 'Mens en natuur', t: 'De leerling toont inzicht in en experimenteert met natuurkundige verschijnselen en technische systemen.' },
+    { nr: 31, lg: 'Mens en natuur', t: 'De leerling toont inzicht in en experimenteert met materie, processen en circulaire productie.' },
+    { nr: 32, lg: 'Mens en natuur', t: 'De leerling toont inzicht in organismen en hun gezondheid.' },
+    { nr: 33, lg: 'Mens en natuur', t: 'De leerling toont inzicht in en verkent systeem aarde.' },
+    { nr: 34, lg: 'Moderne vreemde talen', t: 'De leerling gebruikt de Engelse taal in rijke en betekenisvolle contexten.' },
+    { nr: 35, lg: 'Moderne vreemde talen', t: 'De leerling communiceert in het Engels.' },
+    { nr: 36, lg: 'Moderne vreemde talen', t: 'De leerling ontwikkelt zich als taal- en cultuurbewuste gebruiker van de Engelse taal.' },
+    { nr: 37, lg: 'Moderne vreemde talen', t: 'De leerling gebruikt de tweede moderne vreemde taal in rijke en betekenisvolle contexten.' },
+    { nr: 38, lg: 'Moderne vreemde talen', t: 'De leerling communiceert in de tweede moderne vreemde taal.' },
+    { nr: 39, lg: 'Moderne vreemde talen', t: 'De leerling ontwikkelt zich als taal- en cultuurbewuste gebruiker van de tweede moderne vreemde taal.' },
+    { nr: 40, lg: 'Kunst en cultuur', t: 'De leerling ontwikkelt artistiek creatief vermogen.' },
+    { nr: 41, lg: 'Kunst en cultuur', t: 'De leerling maakt kunstzinnige uitingen.' },
+    { nr: 42, lg: 'Kunst en cultuur', t: 'De leerling maakt kunst en cultuur mee.' },
+    { nr: 43, lg: 'Bewegen en sport', t: 'De leerling ontwikkelt zich in het bewegen.' },
+    { nr: 44, lg: 'Bewegen en sport', t: 'De leerling beweegt samen met anderen.' },
+    { nr: 45, lg: 'Bewegen en sport', t: 'De leerling geeft betekenis aan bewegen.' },
+  ],
+}
+const KD_SETS = new Set(['po', 'vo'])
+const kerndoel = (set, nr) => (KERNDOELEN[set] || []).find((k) => k.nr === nr)
+
 // ---- mappers ----
 const mapChild = (r) => ({
   id: r.id, name: r.name, color: r.color,
   birthYear: r.birth_year ?? undefined, birthDate: r.birth_date ?? undefined,
   subjects: r.subjects ? JSON.parse(r.subjects) : undefined,
   subcategories: r.subcategories ? JSON.parse(r.subcategories) : undefined,
+  // Welke kerndoelenset geldt. Nooit automatisch: zonder keuze is het po, ook
+  // als het kind al 12 is — de app vraagt het dan, maar schakelt niet zelf.
+  kerndoelenSet: KD_SETS.has(r.kerndoelen_set) ? r.kerndoelen_set : 'po',
+  kerndoelenSetAt: r.kerndoelen_set_at ?? undefined,
+  kerndoelenAsked: !!r.kerndoelen_asked,
   createdAt: r.created_at,
 })
+
+/** Leeftijd in hele jaren, of null als er geen geboortedatum bekend is. */
+function childAge(r) {
+  if (r.birth_date) {
+    const d = new Date(r.birth_date + 'T00:00:00')
+    if (!isNaN(d)) {
+      const t = new Date()
+      let a = t.getFullYear() - d.getFullYear()
+      const m = t.getMonth() - d.getMonth()
+      if (m < 0 || (m === 0 && t.getDate() < d.getDate())) a--
+      return a
+    }
+  }
+  if (r.birth_year) return new Date().getFullYear() - Number(r.birth_year)
+  return null
+}
 
 const DEFAULT_SUBJECTS = [
   'Taal', 'Rekenen', 'Lezen', 'Schrijven', 'Natuur', 'Algemene wetenschap',
@@ -299,7 +450,7 @@ const DEFAULT_SUBJECTS = [
   'Bewegen', 'Sociaal', 'Uitstapje', 'Overig',
 ]
 function accountSettings(accId) {
-  const row = db.prepare('SELECT subjects, ai_enabled, subcategories, photo_ai FROM account_settings WHERE account_id = ?').get(accId)
+  const row = db.prepare('SELECT subjects, ai_enabled, subcategories, photo_ai, kerndoelen, kerndoelen_ai FROM account_settings WHERE account_id = ?').get(accId)
   return {
     subjects: row && row.subjects ? JSON.parse(row.subjects) : DEFAULT_SUBJECTS,
     aiEnabled: row ? row.ai_enabled !== 0 : true,
@@ -307,6 +458,10 @@ function accountSettings(accId) {
     subcategories: row && row.subcategories ? JSON.parse(row.subcategories) : {},
     // Foto's naar de AI sturen als schrijfhulp: bewust standaard uit.
     photoAiEnabled: row ? row.photo_ai === 1 : false,
+    // Kerndoelen bijhouden is optioneel; niemand is er iets toe verplicht.
+    kerndoelenEnabled: row ? row.kerndoelen === 1 : false,
+    // Aan = de AI doet voorstellen; uit = je vinkt zelf aan.
+    kerndoelenAi: row ? row.kerndoelen_ai === 1 : false,
   }
 }
 const mapMemo = (r, resourceIds, likedBy) => ({
@@ -391,6 +546,18 @@ function syncMemoFocus(memoId, childId, accountId, body) {
   if (body.followupText !== undefined)
     upsertMemoFocus(memoId, childId, accountId, 'later', body.followupText, null, 'later')
 }
+const mapKerndoelLink = (r) => ({
+  id: r.id,
+  carrierType: r.carrier_type, carrierId: r.carrier_id,
+  childId: r.child_id,
+  set: r.kd_set, nr: r.kd_nr,
+  source: r.source || 'manual',
+  status: r.status || 'ok',
+  quote: r.quote || undefined,
+  createdAt: r.created_at,
+})
+const CARRIERS = new Set(['memo', 'resource', 'event'])
+
 const mapSummary = (r) => ({
   id: r.id, childId: r.child_id, period: r.period, periodLabel: r.period_label,
   start: r.start, end: r.end, text: r.text || '',
@@ -981,6 +1148,15 @@ add('GET', /^\/api\/state$/, (req, res) => {
     .prepare('SELECT * FROM resources WHERE account_id = ? ORDER BY created_at DESC')
     .all(acc)
     .map((r) => mapResource(r, resLinks[r.id] || []))
+  // De kerndoelenlijsten en -koppelingen alleen meesturen als iemand ze gebruikt.
+  const settings = accountSettings(acc)
+  const kerndoelen = settings.kerndoelenEnabled ? KERNDOELEN : undefined
+  const kerndoelLinks = settings.kerndoelenEnabled
+    ? db
+        .prepare('SELECT * FROM kerndoel_links WHERE account_id = ? ORDER BY created_at ASC')
+        .all(acc)
+        .map(mapKerndoelLink)
+    : undefined
   sendJson(res, 200, {
     children,
     memos,
@@ -989,13 +1165,15 @@ add('GET', /^\/api\/state$/, (req, res) => {
     events,
     focusPoints,
     resources,
+    kerndoelen,
+    kerndoelLinks,
     account: {
       id: acc,
       ownerEmail: userEmail(acc),
       email: userEmail(req.userId),
       role: req.role,
       isAdmin: isAdminUser(req.userId),
-      ...accountSettings(acc),
+      ...settings,
     },
   })
 })
@@ -1021,10 +1199,20 @@ add('POST', /^\/api\/settings$/, async (req, res) => {
   const huidig = accountSettings(req.accountId)
   const photoAi =
     body.photoAiEnabled === undefined ? huidig.photoAiEnabled : !!body.photoAiEnabled
+  const kerndoelen =
+    body.kerndoelenEnabled === undefined ? huidig.kerndoelenEnabled : !!body.kerndoelenEnabled
+  const kerndoelenAi =
+    body.kerndoelenAi === undefined ? huidig.kerndoelenAi : !!body.kerndoelenAi
   db.prepare(
-    'INSERT INTO account_settings (account_id,subjects,ai_enabled,subcategories,photo_ai) VALUES (?,?,?,?,?) ON CONFLICT(account_id) DO UPDATE SET subjects=excluded.subjects, ai_enabled=excluded.ai_enabled, subcategories=excluded.subcategories, photo_ai=excluded.photo_ai',
-  ).run(req.accountId, JSON.stringify(subjects), aiEnabled, JSON.stringify(subcategories), photoAi ? 1 : 0)
-  sendJson(res, 200, { subjects, aiEnabled: !!aiEnabled, subcategories, photoAiEnabled: photoAi })
+    'INSERT INTO account_settings (account_id,subjects,ai_enabled,subcategories,photo_ai,kerndoelen,kerndoelen_ai) VALUES (?,?,?,?,?,?,?) ON CONFLICT(account_id) DO UPDATE SET subjects=excluded.subjects, ai_enabled=excluded.ai_enabled, subcategories=excluded.subcategories, photo_ai=excluded.photo_ai, kerndoelen=excluded.kerndoelen, kerndoelen_ai=excluded.kerndoelen_ai',
+  ).run(
+    req.accountId, JSON.stringify(subjects), aiEnabled, JSON.stringify(subcategories),
+    photoAi ? 1 : 0, kerndoelen ? 1 : 0, kerndoelenAi ? 1 : 0,
+  )
+  sendJson(res, 200, {
+    subjects, aiEnabled: !!aiEnabled, subcategories, photoAiEnabled: photoAi,
+    kerndoelenEnabled: kerndoelen, kerndoelenAi,
+  })
 })
 
 // Beheeroverzicht, gegroepeerd per portfolio: de eigenaar met daaronder de
@@ -1353,8 +1541,13 @@ add('POST', /^\/api\/children$/, async (req, res) => {
         : null,
     created_at: now(),
   }
-  db.prepare('INSERT INTO children (id,account_id,name,color,birth_year,birth_date,subjects,subcategories,created_at) VALUES (?,?,?,?,?,?,?,?,?)')
-    .run(child.id, req.accountId, child.name, child.color, child.birth_year, child.birth_date, child.subjects, child.subcategories, child.created_at)
+  // Een kind dat al 12 of ouder is aangemeld, start meteen in de vo-set — dan
+  // hoeft de ouder daar niet eerst een melding voor weg te klikken.
+  const leeftijd = childAge(child)
+  child.kerndoelen_set = leeftijd != null && leeftijd >= 12 ? 'vo' : null
+  child.kerndoelen_asked = child.kerndoelen_set ? 1 : 0
+  db.prepare('INSERT INTO children (id,account_id,name,color,birth_year,birth_date,subjects,subcategories,kerndoelen_set,kerndoelen_asked,created_at) VALUES (?,?,?,?,?,?,?,?,?,?,?)')
+    .run(child.id, req.accountId, child.name, child.color, child.birth_year, child.birth_date, child.subjects, child.subcategories, child.kerndoelen_set, child.kerndoelen_asked, child.created_at)
   sendJson(res, 201, mapChild(child))
 })
 
@@ -1382,9 +1575,29 @@ add('PATCH', /^\/api\/children\/([^/]+)$/, async (req, res, m) => {
         ? JSON.stringify(body.subcategories)
         : null
       : existing.subcategories
-  db.prepare('UPDATE children SET name = ?, color = ?, birth_year = ?, birth_date = ?, subjects = ?, subcategories = ? WHERE id = ?')
-    .run(name, color, birthYear, birthDate, subjects, subcategories, m[1])
-  sendJson(res, 200, mapChild({ ...existing, name, color, birth_year: birthYear, birth_date: birthDate, subjects, subcategories }))
+  // Kerndoelenset omzetten. De datum onthouden we, want een verslag over een
+  // heel jaar moet kunnen laten zien vanaf wanneer de andere set gold.
+  let kdSet = existing.kerndoelen_set
+  let kdAt = existing.kerndoelen_set_at
+  if (body.kerndoelenSet !== undefined && KD_SETS.has(body.kerndoelenSet)) {
+    if (body.kerndoelenSet !== (existing.kerndoelen_set || 'po')) {
+      kdSet = body.kerndoelenSet
+      kdAt = new Date().toISOString().slice(0, 10)
+    }
+  }
+  const kdAsked =
+    body.kerndoelenAsked !== undefined
+      ? body.kerndoelenAsked
+        ? 1
+        : 0
+      : existing.kerndoelen_asked || 0
+  db.prepare('UPDATE children SET name = ?, color = ?, birth_year = ?, birth_date = ?, subjects = ?, subcategories = ?, kerndoelen_set = ?, kerndoelen_set_at = ?, kerndoelen_asked = ? WHERE id = ?')
+    .run(name, color, birthYear, birthDate, subjects, subcategories, kdSet, kdAt, kdAsked, m[1])
+  sendJson(res, 200, mapChild({
+    ...existing, name, color, birth_year: birthYear, birth_date: birthDate,
+    subjects, subcategories,
+    kerndoelen_set: kdSet, kerndoelen_set_at: kdAt, kerndoelen_asked: kdAsked,
+  }))
 })
 
 add('DELETE', /^\/api\/children\/([^/]+)$/, (req, res, m) => {
@@ -1395,6 +1608,7 @@ add('DELETE', /^\/api\/children\/([^/]+)$/, (req, res, m) => {
   deletePhotoFiles(memos.flatMap((r) => (r.photo_ids ? JSON.parse(r.photo_ids) : [])))
   db.prepare('DELETE FROM memos WHERE child_id = ? AND account_id = ?').run(m[1], req.accountId)
   db.prepare('DELETE FROM summaries WHERE child_id = ? AND account_id = ?').run(m[1], req.accountId)
+  db.prepare('DELETE FROM kerndoel_links WHERE child_id = ? AND account_id = ?').run(m[1], req.accountId)
   db.prepare('DELETE FROM children WHERE id = ?').run(m[1])
   sendJson(res, 200, { ok: true })
 })
@@ -1529,6 +1743,7 @@ add('DELETE', /^\/api\/events\/([^/]+)$/, (req, res, m) => {
   db.prepare('DELETE FROM event_children WHERE event_id = ?').run(m[1])
   db.prepare('DELETE FROM event_focus WHERE event_id = ?').run(m[1])
   db.prepare('DELETE FROM events WHERE id = ?').run(m[1])
+  dropKerndoelLinks('event', m[1])
   sendJson(res, 200, { ok: true })
 })
 
@@ -1640,6 +1855,7 @@ add('DELETE', /^\/api\/memos\/([^/]+)$/, (req, res, m) => {
     db.prepare('DELETE FROM memos WHERE id = ?').run(m[1])
     db.prepare('DELETE FROM memo_likes WHERE memo_id = ?').run(m[1])
     db.prepare('DELETE FROM memo_resources WHERE memo_id = ?').run(m[1])
+    dropKerndoelLinks('memo', m[1])
   }
   sendJson(res, 200, { ok: true })
 })
@@ -1792,7 +2008,81 @@ add('DELETE', /^\/api\/resources\/([^/]+)$/, (req, res, m) => {
   db.prepare('DELETE FROM resource_children WHERE resource_id = ?').run(m[1])
   db.prepare('DELETE FROM memo_resources WHERE resource_id = ?').run(m[1])
   db.prepare('DELETE FROM resources WHERE id = ?').run(m[1])
+  dropKerndoelLinks('resource', m[1])
   sendJson(res, 200, { ok: true })
+})
+
+// --- Kerndoelen koppelen ---
+/** Koppelingen opruimen als de memo/het leermiddel/het agenda-item weggaat. */
+function dropKerndoelLinks(carrierType, carrierId) {
+  db.prepare('DELETE FROM kerndoel_links WHERE carrier_type = ? AND carrier_id = ?')
+    .run(carrierType, carrierId)
+}
+
+/**
+ * Vervangt de bevestigde kerndoelen van één memo/leermiddel/agenda-item.
+ * AI-voorstellen die nog niet nagekeken zijn (status 'open') blijven staan —
+ * die horen thuis in het nakijkscherm, niet in dit formulier.
+ */
+add('PUT', /^\/api\/kerndoelen\/carrier$/, async (req, res) => {
+  if (!requireEditor(req, res)) return
+  const body = await readJson(req)
+  const type = String(body.carrierType || '')
+  const id = String(body.carrierId || '')
+  if (!CARRIERS.has(type) || !id) return sendJson(res, 400, { error: 'onbekende koppeling' })
+
+  const kinderen = new Set(
+    db.prepare('SELECT id FROM children WHERE account_id = ?').all(req.accountId).map((c) => c.id),
+  )
+  const items = Array.isArray(body.items) ? body.items : []
+  const schoon = []
+  for (const it of items) {
+    const set = String(it.set || '')
+    const nr = Number(it.nr)
+    if (!KD_SETS.has(set) || !kerndoel(set, nr)) continue
+    if (!kinderen.has(String(it.childId))) continue
+    schoon.push({ childId: String(it.childId), set, nr })
+  }
+
+  db.prepare("DELETE FROM kerndoel_links WHERE account_id = ? AND carrier_type = ? AND carrier_id = ? AND status = 'ok'")
+    .run(req.accountId, type, id)
+  const ins = db.prepare(
+    "INSERT OR REPLACE INTO kerndoel_links (id,account_id,carrier_type,carrier_id,child_id,kd_set,kd_nr,source,status,quote,created_at) VALUES (?,?,?,?,?,?,?,'manual','ok',NULL,?)",
+  )
+  for (const it of schoon) {
+    ins.run(uid(), req.accountId, type, id, it.childId, it.set, it.nr, now())
+  }
+  sendJson(res, 200, {
+    links: db
+      .prepare('SELECT * FROM kerndoel_links WHERE account_id = ? AND carrier_type = ? AND carrier_id = ?')
+      .all(req.accountId, type, id)
+      .map(mapKerndoelLink),
+  })
+})
+
+/**
+ * Een kerndoel in één keer afhandelen voor één kind: een AI-voorstel overnemen
+ * (accept) of weggooien (reject), of alles van dat kerndoel loskoppelen
+ * (remove). Dat gebeurt per kerndoel, niet per memo — honderden memo's stuk
+ * voor stuk langslopen doet niemand, en het bewijs zit toch in de groep.
+ */
+const KD_ACTIES = {
+  accept: "UPDATE kerndoel_links SET status = 'ok' WHERE account_id = ? AND child_id = ? AND kd_set = ? AND kd_nr = ? AND status = 'open'",
+  reject: "DELETE FROM kerndoel_links WHERE account_id = ? AND child_id = ? AND kd_set = ? AND kd_nr = ? AND status = 'open'",
+  remove: 'DELETE FROM kerndoel_links WHERE account_id = ? AND child_id = ? AND kd_set = ? AND kd_nr = ?',
+}
+add('POST', /^\/api\/kerndoelen\/review$/, async (req, res) => {
+  if (!requireEditor(req, res)) return
+  const body = await readJson(req)
+  const set = String(body.set || '')
+  const nr = Number(body.nr)
+  const childId = String(body.childId || '')
+  if (!KD_SETS.has(set) || !kerndoel(set, nr)) return sendJson(res, 400, { error: 'onbekend kerndoel' })
+  // hasOwn, zodat "constructor" en "__proto__" hier geen sleutel zijn.
+  if (!Object.hasOwn(KD_ACTIES, body.action)) return sendJson(res, 400, { error: 'onbekende actie' })
+  const sql = KD_ACTIES[body.action]
+  const r = db.prepare(sql).run(req.accountId, childId, set, nr)
+  sendJson(res, 200, { ok: true, aantal: r.changes })
 })
 
 // Alleen afbeeldingen toestaan; voorkomt dat een geüpload HTML-bestand later
@@ -1958,7 +2248,16 @@ add('GET', /^\/api\/export$/, async (req, res) => {
   const memos = db.prepare('SELECT * FROM memos WHERE account_id = ? ORDER BY date ASC, created_at ASC').all(acc).map(mapMemo)
   const summaries = db.prepare('SELECT * FROM summaries WHERE account_id = ? ORDER BY created_at DESC').all(acc).map(mapSummary)
   const comments = db.prepare('SELECT * FROM comments WHERE account_id = ? ORDER BY created_at ASC').all(acc).map(mapComment)
-  const dataJson = Buffer.from(JSON.stringify({ children, memos, summaries, comments }, null, 2), 'utf8')
+  // Alleen de bevestigde kerndoelen: voorstellen die je nog niet hebt
+  // nagekeken horen niet in een export die je aan iemand geeft.
+  const kerndoelLinks = db
+    .prepare("SELECT * FROM kerndoel_links WHERE account_id = ? AND status = 'ok' ORDER BY created_at ASC")
+    .all(acc)
+    .map(mapKerndoelLink)
+  const dataJson = Buffer.from(
+    JSON.stringify({ children, memos, summaries, comments, kerndoelLinks }, null, 2),
+    'utf8',
+  )
 
   const nameById = {}
   for (const c of children) nameById[c.id] = c.name
@@ -2308,6 +2607,257 @@ Voorbeeld van de toon en lengte die we zoeken:
   sendJson(res, 200, { text, photoCount: images.length })
 })
 
+// --- Kerndoelen door de AI laten voorstellen ---
+// De memo's gaan in bundels per maand naar Claude. Eén verzoek per memo zou bij
+// een gevuld logboek honderden verzoeken kosten; per maand gebundeld is het er
+// een stuk of vijftien voor een heel jaar.
+const KD_SCAN_MODEL = process.env.PORTFOLIO_KD_MODEL || 'claude-sonnet-5'
+const KD_BATCH_MAX = 50 // memo's per verzoek
+const KD_TEXT_MAX = 700 // tekens per memo die we meesturen
+
+/** Draaiende scans, één per portfolio. Bij een herstart is een scan weg; de
+ *  voorstellen die al opgeslagen zijn blijven staan en je hervat door opnieuw
+ *  te starten — hij slaat dan over wat al bekeken is. */
+const kdScans = new Map()
+
+const MAANDEN = [
+  'januari', 'februari', 'maart', 'april', 'mei', 'juni',
+  'juli', 'augustus', 'september', 'oktober', 'november', 'december',
+]
+const maandLabel = (ym) => {
+  const [j, m] = ym.split('-')
+  return `${MAANDEN[Number(m) - 1] || m} ${j}`
+}
+
+/** Verdeelt de nog niet bekeken memo's in bundels per kind en per maand. */
+function kdBatches(accountId) {
+  const kinderen = db.prepare('SELECT * FROM children WHERE account_id = ?').all(accountId)
+  const batches = []
+  for (const kind of kinderen) {
+    const set = KD_SETS.has(kind.kerndoelen_set) ? kind.kerndoelen_set : 'po'
+    const memos = db
+      .prepare(
+        `SELECT id, date, text, subjects FROM memos
+         WHERE account_id = ? AND child_id = ? AND (draft IS NULL OR draft = 0)
+           AND (kd_scanned IS NULL OR kd_scanned = 0)
+           AND text IS NOT NULL AND TRIM(text) <> ''
+         ORDER BY date ASC`,
+      )
+      .all(accountId, kind.id)
+    const perMaand = new Map()
+    for (const mm of memos) {
+      const ym = String(mm.date || '').slice(0, 7)
+      if (!perMaand.has(ym)) perMaand.set(ym, [])
+      perMaand.get(ym).push(mm)
+    }
+    for (const [ym, lijst] of perMaand) {
+      for (let i = 0; i < lijst.length; i += KD_BATCH_MAX) {
+        batches.push({
+          childId: kind.id,
+          childName: kind.name,
+          age: childAge(kind),
+          set,
+          label: maandLabel(ym),
+          memos: lijst.slice(i, i + KD_BATCH_MAX),
+        })
+      }
+    }
+  }
+  return batches
+}
+
+/** Eén bundel langs Claude, en de voorstellen wegschrijven. */
+async function kdScanBatch(accountId, userId, batch) {
+  const lijst = KERNDOELEN[batch.set]
+    .filter((k) => !k.school)
+    .map((k) => `${k.nr}. [${k.lg}] ${k.t.replace(/^De leerling /, '')}`)
+    .join('\n')
+  const notities = batch.memos
+    .map((mm, i) => {
+      const vak = mm.subjects ? JSON.parse(mm.subjects) : []
+      const tekst = String(mm.text || '').slice(0, KD_TEXT_MAX)
+      return `[${i + 1}] ${mm.date}${vak.length ? ` (${vak.join(', ')})` : ''}\n${tekst}`
+    })
+    .join('\n\n')
+
+  const instructie = `Je helpt een ouder die thuisonderwijs geeft in Nederland om terug te kijken op wat er aan bod is gekomen. Hieronder staan logboeknotities over ${batch.childName}${batch.age != null ? ` (${batch.age} jaar)` : ''} uit ${batch.label}, en daarboven de SLO-kerndoelen die voor dit kind gelden.
+
+Bepaal welke van deze kerndoelen in deze notities terug te zien zijn.
+
+Wees terughoudend. De ouder krijgt jouw voorstellen ter goedkeuring en moet erop kunnen vertrouwen; liever een kerndoel missen dan er een verzinnen. Twijfel je, laat het dan weg.
+- Kies alleen uit de nummers hieronder. Verzin geen nummers.
+- Geef per kerndoel de nummers van de notities waarin het echt terugkomt — niet alle notities uit de maand.
+- Geef één kort citaat uit een van die notities, letterlijk overgenomen. Verzin nooit een citaat.
+- Het gaat om wat het kind gedaan heeft, niet om wat het zou kunnen leren. "Ze speelden buiten" is geen bewegingskerndoel als er verder niets over bewegen staat.
+
+De kerndoelen (${batch.set === 'vo' ? 'onderbouw voortgezet onderwijs' : 'primair onderwijs'}):
+${lijst}
+
+De notities:
+${notities}`
+
+  const res = await fetch('https://api.anthropic.com/v1/messages', {
+    method: 'POST',
+    headers: {
+      'content-type': 'application/json',
+      'x-api-key': ANTHROPIC_KEY,
+      'anthropic-version': '2023-06-01',
+    },
+    body: JSON.stringify({
+      model: KD_SCAN_MODEL,
+      max_tokens: 4000,
+      thinking: { type: 'disabled' },
+      tools: [
+        {
+          name: 'kerndoelen_vastleggen',
+          description: 'Leg vast welke kerndoelen in de notities terugkomen.',
+          input_schema: {
+            type: 'object',
+            properties: {
+              gevonden: {
+                type: 'array',
+                items: {
+                  type: 'object',
+                  properties: {
+                    nr: { type: 'integer', description: 'Nummer van het kerndoel' },
+                    notities: {
+                      type: 'array',
+                      items: { type: 'integer' },
+                      description: 'Nummers van de notities waarin het terugkomt',
+                    },
+                    citaat: { type: 'string', description: 'Kort, letterlijk citaat als bewijs' },
+                  },
+                  required: ['nr', 'notities'],
+                },
+              },
+            },
+            required: ['gevonden'],
+          },
+        },
+      ],
+      tool_choice: { type: 'tool', name: 'kerndoelen_vastleggen' },
+      messages: [{ role: 'user', content: [{ type: 'text', text: instructie }] }],
+    }),
+  })
+  if (!res.ok) {
+    const t = await res.text()
+    if (/credit balance is too low/i.test(t)) throw new Error('Het tegoed op de server is op.')
+    if (res.status === 401) throw new Error('De API-sleutel op de server is ongeldig.')
+    throw new Error('AI-fout: ' + t.slice(0, 160))
+  }
+  const json = await res.json()
+  logAiUse({ accountId, userId }, 'kerndoelen')
+  const blok = (json.content || []).find((b) => b.type === 'tool_use')
+  const gevonden = (blok && blok.input && blok.input.gevonden) || []
+
+  const ins = db.prepare(
+    "INSERT OR IGNORE INTO kerndoel_links (id,account_id,carrier_type,carrier_id,child_id,kd_set,kd_nr,source,status,quote,created_at) VALUES (?,?,'memo',?,?,?,?,'ai','open',?,?)",
+  )
+  let nieuw = 0
+  for (const g of gevonden) {
+    const nr = Number(g.nr)
+    if (!kerndoel(batch.set, nr)) continue
+    const citaat = typeof g.citaat === 'string' ? g.citaat.slice(0, 300) : null
+    for (const idx of Array.isArray(g.notities) ? g.notities : []) {
+      const memo = batch.memos[Number(idx) - 1]
+      if (!memo) continue
+      const r = ins.run(uid(), accountId, memo.id, batch.childId, batch.set, nr, citaat, now())
+      nieuw += r.changes
+    }
+  }
+  // Pas afvinken als de bundel gelukt is, zodat een fout niet stilletjes
+  // memo's overslaat bij de volgende ronde.
+  const mark = db.prepare('UPDATE memos SET kd_scanned = 1 WHERE id = ?')
+  for (const mm of batch.memos) mark.run(mm.id)
+  return nieuw
+}
+
+async function kdScanRun(accountId, userId) {
+  const job = kdScans.get(accountId)
+  try {
+    for (const batch of job.batches) {
+      if (job.stop) {
+        job.status = 'gestopt'
+        return
+      }
+      if (aiLimitReached({ accountId, userId })) {
+        job.status = 'fout'
+        job.error = AI_LIMIT_MESSAGE
+        return
+      }
+      job.bezigMet = `${batch.childName} — ${batch.label}`
+      job.gevonden += await kdScanBatch(accountId, userId, batch)
+      job.done++
+    }
+    job.status = 'klaar'
+  } catch (e) {
+    job.status = 'fout'
+    job.error = (e && e.message) || 'Er ging iets mis bij het doorlopen.'
+  } finally {
+    job.klaarOp = now()
+  }
+}
+
+/** Stand van zaken, of — als er niets loopt — een schatting vooraf. */
+add('GET', /^\/api\/kerndoelen\/scan$/, (req, res) => {
+  const job = kdScans.get(req.accountId)
+  if (job && job.status === 'bezig') {
+    return sendJson(res, 200, {
+      status: 'bezig',
+      done: job.done, total: job.batches.length,
+      gevonden: job.gevonden, bezigMet: job.bezigMet,
+    })
+  }
+  const batches = kdBatches(req.accountId)
+  const onbeperkt = isAdminUser(req.userId)
+  const gebruikt = aiUsedThisMonth(req.accountId)
+  sendJson(res, 200, {
+    status: job ? job.status : 'stil',
+    error: job ? job.error : undefined,
+    done: job ? job.done : 0,
+    gevondenVorigeKeer: job ? job.gevonden : 0,
+    memos: batches.reduce((n, b) => n + b.memos.length, 0),
+    batches: batches.length,
+    beschikbaar: !!ANTHROPIC_KEY,
+    aiLeft: onbeperkt ? null : Math.max(0, AI_MONTH_LIMIT - gebruikt),
+  })
+})
+
+add('POST', /^\/api\/kerndoelen\/scan$/, async (req, res) => {
+  if (!requireEditor(req, res)) return
+  if (!ANTHROPIC_KEY) {
+    return sendJson(res, 400, { error: 'Er is op de server nog geen Claude API-sleutel ingesteld.' })
+  }
+  const inst = accountSettings(req.accountId)
+  if (!inst.kerndoelenEnabled || !inst.kerndoelenAi) {
+    return sendJson(res, 403, { error: 'Zet bij Instellingen eerst de kerndoelen en de AI-voorstellen aan.' })
+  }
+  if (aiLimitReached(req)) return sendJson(res, 403, { error: AI_LIMIT_MESSAGE })
+  const lopend = kdScans.get(req.accountId)
+  if (lopend && lopend.status === 'bezig') {
+    return sendJson(res, 409, { error: 'Er loopt al een scan voor dit portfolio.' })
+  }
+  const batches = kdBatches(req.accountId)
+  if (!batches.length) {
+    return sendJson(res, 400, { error: "Alle memo's zijn al bekeken." })
+  }
+  const job = {
+    status: 'bezig', batches, done: 0, gevonden: 0,
+    bezigMet: null, stop: false, error: null, startedAt: now(),
+  }
+  kdScans.set(req.accountId, job)
+  // Bewust niet awaiten: de scan loopt door nadat dit antwoord verstuurd is.
+  kdScanRun(req.accountId, req.userId)
+  sendJson(res, 202, { status: 'bezig', total: batches.length })
+})
+
+add('DELETE', /^\/api\/kerndoelen\/scan$/, (req, res) => {
+  if (!requireEditor(req, res)) return
+  const job = kdScans.get(req.accountId)
+  if (job && job.status === 'bezig') job.stop = true
+  sendJson(res, 200, { ok: true })
+})
+
 // Samenvatting bewerken (tekst bijschaven na het genereren).
 add('PATCH', /^\/api\/summaries\/([^/]+)$/, async (req, res, m) => {
   if (!requireEditor(req, res)) return
@@ -2353,6 +2903,7 @@ add('DELETE', /^\/api\/account\/data$/, (req, res) => {
   db.prepare('DELETE FROM summaries WHERE account_id = ?').run(acc)
   db.prepare('DELETE FROM children WHERE account_id = ?').run(acc)
   db.prepare('DELETE FROM photos WHERE account_id = ?').run(acc)
+  db.prepare('DELETE FROM kerndoel_links WHERE account_id = ?').run(acc)
   sendJson(res, 200, { ok: true })
 })
 
