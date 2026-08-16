@@ -1490,11 +1490,24 @@ add('GET', /^\/api\/updates$/, (req, res) => {
   const commentRows = db
     .prepare('SELECT update_id, COUNT(*) AS c FROM update_comments GROUP BY update_id')
     .all()
+  // Wie er een duim gaf — zodat je op de updatepagina de namen kunt zien.
+  const namen = {}
+  for (const r of db
+    .prepare(
+      `SELECT ul.update_id, u.email FROM update_likes ul
+       JOIN users u ON u.id = ul.user_id ORDER BY ul.created_at ASC`,
+    )
+    .all()) {
+    ;(namen[r.update_id] ||= []).push(displayName(r.email))
+  }
+  const leeg = () => ({ likes: 0, likedByMe: false, commentCount: 0, likedBy: [] })
   const reactions = {}
   for (const r of likeRows)
-    reactions[r.update_id] = { likes: r.likes, likedByMe: !!r.liked, commentCount: 0 }
-  for (const r of commentRows)
-    (reactions[r.update_id] ||= { likes: 0, likedByMe: false, commentCount: 0 }).commentCount = r.c
+    reactions[r.update_id] = {
+      likes: r.likes, likedByMe: !!r.liked, commentCount: 0,
+      likedBy: namen[r.update_id] || [],
+    }
+  for (const r of commentRows) (reactions[r.update_id] ||= leeg()).commentCount = r.c
   sendJson(res, 200, { reactions })
 })
 
@@ -1509,8 +1522,14 @@ add('POST', /^\/api\/updates\/([^/]+)\/like$/, (req, res, m) => {
   } else {
     db.prepare('INSERT INTO update_likes (update_id,user_id,created_at) VALUES (?,?,?)').run(id, req.userId, now())
   }
-  const likes = db.prepare('SELECT COUNT(*) AS c FROM update_likes WHERE update_id = ?').get(id).c
-  sendJson(res, 200, { likes, likedByMe: !existing })
+  const likedBy = db
+    .prepare(
+      `SELECT u.email FROM update_likes ul JOIN users u ON u.id = ul.user_id
+       WHERE ul.update_id = ? ORDER BY ul.created_at ASC`,
+    )
+    .all(id)
+    .map((r) => displayName(r.email))
+  sendJson(res, 200, { likes: likedBy.length, likedByMe: !existing, likedBy })
 })
 
 add('GET', /^\/api\/updates\/([^/]+)\/comments$/, (req, res, m) => {

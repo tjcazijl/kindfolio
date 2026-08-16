@@ -381,15 +381,18 @@ export interface UpdateReaction {
   likes: number
   likedByMe: boolean
   commentCount: number
+  /** Namen van wie een duim gaf, oudste eerst. */
+  likedBy: string[]
 }
 export const fetchUpdateReactions = () =>
   req<{ reactions: Record<string, UpdateReaction> }>('/updates').then(
     (r) => r.reactions,
   )
 export const likeUpdate = (id: string) =>
-  req<{ likes: number; likedByMe: boolean }>(`/updates/${id}/like`, {
-    method: 'POST',
-  })
+  req<{ likes: number; likedByMe: boolean; likedBy: string[] }>(
+    `/updates/${id}/like`,
+    { method: 'POST' },
+  )
 export const fetchUpdateComments = (id: string) =>
   req<{ comments: FeedbackComment[] }>(`/updates/${id}/comments`).then(
     (r) => r.comments,

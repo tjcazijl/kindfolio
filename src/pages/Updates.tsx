@@ -2,6 +2,8 @@ import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { CHANGELOG, markUpdatesSeen } from '../data/changelog'
 import { formatDateNumeric } from '../utils/dates'
+import { likeText } from '../utils/likes'
+import { useData } from '../store'
 import {
   commentUpdate,
   fetchUpdateComments,
@@ -12,12 +14,14 @@ import {
 } from '../api'
 
 const NAME_KEY = 'kindfolio-feedback-name'
-const EMPTY: UpdateReaction = { likes: 0, likedByMe: false, commentCount: 0 }
+const EMPTY: UpdateReaction = { likes: 0, likedByMe: false, commentCount: 0, likedBy: [] }
 
 export function Updates() {
   const navigate = useNavigate()
+  const { accountEmail } = useData()
   const [reactions, setReactions] = useState<Record<string, UpdateReaction>>({})
   const [openId, setOpenId] = useState<string | null>(null)
+  const [likersOpen, setLikersOpen] = useState<string | null>(null)
   const [comments, setComments] = useState<Record<string, FeedbackComment[]>>({})
   const [commentText, setCommentText] = useState('')
   const [name, setName] = useState(() => localStorage.getItem(NAME_KEY) || '')
@@ -43,15 +47,19 @@ export function Updates() {
   async function toggleLike(id: string) {
     const cur = reactions[id] || EMPTY
     // Optimistisch bijwerken; bij fout terugdraaien.
+    const mij = (accountEmail || '').split('@')[0] || 'ik'
     patch(id, {
       likedByMe: !cur.likedByMe,
       likes: cur.likes + (cur.likedByMe ? -1 : 1),
+      likedBy: cur.likedByMe
+        ? (cur.likedBy ?? []).filter((n) => n !== mij)
+        : [...(cur.likedBy ?? []), mij],
     })
     try {
       const r = await likeUpdate(id)
-      patch(id, { likes: r.likes, likedByMe: r.likedByMe })
+      patch(id, { likes: r.likes, likedByMe: r.likedByMe, likedBy: r.likedBy })
     } catch {
-      patch(id, { likedByMe: cur.likedByMe, likes: cur.likes })
+      patch(id, { likedByMe: cur.likedByMe, likes: cur.likes, likedBy: cur.likedBy })
     }
   }
 
@@ -97,6 +105,7 @@ export function Updates() {
       <div className="changelog">
         {CHANGELOG.map((u) => {
           const r = reactions[u.id] || EMPTY
+          const duimen = likeText(r.likedBy ?? [], accountEmail)
           const open = openId === u.id
           const list = comments[u.id]
           return (
@@ -120,6 +129,19 @@ export function Updates() {
                 <button className="react-btn" onClick={() => toggleComments(u.id)}>
                   💬 <span>{r.commentCount}</span>
                 </button>
+                {duimen && (
+                  // Hover toont de namen; op de telefoon tik je erop.
+                  <button
+                    type="button"
+                    className={`update-likers${likersOpen === u.id ? ' open' : ''}`}
+                    title={duimen}
+                    onClick={() =>
+                      setLikersOpen((v) => (v === u.id ? null : u.id))
+                    }
+                  >
+                    {duimen}
+                  </button>
+                )}
               </div>
 
               {open && (
