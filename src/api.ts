@@ -13,6 +13,7 @@ import type {
   KerndoelSet,
   Memo,
   MoodKey,
+  Period,
   Resource,
   ResourceStatus,
   ResourceType,
@@ -136,6 +137,7 @@ export interface AppState {
   events: AgendaEvent[]
   focusPoints: FocusPoint[]
   resources: Resource[]
+  periods: Period[]
   // Alleen aanwezig als de kerndoelen aanstaan.
   kerndoelen?: Record<KerndoelSet, Kerndoel[]>
   kerndoelLinks?: KerndoelLink[]
@@ -166,6 +168,23 @@ export const saveSettings = (data: {
     method: 'POST',
     body: JSON.stringify(data),
   })
+
+// ---- Periodes ----
+export interface PeriodInput {
+  title?: string
+  start?: string
+  end?: string
+  note?: string
+  childIds?: string[]
+  /** 'ok' om een AI-voorstel over te nemen. */
+  status?: 'ok'
+}
+export const createPeriod = (data: PeriodInput) =>
+  req<Period>('/periods', { method: 'POST', body: JSON.stringify(data) })
+export const updatePeriod = (id: string, data: PeriodInput) =>
+  req<Period>(`/periods/${id}`, { method: 'PATCH', body: JSON.stringify(data) })
+export const deletePeriod = (id: string) =>
+  req<{ ok: boolean }>(`/periods/${id}`, { method: 'DELETE' })
 
 // ---- Kerndoelen ----
 /** Vervangt de bevestigde kerndoelen van één memo/leermiddel/agenda-item. */
@@ -201,10 +220,14 @@ export interface KerndoelScan {
   total?: number
   gevonden?: number
   gevondenVorigeKeer?: number
+  periodes?: number
+  periodesVorigeKeer?: number
   bezigMet?: string | null
   /** Alleen als er niets loopt: de schatting vooraf. */
   memos?: number
   batches?: number
+  /** Eén extra verzoek per kind, voor het herkennen van thema's. */
+  kinderen?: number
   beschikbaar?: boolean
   aiLeft?: number | null
 }

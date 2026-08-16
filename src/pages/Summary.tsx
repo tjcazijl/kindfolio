@@ -1,10 +1,12 @@
 import { useEffect, useMemo, useState } from 'react'
+import { useLocation } from 'react-router-dom'
 import { useData } from '../store'
 import { generateSummary, photoUrl, summaryAvailable, type AiStatus } from '../api'
 import { Markdown } from '../components/Markdown'
 import { Comments } from '../components/Comments'
 import { Lightbox } from '../components/Lightbox'
 import { KerndoelenOverzicht } from '../components/KerndoelenOverzicht'
+import { PeriodList } from '../components/PeriodList'
 import {
   formatDateLong,
   formatDateNumeric,
@@ -45,7 +47,11 @@ export function Summary() {
     aiEnabled,
     kerndoelenEnabled,
   } = useData()
-  const [tab, setTab] = useState<'samenvatting' | 'kerndoelen'>('samenvatting')
+  // Terugkomen vanuit de periode-editor opent weer het juiste tabblad.
+  const locState = useLocation().state as { tab?: string } | null
+  const [tab, setTab] = useState<'samenvatting' | 'periodes' | 'kerndoelen'>(
+    locState?.tab === 'periodes' ? 'periodes' : 'samenvatting',
+  )
   const [ai, setAi] = useState<AiStatus | null>(null)
   const available = ai ? ai.available : null
 
@@ -357,20 +363,42 @@ export function Summary() {
     </>
   )
 
-  if (kerndoelenEnabled && tab === 'kerndoelen') {
+  // Segmentkiezer boven de Terugblik. "Kerndoelen" verschijnt alleen als je ze
+  // aan hebt staan; periodes staan er altijd, die staan op zichzelf.
+  const segmenten: { key: typeof tab; label: string }[] = [
+    { key: 'samenvatting', label: 'Samenvattingen' },
+    { key: 'periodes', label: 'Periodes' },
+    ...(kerndoelenEnabled
+      ? [{ key: 'kerndoelen' as const, label: 'Kerndoelen' }]
+      : []),
+  ]
+  const segKiezer = (
+    <div className="seg" style={{ marginBottom: 14 }}>
+      {segmenten.map((s) => (
+        <button
+          key={s.key}
+          className={`seg-btn ${tab === s.key ? 'on' : ''}`}
+          onClick={() => setTab(s.key)}
+        >
+          {s.label}
+        </button>
+      ))}
+    </div>
+  )
+
+  if (tab !== 'samenvatting') {
     return (
       <div className="page">
         <header className="page-head">
           <h1>Terugblik</h1>
-          <p className="subtitle">Welke kerndoelen er zijn langsgekomen</p>
+          <p className="subtitle">
+            {tab === 'periodes'
+              ? 'Waar jullie een tijd in zaten'
+              : 'Welke kerndoelen er zijn langsgekomen'}
+          </p>
         </header>
-        <div className="seg" style={{ marginBottom: 14 }}>
-          <button className="seg-btn" onClick={() => setTab('samenvatting')}>
-            Samenvattingen
-          </button>
-          <button className="seg-btn on">Kerndoelen</button>
-        </div>
-        <KerndoelenOverzicht />
+        {segKiezer}
+        {tab === 'periodes' ? <PeriodList /> : <KerndoelenOverzicht />}
       </div>
     )
   }
@@ -378,20 +406,13 @@ export function Summary() {
   return (
     <div className="page">
       <header className="page-head">
-        <h1>{kerndoelenEnabled ? 'Terugblik' : 'Samenvatting'}</h1>
+        <h1>Terugblik</h1>
         <p className="subtitle">
           {aiEnabled ? 'AI-overzicht per periode' : 'Memo-overzicht per periode'}
         </p>
       </header>
 
-      {kerndoelenEnabled && (
-        <div className="seg" style={{ marginBottom: 14 }}>
-          <button className="seg-btn on">Samenvattingen</button>
-          <button className="seg-btn" onClick={() => setTab('kerndoelen')}>
-            Kerndoelen
-          </button>
-        </div>
-      )}
+      {segKiezer}
 
       {aiEnabled && available === false && (
         <div className="banner warn">

@@ -12,12 +12,14 @@ export const CHANGELOG: Update[] = [
   {
     id: '2026-08-16',
     date: '2026-08-16',
-    title: 'SLO-kerndoelen bijhouden (als je dat wilt)',
+    title: 'Terugkijken: periodes en SLO-kerndoelen',
     items: [
+      'Het tabblad Samenvatting heet voortaan Terugblik en heeft er een stuk bij: periodes. Een periode is een stuk tijd waar je achteraf een naam aan geeft — het WK dat wekenlang meeliep, de winter waarin het over de ijstijd ging. Je kiest een naam en een begin- en einddatum; wat er in die weken in je logboek staat hoort er vanzelf bij, dus je hoeft niets los te koppelen.',
+      'Wij merkten zelf dat terugkijken op een half jaar meer zegt dan een plan vooraf. Daarom zit er bij elke periode ruimte voor een korte terugblik in je eigen woorden.',
       'Nieuw bij Instellingen: “Kerndoelen bijhouden”. Staat het aan, dan kun je bij een memo, een leermiddel of een agenda-item aanvinken welke SLO-kerndoelen erbij horen, en zie je in de Terugblik wat er per leergebied is langsgekomen. Je bent hier nergens toe verplicht — laat je het uit, dan zie je er niets van.',
       'Beide sets zitten erin: 40 kerndoelen voor het basisonderwijs en 45 voor de onderbouw van het voortgezet onderwijs. Welke set bij een kind hoort, stel je in op de pagina van dat kind. Meestal gaat dat rond het twaalfde jaar, maar dat bepaal je zelf: de app vraagt het één keer en schakelt nooit uit zichzelf.',
       'Wat je al hebt gekoppeld blijft bij een overstap staan zoals het was. Elke koppeling onthoudt zelf uit welke set hij komt, dus je geschiedenis wordt nooit herschreven.',
-      'Je kunt Claude ook voorstellen laten doen. Die leest dan de tekst van je memo’s (geen foto’s) en stelt per kerndoel voor waar het terugkomt, met een citaat erbij als bewijs. Jij bevestigt of gooit weg — een voorstel telt pas mee als je het overneemt.',
+      'Je kunt Claude ook voorstellen laten doen. Die leest dan de tekst van je memo’s (geen foto’s) en stelt per kerndoel voor waar het terugkomt, met een citaat erbij als bewijs. Onderweg let hij ook op onderwerpen die weken achter elkaar terugkomen, en stelt die voor als periode. Jij bevestigt of gooit weg — een voorstel telt pas mee als je het overneemt.',
     ],
   },
   {

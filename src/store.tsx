@@ -17,6 +17,7 @@ import type {
   KerndoelLink,
   KerndoelSet,
   Memo,
+  Period,
   Resource,
   Summary,
 } from './types'
@@ -28,12 +29,14 @@ import {
   createFocus,
   createMemo,
   createMemoForChildren,
+  createPeriod,
   createResource,
   deleteChild,
   deleteComment as apiDeleteComment,
   deleteEvent,
   deleteFocus,
   deleteMemo,
+  deletePeriod,
   deleteResource,
   likeMemo as apiLikeMemo,
   deleteAllData as apiDeleteAllData,
@@ -52,11 +55,13 @@ import {
   updateEvent,
   updateFocus,
   updateMemo,
+  updatePeriod,
   updateResource,
   type ChildInput,
   type EventInput,
   type FocusInput,
   type MemoInput,
+  type PeriodInput,
   type ResourceInput,
 } from './api'
 
@@ -68,6 +73,7 @@ interface DataContextValue {
   events: AgendaEvent[]
   focusPoints: FocusPoint[]
   resources: Resource[]
+  periods: Period[]
   loading: boolean
   error: string | null
   authRequired: boolean
@@ -139,6 +145,9 @@ interface DataContextValue {
   addFocus: (data: FocusInput) => Promise<FocusPoint>
   editFocus: (id: string, data: FocusInput) => Promise<FocusPoint>
   removeFocus: (id: string) => Promise<void>
+  addPeriod: (data: PeriodInput) => Promise<Period>
+  editPeriod: (id: string, data: PeriodInput) => Promise<Period>
+  removePeriod: (id: string) => Promise<void>
   addResource: (data: ResourceInput) => Promise<Resource>
   editResource: (id: string, data: ResourceInput) => Promise<Resource>
   removeResource: (id: string) => Promise<void>
@@ -155,6 +164,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
   const [events, setEvents] = useState<AgendaEvent[]>([])
   const [focusPoints, setFocusPoints] = useState<FocusPoint[]>([])
   const [resources, setResources] = useState<Resource[]>([])
+  const [periods, setPeriods] = useState<Period[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [authRequired, setAuthRequired] = useState(false)
@@ -188,6 +198,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
       setEvents(state.events || [])
       setFocusPoints(state.focusPoints || [])
       setResources(state.resources || [])
+      setPeriods(state.periods || [])
       setAccountEmail(state.account?.email ?? null)
       setIsAdmin(!!state.account?.isAdmin)
       setRole(state.account?.role ?? 'owner')
@@ -271,6 +282,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
     events,
     focusPoints,
     resources,
+    periods,
     loading,
     error,
     authRequired,
@@ -404,6 +416,20 @@ export function DataProvider({ children }: { children: ReactNode }) {
     },
     removeFocus: async (id) => {
       await deleteFocus(id)
+      await reload()
+    },
+    addPeriod: async (data) => {
+      const p = await createPeriod(data)
+      await reload()
+      return p
+    },
+    editPeriod: async (id, data) => {
+      const p = await updatePeriod(id, data)
+      await reload()
+      return p
+    },
+    removePeriod: async (id) => {
+      await deletePeriod(id)
       await reload()
     },
     addResource: async (data) => {

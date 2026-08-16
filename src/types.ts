@@ -28,7 +28,26 @@ export interface Kerndoel {
   school?: number
 }
 
-export type KerndoelCarrier = 'memo' | 'resource' | 'event'
+/**
+ * Een stuk tijd waar je achteraf een naam aan geeft ("Het WK", "De ijstijd").
+ * Welke memo's erin vallen volgt uit de datums en de kinderen — je koppelt ze
+ * niet stuk voor stuk.
+ */
+export interface Period {
+  id: string
+  title: string
+  start: string // YYYY-MM-DD
+  end: string
+  note?: string
+  /** ok = van jou, open = voorstel van de AI dat je nog moet nakijken. */
+  status: 'ok' | 'open'
+  source: 'manual' | 'ai'
+  childIds: string[] // leeg = gezinsbreed
+  createdAt: number
+  updatedAt: number
+}
+
+export type KerndoelCarrier = 'memo' | 'resource' | 'event' | 'period'
 
 export interface KerndoelLink {
   id: string

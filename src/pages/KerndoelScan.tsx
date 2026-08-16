@@ -89,7 +89,9 @@ export function KerndoelScan() {
   }
 
   const bezig = scan?.status === 'bezig'
-  const totaal = scan?.total ?? scan?.batches ?? 0
+  // De bundels met memo's, plus één verzoek per kind voor de thema's.
+  const kosten = (scan?.batches ?? 0) + (scan?.kinderen ?? 0)
+  const totaal = scan?.total ?? kosten
   const pct = bezig && totaal ? Math.round((scan!.done / totaal) * 100) : 0
 
   return (
@@ -124,8 +126,12 @@ export function KerndoelScan() {
             {Math.min(scan!.done + 1, totaal)} van {totaal}
           </p>
           <div className="kd-regel">
-            <span className="kd-regel-t">Voorstellen tot nu toe</span>
+            <span className="kd-regel-t">Kerndoelen gevonden</span>
             <span className="kd-regel-n">{scan?.gevonden ?? 0}</span>
+          </div>
+          <div className="kd-regel">
+            <span className="kd-regel-t">Periodes herkend</span>
+            <span className="kd-regel-n">{scan?.periodes ?? 0}</span>
           </div>
           <p className="hint">
             Je kunt dit scherm sluiten; het loopt door op de server.
@@ -146,7 +152,7 @@ export function KerndoelScan() {
               <div className="kd-regel">
                 <span className="kd-regel-t">Kost ongeveer</span>
                 <span className="kd-regel-n">
-                  {scan.batches} verzoek{scan.batches === 1 ? '' : 'en'}
+                  {kosten} verzoek{kosten === 1 ? '' : 'en'}
                 </span>
               </div>
               {scan.aiLeft != null && (
@@ -157,20 +163,22 @@ export function KerndoelScan() {
               )}
               <p className="hint">
                 Er wordt niets vastgelegd zonder jouw akkoord: je krijgt eerst
-                een overzicht van wat er gevonden is, per kerndoel.
+                een overzicht van wat er gevonden is, per kerndoel. Claude let
+                onderweg ook op onderwerpen die weken achter elkaar terugkomen —
+                die stelt hij voor als periode.
               </p>
               <button
                 className="btn primary full"
                 disabled={
                   starten ||
                   scan.beschikbaar === false ||
-                  (scan.aiLeft != null && scan.aiLeft < scan.batches!)
+                  (scan.aiLeft != null && scan.aiLeft < kosten)
                 }
                 onClick={start}
               >
                 {starten ? 'Starten…' : 'Beginnen'}
               </button>
-              {scan.aiLeft != null && scan.aiLeft < scan.batches! && (
+              {scan.aiLeft != null && scan.aiLeft < kosten && (
                 <p className="hint">
                   Hier zijn meer verzoeken voor nodig dan je deze maand nog hebt.
                   Mail even naar <a href="mailto:info@kindfolio.nl">info@kindfolio.nl</a>,
@@ -193,7 +201,10 @@ export function KerndoelScan() {
               {scan.status === 'klaar' ? 'Klaar.' : 'Gestopt.'}{' '}
               {scan.gevondenVorigeKeer
                 ? `${scan.gevondenVorigeKeer} voorstellen om na te kijken.`
-                : 'Er zijn geen nieuwe voorstellen gevonden.'}
+                : 'Er zijn geen nieuwe kerndoelen gevonden.'}
+              {scan.periodesVorigeKeer
+                ? ` En ${scan.periodesVorigeKeer} periode${scan.periodesVorigeKeer === 1 ? '' : 's'} voorgesteld.`
+                : ''}
             </p>
           )}
 

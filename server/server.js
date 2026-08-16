@@ -206,6 +206,21 @@ db.exec(`
     quote TEXT,                          -- citaat uit de memo, als bewijs
     created_at INTEGER
   );
+  -- Een periode is een stuk tijd waar je achteraf een naam aan geeft: "Het WK",
+  -- "De ijstijd". Welke memo's erin vallen volgt uit de datums en de kinderen —
+  -- je hoeft ze niet stuk voor stuk te koppelen.
+  CREATE TABLE IF NOT EXISTS periods (
+    id TEXT PRIMARY KEY, account_id TEXT,
+    title TEXT NOT NULL, start_date TEXT, end_date TEXT, note TEXT,
+    status TEXT DEFAULT 'ok',            -- ok | open (voorstel van de AI)
+    source TEXT DEFAULT 'manual',        -- manual | ai
+    created_at INTEGER, updated_at INTEGER
+  );
+  CREATE TABLE IF NOT EXISTS period_children (
+    period_id TEXT, child_id TEXT,
+    PRIMARY KEY (period_id, child_id)
+  );
+  CREATE INDEX IF NOT EXISTS periods_account ON periods (account_id);
   CREATE INDEX IF NOT EXISTS kerndoel_links_account ON kerndoel_links (account_id);
   CREATE UNIQUE INDEX IF NOT EXISTS kerndoel_links_uniek
     ON kerndoel_links (carrier_type, carrier_id, child_id, kd_set, kd_nr);
@@ -556,7 +571,17 @@ const mapKerndoelLink = (r) => ({
   quote: r.quote || undefined,
   createdAt: r.created_at,
 })
-const CARRIERS = new Set(['memo', 'resource', 'event'])
+const CARRIERS = new Set(['memo', 'resource', 'event', 'period'])
+
+const mapPeriod = (r, childIds) => ({
+  id: r.id, title: r.title,
+  start: r.start_date, end: r.end_date,
+  note: r.note || undefined,
+  status: r.status || 'ok',
+  source: r.source || 'manual',
+  childIds: childIds || [],
+  createdAt: r.created_at, updatedAt: r.updated_at,
+})
 
 const mapSummary = (r) => ({
   id: r.id, childId: r.child_id, period: r.period, periodLabel: r.period_label,
@@ -1148,6 +1173,18 @@ add('GET', /^\/api\/state$/, (req, res) => {
     .prepare('SELECT * FROM resources WHERE account_id = ? ORDER BY created_at DESC')
     .all(acc)
     .map((r) => mapResource(r, resLinks[r.id] || []))
+  const periodLinks = {}
+  for (const l of db
+    .prepare(
+      'SELECT pc.period_id, pc.child_id FROM period_children pc JOIN periods p ON p.id = pc.period_id WHERE p.account_id = ?',
+    )
+    .all(acc)) {
+    ;(periodLinks[l.period_id] ||= []).push(l.child_id)
+  }
+  const periods = db
+    .prepare('SELECT * FROM periods WHERE account_id = ? ORDER BY start_date DESC')
+    .all(acc)
+    .map((r) => mapPeriod(r, periodLinks[r.id] || []))
   // De kerndoelenlijsten en -koppelingen alleen meesturen als iemand ze gebruikt.
   const settings = accountSettings(acc)
   const kerndoelen = settings.kerndoelenEnabled ? KERNDOELEN : undefined
@@ -1165,6 +1202,7 @@ add('GET', /^\/api\/state$/, (req, res) => {
     events,
     focusPoints,
     resources,
+    periods,
     kerndoelen,
     kerndoelLinks,
     account: {
@@ -2012,6 +2050,71 @@ add('DELETE', /^\/api\/resources\/([^/]+)$/, (req, res, m) => {
   sendJson(res, 200, { ok: true })
 })
 
+// --- Periodes ---
+// Achteraf een naam geven aan een stuk tijd. Welke memo's erin vallen leidt de
+// app af uit de datums en de gekozen kinderen; dat is precies het punt van
+// terugkijken — je hoeft vooraf niets te plannen of te koppelen.
+function setPeriodChildren(periodId, accountId, childIds) {
+  db.prepare('DELETE FROM period_children WHERE period_id = ?').run(periodId)
+  const ins = db.prepare('INSERT OR IGNORE INTO period_children (period_id, child_id) VALUES (?,?)')
+  for (const id of validChildIds(childIds, accountId)) ins.run(periodId, id)
+}
+function periodChildIds(periodId) {
+  return db.prepare('SELECT child_id FROM period_children WHERE period_id = ?').all(periodId).map((r) => r.child_id)
+}
+
+add('POST', /^\/api\/periods$/, async (req, res) => {
+  if (!requireEditor(req, res)) return
+  const body = await readJson(req)
+  const title = (body.title || '').trim()
+  if (!title) return sendJson(res, 400, { error: 'Geef een naam op.' })
+  const start = String(body.start || '')
+  const end = String(body.end || '')
+  if (!start || !end) return sendJson(res, 400, { error: 'Geef een begin- en einddatum op.' })
+  if (end < start) return sendJson(res, 400, { error: 'De einddatum ligt vóór de begindatum.' })
+  const row = {
+    id: uid(), title, start_date: start, end_date: end,
+    note: (body.note || '').trim() || null,
+    status: 'ok', source: 'manual',
+    created_at: now(), updated_at: now(),
+  }
+  db.prepare('INSERT INTO periods (id,account_id,title,start_date,end_date,note,status,source,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?,?,?)')
+    .run(row.id, req.accountId, row.title, row.start_date, row.end_date, row.note, row.status, row.source, row.created_at, row.updated_at)
+  setPeriodChildren(row.id, req.accountId, body.childIds)
+  sendJson(res, 201, mapPeriod(row, periodChildIds(row.id)))
+})
+
+add('PATCH', /^\/api\/periods\/([^/]+)$/, async (req, res, m) => {
+  if (!requireEditor(req, res)) return
+  const bestaand = db.prepare('SELECT * FROM periods WHERE id = ? AND account_id = ?').get(m[1], req.accountId)
+  if (!bestaand) return sendJson(res, 404, { error: 'niet gevonden' })
+  const body = await readJson(req)
+  const title = body.title != null ? String(body.title).trim() || bestaand.title : bestaand.title
+  const start = body.start != null ? String(body.start) : bestaand.start_date
+  const end = body.end != null ? String(body.end) : bestaand.end_date
+  if (end < start) return sendJson(res, 400, { error: 'De einddatum ligt vóór de begindatum.' })
+  const note = body.note !== undefined ? String(body.note || '').trim() || null : bestaand.note
+  // Een voorstel van de AI overnemen: dan telt hij mee en verdwijnt de stippellijn.
+  const status = body.status === 'ok' ? 'ok' : bestaand.status
+  db.prepare('UPDATE periods SET title=?, start_date=?, end_date=?, note=?, status=?, updated_at=? WHERE id=?')
+    .run(title, start, end, note, status, now(), m[1])
+  if (body.childIds !== undefined) setPeriodChildren(m[1], req.accountId, body.childIds)
+  sendJson(res, 200, mapPeriod(
+    { ...bestaand, title, start_date: start, end_date: end, note, status, updated_at: now() },
+    periodChildIds(m[1]),
+  ))
+})
+
+add('DELETE', /^\/api\/periods\/([^/]+)$/, (req, res, m) => {
+  if (!requireEditor(req, res)) return
+  const p = db.prepare('SELECT id FROM periods WHERE id = ? AND account_id = ?').get(m[1], req.accountId)
+  if (!p) return sendJson(res, 404, { error: 'niet gevonden' })
+  db.prepare('DELETE FROM period_children WHERE period_id = ?').run(m[1])
+  db.prepare('DELETE FROM periods WHERE id = ?').run(m[1])
+  dropKerndoelLinks('period', m[1])
+  sendJson(res, 200, { ok: true })
+})
+
 // --- Kerndoelen koppelen ---
 /** Koppelingen opruimen als de memo/het leermiddel/het agenda-item weggaat. */
 function dropKerndoelLinks(carrierType, carrierId) {
@@ -2254,8 +2357,12 @@ add('GET', /^\/api\/export$/, async (req, res) => {
     .prepare("SELECT * FROM kerndoel_links WHERE account_id = ? AND status = 'ok' ORDER BY created_at ASC")
     .all(acc)
     .map(mapKerndoelLink)
+  const periods = db
+    .prepare("SELECT * FROM periods WHERE account_id = ? AND status = 'ok' ORDER BY start_date ASC")
+    .all(acc)
+    .map((r) => mapPeriod(r, periodChildIds(r.id)))
   const dataJson = Buffer.from(
-    JSON.stringify({ children, memos, summaries, comments, kerndoelLinks }, null, 2),
+    JSON.stringify({ children, memos, summaries, comments, periods, kerndoelLinks }, null, 2),
     'utf8',
   )
 
@@ -2772,6 +2879,109 @@ ${notities}`
   return nieuw
 }
 
+// Terugkijken op thema's: welke onderwerpen liepen wekenlang door? Dat is één
+// aparte vraag per kind over alle memo's — thema's zie je niet binnen één maand.
+const KD_PERIOD_MEMOS = 400 // memo's die we meesturen voor het herkennen
+const KD_PERIOD_TEXT = 120 // tekens per memo; het gaat om het onderwerp
+
+async function kdPeriodeVoorstellen(accountId, userId, kind) {
+  const memos = db
+    .prepare(
+      `SELECT date, text FROM memos
+       WHERE account_id = ? AND child_id = ? AND (draft IS NULL OR draft = 0)
+         AND text IS NOT NULL AND TRIM(text) <> ''
+       ORDER BY date DESC LIMIT ?`,
+    )
+    .all(accountId, kind.id, KD_PERIOD_MEMOS)
+    .reverse()
+  if (memos.length < 15) return 0 // te weinig om een thema uit te halen
+
+  const regels = memos
+    .map((mm) => `${mm.date} ${String(mm.text || '').replace(/\s+/g, ' ').slice(0, KD_PERIOD_TEXT)}`)
+    .join('\n')
+
+  const instructie = `Hieronder staan logboekregels uit het thuisonderwijs van ${kind.name}, op datum, met van elke dag het begin van de notitie.
+
+Zoek de onderwerpen die wekenlang terugkwamen — een thema waar het gezin een tijd in zat. Denk aan een wereldkampioenschap dat wordt gevolgd, een fascinatie voor de ijstijd, een verbouwing, een reis.
+
+- Alleen thema's die over meerdere weken en in meerdere notities terugkomen. Eén losse dag is geen thema.
+- Geef per thema een korte naam zoals een ouder hem zou opschrijven ("Het WK", "De ijstijd"), plus de eerste en laatste datum waarop het voorkomt.
+- Hooguit zes thema's. Vind je er geen, geef dan een lege lijst.
+- Verzin niets: het thema moet echt in de regels terug te lezen zijn.
+
+De regels:
+${regels}`
+
+  const res = await fetch('https://api.anthropic.com/v1/messages', {
+    method: 'POST',
+    headers: {
+      'content-type': 'application/json',
+      'x-api-key': ANTHROPIC_KEY,
+      'anthropic-version': '2023-06-01',
+    },
+    body: JSON.stringify({
+      model: KD_SCAN_MODEL,
+      max_tokens: 1500,
+      thinking: { type: 'disabled' },
+      tools: [
+        {
+          name: 'periodes_vastleggen',
+          description: 'Leg de thema’s vast die over meerdere weken terugkwamen.',
+          input_schema: {
+            type: 'object',
+            properties: {
+              periodes: {
+                type: 'array',
+                items: {
+                  type: 'object',
+                  properties: {
+                    naam: { type: 'string' },
+                    start: { type: 'string', description: 'Eerste datum, JJJJ-MM-DD' },
+                    eind: { type: 'string', description: 'Laatste datum, JJJJ-MM-DD' },
+                  },
+                  required: ['naam', 'start', 'eind'],
+                },
+              },
+            },
+            required: ['periodes'],
+          },
+        },
+      ],
+      tool_choice: { type: 'tool', name: 'periodes_vastleggen' },
+      messages: [{ role: 'user', content: [{ type: 'text', text: instructie }] }],
+    }),
+  })
+  if (!res.ok) {
+    const t = await res.text()
+    if (/credit balance is too low/i.test(t)) throw new Error('Het tegoed op de server is op.')
+    throw new Error('AI-fout: ' + t.slice(0, 160))
+  }
+  const json = await res.json()
+  logAiUse({ accountId, userId }, 'periodes')
+  const blok = (json.content || []).find((b) => b.type === 'tool_use')
+  const gevonden = (blok && blok.input && blok.input.periodes) || []
+
+  const bestaand = new Set(
+    db.prepare('SELECT title FROM periods WHERE account_id = ?').all(accountId).map((r) => r.title.toLowerCase()),
+  )
+  const datum = /^\d{4}-\d{2}-\d{2}$/
+  let nieuw = 0
+  for (const p of gevonden) {
+    const naam = String(p.naam || '').trim().slice(0, 80)
+    const start = String(p.start || '')
+    const eind = String(p.eind || '')
+    if (!naam || !datum.test(start) || !datum.test(eind) || eind < start) continue
+    if (bestaand.has(naam.toLowerCase())) continue
+    bestaand.add(naam.toLowerCase())
+    const id = uid()
+    db.prepare("INSERT INTO periods (id,account_id,title,start_date,end_date,note,status,source,created_at,updated_at) VALUES (?,?,?,?,?,NULL,'open','ai',?,?)")
+      .run(id, accountId, naam, start, eind, now(), now())
+    db.prepare('INSERT OR IGNORE INTO period_children (period_id, child_id) VALUES (?,?)').run(id, kind.id)
+    nieuw++
+  }
+  return nieuw
+}
+
 async function kdScanRun(accountId, userId) {
   const job = kdScans.get(accountId)
   try {
@@ -2789,6 +2999,17 @@ async function kdScanRun(accountId, userId) {
       job.gevonden += await kdScanBatch(accountId, userId, batch)
       job.done++
     }
+    // Daarna de thema's: één vraag per kind over het hele logboek.
+    for (const kind of job.kinderen) {
+      if (job.stop) {
+        job.status = 'gestopt'
+        return
+      }
+      if (aiLimitReached({ accountId, userId })) break
+      job.bezigMet = `Thema's van ${kind.name}`
+      job.periodes += await kdPeriodeVoorstellen(accountId, userId, kind)
+      job.done++
+    }
     job.status = 'klaar'
   } catch (e) {
     job.status = 'fout'
@@ -2804,11 +3025,12 @@ add('GET', /^\/api\/kerndoelen\/scan$/, (req, res) => {
   if (job && job.status === 'bezig') {
     return sendJson(res, 200, {
       status: 'bezig',
-      done: job.done, total: job.batches.length,
-      gevonden: job.gevonden, bezigMet: job.bezigMet,
+      done: job.done, total: job.batches.length + job.kinderen.length,
+      gevonden: job.gevonden, periodes: job.periodes, bezigMet: job.bezigMet,
     })
   }
   const batches = kdBatches(req.accountId)
+  const kinderen = db.prepare('SELECT COUNT(*) AS c FROM children WHERE account_id = ?').get(req.accountId).c
   const onbeperkt = isAdminUser(req.userId)
   const gebruikt = aiUsedThisMonth(req.accountId)
   sendJson(res, 200, {
@@ -2816,8 +3038,11 @@ add('GET', /^\/api\/kerndoelen\/scan$/, (req, res) => {
     error: job ? job.error : undefined,
     done: job ? job.done : 0,
     gevondenVorigeKeer: job ? job.gevonden : 0,
+    periodesVorigeKeer: job ? job.periodes : 0,
     memos: batches.reduce((n, b) => n + b.memos.length, 0),
     batches: batches.length,
+    // Eén extra verzoek per kind voor het herkennen van thema's.
+    kinderen,
     beschikbaar: !!ANTHROPIC_KEY,
     aiLeft: onbeperkt ? null : Math.max(0, AI_MONTH_LIMIT - gebruikt),
   })
@@ -2841,14 +3066,15 @@ add('POST', /^\/api\/kerndoelen\/scan$/, async (req, res) => {
   if (!batches.length) {
     return sendJson(res, 400, { error: "Alle memo's zijn al bekeken." })
   }
+  const kinderen = db.prepare('SELECT * FROM children WHERE account_id = ?').all(req.accountId)
   const job = {
-    status: 'bezig', batches, done: 0, gevonden: 0,
+    status: 'bezig', batches, kinderen, done: 0, gevonden: 0, periodes: 0,
     bezigMet: null, stop: false, error: null, startedAt: now(),
   }
   kdScans.set(req.accountId, job)
   // Bewust niet awaiten: de scan loopt door nadat dit antwoord verstuurd is.
   kdScanRun(req.accountId, req.userId)
-  sendJson(res, 202, { status: 'bezig', total: batches.length })
+  sendJson(res, 202, { status: 'bezig', total: batches.length + kinderen.length })
 })
 
 add('DELETE', /^\/api\/kerndoelen\/scan$/, (req, res) => {
@@ -2904,6 +3130,10 @@ add('DELETE', /^\/api\/account\/data$/, (req, res) => {
   db.prepare('DELETE FROM children WHERE account_id = ?').run(acc)
   db.prepare('DELETE FROM photos WHERE account_id = ?').run(acc)
   db.prepare('DELETE FROM kerndoel_links WHERE account_id = ?').run(acc)
+  for (const p of db.prepare('SELECT id FROM periods WHERE account_id = ?').all(acc)) {
+    db.prepare('DELETE FROM period_children WHERE period_id = ?').run(p.id)
+  }
+  db.prepare('DELETE FROM periods WHERE account_id = ?').run(acc)
   sendJson(res, 200, { ok: true })
 })
 

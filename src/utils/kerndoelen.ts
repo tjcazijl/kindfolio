@@ -1,4 +1,19 @@
-import type { Child, Kerndoel, KerndoelLink, KerndoelSet } from '../types'
+import type { Child, Kerndoel, KerndoelLink, KerndoelSet, Memo, Period } from '../types'
+
+/**
+ * De memo's die in een periode vallen. Bewust op datum en kind, niet op een
+ * koppeling per memo: je geeft achteraf een naam aan een stuk tijd, en wat er
+ * in die weken gebeurd is hoort er dan vanzelf bij.
+ */
+export function memosInPeriode(memos: Memo[], periode: Period): Memo[] {
+  return memos.filter(
+    (m) =>
+      m.date >= periode.start &&
+      m.date <= periode.end &&
+      !m.draft &&
+      (periode.childIds.length === 0 || periode.childIds.includes(m.childId)),
+  )
+}
 
 /** Vaste volgorde van de leergebieden. Beide sets delen dezelfde negen. */
 export const LEERGEBIEDEN = [

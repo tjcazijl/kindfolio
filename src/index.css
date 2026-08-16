@@ -2775,3 +2775,63 @@ body {
 .kd-nudge-acties .btn {
   flex: 1;
 }
+
+/* ---------- Periodes ---------- */
+.periode-kaart {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  width: 100%;
+  text-align: left;
+  border: 1.5px solid var(--line);
+  border-radius: 12px;
+  background: #fff;
+  padding: 12px 13px;
+  margin-bottom: 9px;
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+}
+.periode-kaart.voorstel {
+  border-style: dashed;
+  border-color: var(--kd-ai);
+}
+.periode-kop {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  font-size: 15px;
+}
+.periode-merk {
+  font-size: 10px;
+  font-weight: 700;
+  background: var(--kd-ai-bg);
+  color: var(--kd-ai);
+  border-radius: 99px;
+  padding: 2px 7px;
+  white-space: nowrap;
+}
+.periode-meta {
+  font-size: 12px;
+  color: var(--muted);
+}
+.periode-note {
+  font-size: 12.5px;
+  color: var(--muted);
+  line-height: 1.45;
+  margin-top: 2px;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.periode-doelen {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  margin-top: 4px;
+}
+.periode-doelen .kd-chip {
+  font-size: 11px;
+  padding: 3px 8px;
+}
