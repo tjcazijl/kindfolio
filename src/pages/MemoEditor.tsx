@@ -92,6 +92,8 @@ export function MemoEditor() {
   )
   // Reflectie ("Hoe ging het?") — standaard dichtgeklapt tenzij al ingevuld.
   const [mood, setMood] = useState<MoodKey | undefined>(existing?.mood)
+  const [attentionFor, setAttentionFor] = useState<string[] | null>(null)
+  const [followupFor, setFollowupFor] = useState<string[] | null>(null)
   const [attentionText, setAttentionText] = useState(existingAttention?.text || '')
   const [attentionSubject, setAttentionSubject] = useState(
     existingAttention?.subject || '',
@@ -324,11 +326,15 @@ export function MemoEditor() {
     }
     if (live.listening) live.stop()
     // Reflectie ("Hoe ging het?") — altijd meesturen, ook leeg (dan wissen).
+    const geldigVoor = (keuze: string[] | null) =>
+      keuze ? keuze.filter((id) => selectedChildIds.includes(id)) : undefined
     const reflection = {
       mood: mood ?? null,
       attentionText: attentionText.trim(),
       attentionSubject: attentionSubject.trim(),
       followupText: followupText.trim(),
+      attentionChildIds: geldigVoor(attentionFor),
+      followupChildIds: geldigVoor(followupFor),
     }
     setSaving(true)
     try {
@@ -423,6 +429,56 @@ export function MemoEditor() {
     relevantChildren.length === 1 && relevantChildren[0]
       ? relevantChildren[0].name
       : 'het kind'
+  // Bij een memo voor meerdere kinderen: voor wie geldt dit punt? Zonder keuze
+  // geldt het voor alle gekozen kinderen, zoals het altijd deed.
+  const voorWie = (keuze: string[] | null) => keuze ?? relevantChildIds
+  function KindKeuze({
+    keuze,
+    onChange,
+  }: {
+    keuze: string[] | null
+    onChange: (v: string[]) => void
+  }) {
+    if (relevantChildIds.length < 2) return null
+    const aan = voorWie(keuze)
+    return (
+      <div className="focus-wie">
+        <span className="focus-wie-lb">Voor wie?</span>
+        <div className="chips">
+          {relevantChildren.map((c) =>
+            c ? (
+              <button
+                key={c.id}
+                type="button"
+                className={`chip child-chip sm ${aan.includes(c.id) ? 'on' : ''}`}
+                // Minstens één kind blijft staan, anders zou je punt verdwijnen.
+                disabled={aan.length === 1 && aan.includes(c.id)}
+                onClick={() =>
+                  onChange(
+                    aan.includes(c.id)
+                      ? aan.filter((x) => x !== c.id)
+                      : [...aan, c.id],
+                  )
+                }
+              >
+                <span
+                  className="avatar xs"
+                  style={{
+                    background: aan.includes(c.id) ? '#fff' : c.color,
+                    color: aan.includes(c.id) ? c.color : '#fff',
+                  }}
+                >
+                  {c.name.charAt(0).toUpperCase()}
+                </span>
+                {c.name}
+              </button>
+            ) : null,
+          )}
+        </div>
+      </div>
+    )
+  }
+
   const availableSubjects = (() => {
     const set = new Set<string>(accountSubjects)
     for (const c of relevantChildren) (c?.subjects || []).forEach((s) => set.add(s))
@@ -861,6 +917,9 @@ export function MemoEditor() {
                   ))}
                 </select>
               )}
+              {attentionText.trim() && (
+                <KindKeuze keuze={attentionFor} onChange={setAttentionFor} />
+              )}
             </div>
 
             <div className="reflect-sub later">
@@ -872,6 +931,9 @@ export function MemoEditor() {
                 onChange={(e) => setFollowupText(e.target.value)}
                 placeholder="Bijv. een vervolgstap of iets om op door te gaan."
               />
+              {followupText.trim() && (
+                <KindKeuze keuze={followupFor} onChange={setFollowupFor} />
+              )}
             </div>
           </div>
         </div>

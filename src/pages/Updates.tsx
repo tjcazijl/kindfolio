@@ -21,7 +21,6 @@ export function Updates() {
   const { accountEmail } = useData()
   const [reactions, setReactions] = useState<Record<string, UpdateReaction>>({})
   const [openId, setOpenId] = useState<string | null>(null)
-  const [likersOpen, setLikersOpen] = useState<string | null>(null)
   const [comments, setComments] = useState<Record<string, FeedbackComment[]>>({})
   const [commentText, setCommentText] = useState('')
   const [name, setName] = useState(() => localStorage.getItem(NAME_KEY) || '')
@@ -122,26 +121,15 @@ export function Updates() {
                 <button
                   className={`react-btn${r.likedByMe ? ' on' : ''}`}
                   onClick={() => toggleLike(u.id)}
-                  aria-label="Duimpje geven"
+                  // Hover toont wie er een duim gaf.
+                  title={duimen || 'Duimpje geven'}
+                  aria-label={duimen || 'Duimpje geven'}
                 >
                   👍 <span>{r.likes}</span>
                 </button>
                 <button className="react-btn" onClick={() => toggleComments(u.id)}>
                   💬 <span>{r.commentCount}</span>
                 </button>
-                {duimen && (
-                  // Hover toont de namen; op de telefoon tik je erop.
-                  <button
-                    type="button"
-                    className={`update-likers${likersOpen === u.id ? ' open' : ''}`}
-                    title={duimen}
-                    onClick={() =>
-                      setLikersOpen((v) => (v === u.id ? null : u.id))
-                    }
-                  >
-                    {duimen}
-                  </button>
-                )}
               </div>
 
               {open && (

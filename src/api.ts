@@ -462,6 +462,10 @@ export interface MemoInput {
   attentionText?: string
   attentionSubject?: string
   followupText?: string
+  // Voor welke kinderen het punt geldt bij een memo voor meerdere kinderen.
+  // Weglaten = voor allemaal.
+  attentionChildIds?: string[]
+  followupChildIds?: string[]
 }
 
 export interface FocusInput {

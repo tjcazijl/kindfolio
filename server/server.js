@@ -556,10 +556,23 @@ function setMemoResources(memoId, accountId, resourceIds) {
 
 // Synchroniseert het aandachtspunt + "voor later" van een memo (per kind).
 function syncMemoFocus(memoId, childId, accountId, body) {
+  // Bij één memo voor meerdere kinderen hoeft een aandachtspunt niet voor
+  // allemaal te gelden: "de namen van boerderijdieren" is er vaak maar voor
+  // één. Staat er geen lijst bij, dan geldt het voor elk gekozen kind — zo
+  // blijft het werken zoals het altijd deed.
+  const geldt = (lijst) => !Array.isArray(lijst) || lijst.includes(childId)
   if (body.attentionText !== undefined || body.attentionSubject !== undefined)
-    upsertMemoFocus(memoId, childId, accountId, 'attention', body.attentionText, body.attentionSubject, 'open')
+    upsertMemoFocus(
+      memoId, childId, accountId, 'attention',
+      geldt(body.attentionChildIds) ? body.attentionText : '',
+      body.attentionSubject, 'open',
+    )
   if (body.followupText !== undefined)
-    upsertMemoFocus(memoId, childId, accountId, 'later', body.followupText, null, 'later')
+    upsertMemoFocus(
+      memoId, childId, accountId, 'later',
+      geldt(body.followupChildIds) ? body.followupText : '',
+      null, 'later',
+    )
 }
 const mapKerndoelLink = (r) => ({
   id: r.id,
