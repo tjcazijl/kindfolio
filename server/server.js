@@ -2819,21 +2819,27 @@ async function kdScanBatch(accountId, userId, batch) {
     })
     .join('\n\n')
 
-  const instructie = `Je helpt een ouder die thuisonderwijs geeft in Nederland om terug te kijken op wat er aan bod is gekomen. Hieronder staan logboeknotities over ${batch.childName}${batch.age != null ? ` (${batch.age} jaar)` : ''} uit ${batch.label}, en daarboven de SLO-kerndoelen die voor dit kind gelden.
+  const instructie = `Je helpt een ouder die thuisonderwijs geeft in Nederland om terug te kijken op wat er aan bod is gekomen. Hieronder staan logboeknotities over ${batch.childName}${batch.age != null ? ` (${batch.age} jaar)` : ''} uit ${batch.label}, en de SLO-kerndoelen die voor dit kind gelden.
 
-Bepaal welke van deze kerndoelen in deze notities terug te zien zijn.
+Werk in twee stappen.
 
-Wees terughoudend. De ouder krijgt jouw voorstellen ter goedkeuring en moet erop kunnen vertrouwen; liever een kerndoel missen dan er een verzinnen. Twijfel je, laat het dan weg.
+Stap 1 — vul "doorloop": loop de negen leergebieden één voor één langs en noteer per leergebied in één regel of er iets in de notities staat dat eronder valt. Beoordeel niet waar een notitie hóófdzakelijk over gaat, maar wat er allemaal in voorkomt: een notitie over een vermoeiende dag kan daarnaast gewoon een sportweek bevatten.
+
+Stap 2 — vul "gevonden" met de kerndoelen die uit stap 1 volgen.
+
+Thuisonderwijs speelt zich grotendeels af in gewone dagelijkse situaties. Een kerndoel hoeft niet als les aangeboden te zijn: een gesprek aan tafel, samen spelen of een uitje telt net zo goed mee als het duidelijk in de notitie staat.
 - Kies alleen uit de nummers hieronder. Verzin geen nummers.
-- Geef per kerndoel de nummers van de notities waarin het echt terugkomt — niet alle notities uit de maand.
-- Geef één kort citaat uit een van die notities, letterlijk overgenomen. Verzin nooit een citaat.
-- Het gaat om wat het kind gedaan heeft, niet om wat het zou kunnen leren. "Ze speelden buiten" is geen bewegingskerndoel als er verder niets over bewegen staat.
+- Geef per kerndoel de nummers van de notities waarin het terugkomt — niet alle notities uit de maand.
+- Geef bij elk kerndoel een kort, letterlijk citaat uit een van die notities. Kun je er geen vinden, koppel het kerndoel dan niet.
+- Een activiteit die duidelijk bij een leergebied hoort telt mee, ook als er niet bij staat wát er precies geoefend werd: een sportweek met zwemmen valt onder bewegen, een museumbezoek onder mens en maatschappij.
+- Koppel niets waar de notities geen aanwijzing voor geven. Een zieke dag of een dagje niks levert niets op.
 
 De kerndoelen (${batch.set === 'vo' ? 'onderbouw voortgezet onderwijs' : 'primair onderwijs'}):
 ${lijst}
 
 De notities:
 ${notities}`
+
 
   const res = await fetch('https://api.anthropic.com/v1/messages', {
     method: 'POST',
@@ -2853,6 +2859,10 @@ ${notities}`
           input_schema: {
             type: 'object',
             properties: {
+              doorloop: {
+                type: 'string',
+                description: 'Per leergebied één regel: staat er iets in de notities dat eronder valt?',
+              },
               gevonden: {
                 type: 'array',
                 items: {
@@ -2866,11 +2876,11 @@ ${notities}`
                     },
                     citaat: { type: 'string', description: 'Kort, letterlijk citaat als bewijs' },
                   },
-                  required: ['nr', 'notities'],
+                  required: ['nr', 'notities', 'citaat'],
                 },
               },
             },
-            required: ['gevonden'],
+            required: ['doorloop', 'gevonden'],
           },
         },
       ],
