@@ -200,7 +200,7 @@ export function KerndoelScan() {
             <p className="ok-text">
               {scan.status === 'klaar' ? 'Klaar.' : 'Gestopt.'}{' '}
               {scan.gevondenVorigeKeer
-                ? `${scan.gevondenVorigeKeer} voorstellen om na te kijken.`
+                ? `De AI vond in ${scan.gevondenVorigeKeer} memo${scan.gevondenVorigeKeer === 1 ? '' : "'s"} iets. Je kijkt het na per kerndoel, niet per memo — dat is een korte lijst.`
                 : 'Er zijn geen nieuwe kerndoelen gevonden.'}
               {scan.periodesVorigeKeer
                 ? ` En ${scan.periodesVorigeKeer} periode${scan.periodesVorigeKeer === 1 ? '' : 's'} voorgesteld.`
@@ -210,7 +210,7 @@ export function KerndoelScan() {
 
           <button
             className="btn outline full"
-            onClick={() => navigate('/samenvatting')}
+            onClick={() => navigate('/samenvatting', { state: { tab: 'kerndoelen' } })}
           >
             Naar de voorstellen
           </button>

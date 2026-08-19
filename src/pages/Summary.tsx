@@ -49,8 +49,13 @@ export function Summary() {
   } = useData()
   // Terugkomen vanuit de periode-editor opent weer het juiste tabblad.
   const locState = useLocation().state as { tab?: string } | null
+  // Terugkomen vanuit de scan of de periode-editor opent het juiste tabblad.
+  const gevraagdTab =
+    locState?.tab === 'periodes' || locState?.tab === 'kerndoelen'
+      ? locState.tab
+      : 'samenvatting'
   const [tab, setTab] = useState<'samenvatting' | 'periodes' | 'kerndoelen'>(
-    locState?.tab === 'periodes' ? 'periodes' : 'samenvatting',
+    gevraagdTab,
   )
   const [ai, setAi] = useState<AiStatus | null>(null)
   const available = ai ? ai.available : null
