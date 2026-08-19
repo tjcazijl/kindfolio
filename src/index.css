@@ -2866,3 +2866,53 @@ body {
   cursor: default;
   opacity: 1;
 }
+
+/* Afvinken op het hoofdscherm. Het agenda-item zelf verandert er niet van. */
+.today-item {
+  display: flex;
+  align-items: stretch;
+  gap: 0;
+}
+.today-vink {
+  flex: none;
+  align-self: center;
+  width: 26px;
+  height: 26px;
+  margin-right: 10px;
+  border: 2px solid var(--line);
+  border-radius: 8px;
+  background: #fff;
+  color: transparent;
+  font-size: 15px;
+  font-weight: 700;
+  line-height: 1;
+  cursor: pointer;
+  transition: background .15s ease, border-color .15s ease;
+}
+.today-vink.on {
+  background: var(--green);
+  border-color: var(--green);
+  color: #fff;
+}
+.today-open {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex: 1;
+  min-width: 0;
+  border: 0;
+  background: none;
+  padding: 0;
+  font: inherit;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.today-item.af .today-item-title {
+  text-decoration: line-through;
+  color: var(--muted);
+}
+.today-item.af .ev-ic,
+.today-item.af .today-item-meta {
+  opacity: .55;
+}

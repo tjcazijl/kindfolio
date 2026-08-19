@@ -137,6 +137,8 @@ export interface AppState {
   events: AgendaEvent[]
   focusPoints: FocusPoint[]
   resources: Resource[]
+  /** Afgevinkte agendadagen als "eventId|jjjj-mm-dd". */
+  eventDone: string[]
   periods: Period[]
   // Alleen aanwezig als de kerndoelen aanstaan.
   kerndoelen?: Record<KerndoelSet, Kerndoel[]>
@@ -443,6 +445,13 @@ export const createEvent = (data: EventInput) =>
 
 export const updateEvent = (id: string, data: EventInput) =>
   req<AgendaEvent>(`/events/${id}`, { method: 'PATCH', body: JSON.stringify(data) })
+
+/** Eén dag van een agenda-item af- of aanvinken. Het item zelf verandert niet. */
+export const setEventDone = (id: string, date: string, done: boolean) =>
+  req<{ eventId: string; date: string; done: boolean }>(`/events/${id}/done`, {
+    method: 'POST',
+    body: JSON.stringify({ date, done }),
+  })
 
 export const deleteEvent = (id: string) =>
   req<{ ok: boolean }>(`/events/${id}`, { method: 'DELETE' })

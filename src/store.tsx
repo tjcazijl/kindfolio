@@ -38,6 +38,7 @@ import {
   deleteMemo,
   deletePeriod,
   deleteResource,
+  setEventDone as apiSetEventDone,
   likeMemo as apiLikeMemo,
   deleteAllData as apiDeleteAllData,
   deleteSummary as apiDeleteSummary,
@@ -74,6 +75,8 @@ interface DataContextValue {
   focusPoints: FocusPoint[]
   resources: Resource[]
   periods: Period[]
+  /** Afgevinkte agendadagen, als "eventId|datum". */
+  eventDone: Set<string>
   loading: boolean
   error: string | null
   authRequired: boolean
@@ -142,6 +145,7 @@ interface DataContextValue {
   addEvent: (data: EventInput) => Promise<AgendaEvent>
   editEvent: (id: string, data: EventInput) => Promise<AgendaEvent>
   removeEvent: (id: string) => Promise<void>
+  toggleEventDone: (eventId: string, date: string) => Promise<void>
   addFocus: (data: FocusInput) => Promise<FocusPoint>
   editFocus: (id: string, data: FocusInput) => Promise<FocusPoint>
   removeFocus: (id: string) => Promise<void>
@@ -165,6 +169,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
   const [focusPoints, setFocusPoints] = useState<FocusPoint[]>([])
   const [resources, setResources] = useState<Resource[]>([])
   const [periods, setPeriods] = useState<Period[]>([])
+  const [eventDone, setEventDone] = useState<Set<string>>(new Set())
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [authRequired, setAuthRequired] = useState(false)
@@ -199,6 +204,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
       setFocusPoints(state.focusPoints || [])
       setResources(state.resources || [])
       setPeriods(state.periods || [])
+      setEventDone(new Set(state.eventDone || []))
       setAccountEmail(state.account?.email ?? null)
       setIsAdmin(!!state.account?.isAdmin)
       setRole(state.account?.role ?? 'owner')
@@ -283,6 +289,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
     focusPoints,
     resources,
     periods,
+    eventDone,
     loading,
     error,
     authRequired,
@@ -403,6 +410,27 @@ export function DataProvider({ children }: { children: ReactNode }) {
     removeEvent: async (id) => {
       await deleteEvent(id)
       await reload()
+    },
+    toggleEventDone: async (eventId, date) => {
+      const sleutel = `${eventId}|${date}`
+      const aan = !eventDone.has(sleutel)
+      // Meteen omzetten; afvinken moet direct voelen, niet na een serverronde.
+      setEventDone((prev) => {
+        const next = new Set(prev)
+        if (aan) next.add(sleutel)
+        else next.delete(sleutel)
+        return next
+      })
+      try {
+        await apiSetEventDone(eventId, date, aan)
+      } catch {
+        setEventDone((prev) => {
+          const next = new Set(prev)
+          if (aan) next.delete(sleutel)
+          else next.add(sleutel)
+          return next
+        })
+      }
     },
     addFocus: async (data) => {
       const fp = await createFocus(data)

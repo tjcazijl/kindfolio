@@ -186,6 +186,13 @@ db.exec(`
     memo_id TEXT, resource_id TEXT,
     PRIMARY KEY (memo_id, resource_id)
   );
+  -- Eén rij per afgevinkte dag van een agenda-item. Bewust per datum: een
+  -- wekelijkse zwemles die je vandaag afvinkt, moet volgende week gewoon weer
+  -- op de planning staan. Het agenda-item zelf blijft onaangeroerd.
+  CREATE TABLE IF NOT EXISTS event_done (
+    event_id TEXT, date TEXT, account_id TEXT, user_id TEXT, created_at INTEGER,
+    PRIMARY KEY (event_id, date)
+  );
   CREATE TABLE IF NOT EXISTS event_focus (
     event_id TEXT, focus_id TEXT,
     PRIMARY KEY (event_id, focus_id)
@@ -1186,6 +1193,10 @@ add('GET', /^\/api\/state$/, (req, res) => {
     .prepare('SELECT * FROM resources WHERE account_id = ? ORDER BY created_at DESC')
     .all(acc)
     .map((r) => mapResource(r, resLinks[r.id] || []))
+  const eventDone = db
+    .prepare('SELECT event_id, date FROM event_done WHERE account_id = ?')
+    .all(acc)
+    .map((r) => `${r.event_id}|${r.date}`)
   const periodLinks = {}
   for (const l of db
     .prepare(
@@ -1215,6 +1226,7 @@ add('GET', /^\/api\/state$/, (req, res) => {
     events,
     focusPoints,
     resources,
+    eventDone,
     periods,
     kerndoelen,
     kerndoelLinks,
@@ -1806,12 +1818,30 @@ add('PATCH', /^\/api\/events\/([^/]+)$/, async (req, res, m) => {
   )
 })
 
+const DATUM_RE = /^\d{4}-\d{2}-\d{2}$/
+add('POST', /^\/api\/events\/([^/]+)\/done$/, async (req, res, m) => {
+  if (!requireEditor(req, res)) return
+  const ev = db.prepare('SELECT id FROM events WHERE id = ? AND account_id = ?').get(m[1], req.accountId)
+  if (!ev) return sendJson(res, 404, { error: 'niet gevonden' })
+  const body = await readJson(req)
+  const datum = String(body.date || '')
+  if (!DATUM_RE.test(datum)) return sendJson(res, 400, { error: 'ongeldige datum' })
+  if (body.done) {
+    db.prepare('INSERT OR IGNORE INTO event_done (event_id,date,account_id,user_id,created_at) VALUES (?,?,?,?,?)')
+      .run(m[1], datum, req.accountId, req.userId, now())
+  } else {
+    db.prepare('DELETE FROM event_done WHERE event_id = ? AND date = ?').run(m[1], datum)
+  }
+  sendJson(res, 200, { eventId: m[1], date: datum, done: !!body.done })
+})
+
 add('DELETE', /^\/api\/events\/([^/]+)$/, (req, res, m) => {
   if (!requireEditor(req, res)) return
   const ev = db.prepare('SELECT id FROM events WHERE id = ? AND account_id = ?').get(m[1], req.accountId)
   if (!ev) return sendJson(res, 404, { error: 'niet gevonden' })
   db.prepare('DELETE FROM event_children WHERE event_id = ?').run(m[1])
   db.prepare('DELETE FROM event_focus WHERE event_id = ?').run(m[1])
+  db.prepare('DELETE FROM event_done WHERE event_id = ?').run(m[1])
   db.prepare('DELETE FROM events WHERE id = ?').run(m[1])
   dropKerndoelLinks('event', m[1])
   sendJson(res, 200, { ok: true })
@@ -3171,6 +3201,7 @@ add('DELETE', /^\/api\/account\/data$/, (req, res) => {
   db.prepare('DELETE FROM summaries WHERE account_id = ?').run(acc)
   db.prepare('DELETE FROM children WHERE account_id = ?').run(acc)
   db.prepare('DELETE FROM photos WHERE account_id = ?').run(acc)
+  db.prepare('DELETE FROM event_done WHERE account_id = ?').run(acc)
   db.prepare('DELETE FROM kerndoel_links WHERE account_id = ?').run(acc)
   for (const p of db.prepare('SELECT id FROM periods WHERE account_id = ?').all(acc)) {
     db.prepare('DELETE FROM period_children WHERE period_id = ?').run(p.id)

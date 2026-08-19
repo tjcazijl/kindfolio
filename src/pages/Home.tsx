@@ -27,6 +27,8 @@ export function Home() {
     addChild,
     updateChild,
     kerndoelenEnabled,
+    eventDone,
+    toggleEventDone,
   } = useData()
 
   // Kinderen die 12 zijn en nog op de po-set staan, zonder dat we het gevraagd
@@ -259,12 +261,28 @@ export function Home() {
             const kids = ev.childIds
               .map((id) => children.find((c) => c.id === id))
               .filter(Boolean)
+            const afgevinkt = eventDone.has(`${ev.id}|${o.date}`)
             return (
-              <button
+              <div
                 key={`${ev.id}-${o.date}`}
-                className="today-item"
-                onClick={() => navigate(`/agenda/${ev.id}`)}
+                className={`today-item${afgevinkt ? ' af' : ''}`}
               >
+                {canEdit && (
+                  <button
+                    type="button"
+                    className={`today-vink${afgevinkt ? ' on' : ''}`}
+                    aria-pressed={afgevinkt}
+                    aria-label={`${ev.title} ${afgevinkt ? 'niet meer' : ''} afvinken`}
+                    onClick={() => toggleEventDone(ev.id, o.date)}
+                  >
+                    {afgevinkt ? '✓' : ''}
+                  </button>
+                )}
+                <button
+                  type="button"
+                  className="today-open"
+                  onClick={() => navigate(`/agenda/${ev.id}`)}
+                >
                 <span className={`ev-ic sm ${ev.type}`}>{meta.icon}</span>
                 <span className="today-main">
                   <span className="today-item-title">{ev.title}</span>
@@ -286,8 +304,9 @@ export function Home() {
                     </span>
                   )}
                 </span>
-                <span className="chev">›</span>
-              </button>
+                  <span className="chev">›</span>
+                </button>
+              </div>
             )
           })}
         </section>
