@@ -1,5 +1,4 @@
 import type { Resource, ResourceType, ResourceStatus } from '../types'
-import { todayISO, toISODate } from './dates'
 
 export const RESOURCE_META: Record<
   ResourceType,
@@ -52,23 +51,17 @@ export function isFinished(status?: ResourceStatus): boolean {
 }
 
 /**
- * Hoeveel dagen een net afgevinkt boek nog kiesbaar blijft bij een memo.
- * Zo maakt het niet uit of je eerst afvinkt of eerst de notitie schrijft.
+ * Is dit iets waar op dit moment mee gewerkt wordt? Bepaalt welke leermiddelen
+ * je bij een memo krijgt aangeboden: een leerboek dat in gebruik is, en een
+ * leesboek dat te lezen of aan het lezen is. Wat af is verdwijnt uit de lijst.
+ * Alles zonder status (sites, video's, apps, materiaal) hoort er altijd bij.
  */
-export const RECENT_FINISHED_DAYS = 3
-
-/** Is dit boek pas net op "gelezen"/"afgerond" gezet? */
-export function isRecentlyFinished(r: Resource): boolean {
-  if (!isFinished(r.status)) return false
-  // De opgegeven leesdatum telt; anders het moment van bijwerken.
-  const iso = r.readDate || (r.updatedAt ? toISODate(new Date(r.updatedAt)) : '')
-  if (!iso) return false
-  const dagen = Math.round(
-    (Date.parse(todayISO() + 'T00:00:00') - Date.parse(iso + 'T00:00:00')) /
-      86400000,
-  )
-  return dagen >= 0 && dagen <= RECENT_FINISHED_DAYS
+export function isInGebruik(r: Resource): boolean {
+  if (!hasStatus(r.type)) return true
+  if (!r.status) return true // boek zonder status: niet verbergen
+  return !isFinished(r.status)
 }
+
 
 /** Zet een link om naar iets dat de browser kan openen (met protocol). */
 export function normalizeUrl(url?: string): string | undefined {

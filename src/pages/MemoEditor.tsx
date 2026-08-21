@@ -18,7 +18,7 @@ import { useLiveSpeech } from '../hooks/useLiveSpeech'
 import { formatDateLong, todayISO } from '../utils/dates'
 import { effectiveSubcats } from '../utils/subjects'
 import { MOODS } from '../utils/mood'
-import { RESOURCE_META, isFinished, isRecentlyFinished } from '../utils/resources'
+import { RESOURCE_META, isInGebruik } from '../utils/resources'
 import type { MoodKey } from '../types'
 
 export function MemoEditor() {
@@ -806,11 +806,10 @@ export function MemoEditor() {
           Leermiddelen <span className="fl-opt">(optioneel)</span>
         </span>
         {(() => {
-          // Gelezen/afgeronde boeken niet aanbieden — behalve wat je net hebt
-          // afgevinkt, zodat de volgorde van afvinken en noteren niet uitmaakt.
-          // Daarna filteren op de gekozen kinderen en vakgebieden: bij een volle
-          // boekenkast is de hele lijst tonen onwerkbaar. Wat al aan deze memo
-          // hangt blijft altijd staan, anders kun je het niet meer loskoppelen.
+          // Alleen aanbieden waar nu mee gewerkt wordt, en daarbinnen filteren op
+          // de gekozen kinderen en vakgebieden: bij een volle boekenkast is de
+          // hele lijst tonen onwerkbaar. Wat al aan deze memo hangt blijft altijd
+          // staan, anders kun je het niet meer loskoppelen.
           const voorKind = (r: (typeof resources)[number]) =>
             r.childIds.length === 0 ||
             relevantChildIds.length === 0 ||
@@ -819,21 +818,16 @@ export function MemoEditor() {
             subjects.length === 0 ||
             r.subjects.length === 0 ||
             r.subjects.some((v) => subjects.includes(v))
+          const past = (r: (typeof resources)[number]) =>
+            isInGebruik(r) && voorKind(r) && voorVak(r)
           const pickable = resources
-            .filter(
-              (r) =>
-                !isFinished(r.status) ||
-                isRecentlyFinished(r) ||
-                resourceIds.includes(r.id),
-            )
-            .filter((r) => resourceIds.includes(r.id) || (voorKind(r) && voorVak(r)))
+            .filter((r) => resourceIds.includes(r.id) || past(r))
             .sort((a, b) => a.title.localeCompare(b.title, 'nl'))
-          // Hoeveel er nu buiten beeld blijven, zodat niemand denkt dat er iets weg is.
+          // Hoeveel er buiten beeld blijven door de gekozen kinderen of
+          // vakgebieden, zodat niemand denkt dat er iets weg is. Boeken die af
+          // zijn tellen hier niet in mee — die horen er gewoon niet meer bij.
           const verborgen = resources.filter(
-            (r) =>
-              (!isFinished(r.status) || isRecentlyFinished(r)) &&
-              !resourceIds.includes(r.id) &&
-              !(voorKind(r) && voorVak(r)),
+            (r) => isInGebruik(r) && !resourceIds.includes(r.id) && !(voorKind(r) && voorVak(r)),
           ).length
           return pickable.length > 0 ? (
             <>
@@ -846,22 +840,15 @@ export function MemoEditor() {
                       type="button"
                       className={`chip ${on ? 'on' : ''}`}
                       onClick={() => toggleResource(r.id)}
-                      title={
-                        isFinished(r.status)
-                          ? 'Net afgerond — nog even te kiezen'
-                          : undefined
-                      }
                     >
                       {RESOURCE_META[r.type].icon} {r.title}
-                      {isFinished(r.status) && <span className="chip-done"> ✓</span>}
                     </button>
                   )
                 })}
               </div>
               <p className="hint">
-                Tik aan welke je bij deze memo gebruikte.
-                {pickable.some((r) => isFinished(r.status)) &&
-                  ' Boeken met ✓ heb je net afgerond.'}
+                Tik aan welke je bij deze memo gebruikte. Boeken die je hebt
+                uitgelezen of afgerond staan er niet meer bij.
                 {verborgen > 0 &&
                   ` ${verborgen} andere ${verborgen === 1 ? 'staat' : 'staan'} er niet bij, omdat ${verborgen === 1 ? 'die' : 'die'} bij een ander kind of vakgebied hoort.`}
               </p>
