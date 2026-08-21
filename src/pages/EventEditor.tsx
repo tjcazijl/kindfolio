@@ -67,6 +67,9 @@ export function EventEditor() {
   const [everyN, setEveryN] = useState(existing?.everyN || 1)
   const [weekdays, setWeekdays] = useState<string[]>(existing?.weekdays || [])
   const [until, setUntil] = useState(existing?.until || '')
+  // Meerdaags: een themaweek of kamp dat over een paar dagen loopt.
+  const [meerdaags, setMeerdaags] = useState(!!existing?.end)
+  const [end, setEnd] = useState(existing?.end || '')
   const [notes, setNotes] = useState(existing?.notes || '')
   const [kerndoelen, setKerndoelenKeuze] = useState<KerndoelKeuze[]>(() =>
     linksVoor(kerndoelLinks, 'event', eventId).map((l) => ({
@@ -110,6 +113,7 @@ export function EventEditor() {
           everyN,
           weekdays,
           until: until || undefined,
+          end: meerdaags && end ? end : null,
           date,
         } as any)
 
@@ -129,6 +133,7 @@ export function EventEditor() {
         everyN,
         weekdays,
         until: until || null,
+        end: meerdaags && end ? end : null,
         subjects,
         childIds,
         focusIds,
@@ -196,7 +201,7 @@ export function EventEditor() {
 
       <div className="two-fields">
         <label className="field">
-          <span className="field-label">Datum</span>
+          <span className="field-label">{meerdaags ? 'Van' : 'Datum'}</span>
           <input
             type="date"
             className="input"
@@ -205,15 +210,45 @@ export function EventEditor() {
           />
         </label>
         <label className="field">
-          <span className="field-label">Tijd <span className="fl-opt">(optioneel)</span></span>
-          <input
-            type="time"
-            className="input"
-            value={time}
-            onChange={(e) => setTime(e.target.value)}
-          />
+          <span className="field-label">
+            {meerdaags ? 'Tot en met' : 'Tijd'}{' '}
+            <span className="fl-opt">(optioneel)</span>
+          </span>
+          {meerdaags ? (
+            <input
+              type="date"
+              className="input"
+              value={end}
+              min={date}
+              onChange={(e) => setEnd(e.target.value)}
+            />
+          ) : (
+            <input
+              type="time"
+              className="input"
+              value={time}
+              onChange={(e) => setTime(e.target.value)}
+            />
+          )}
         </label>
       </div>
+      <label className="toggle-row meerdaags-rij">
+        <span>
+          Loopt over meerdere dagen
+          <span className="fl-opt"> (themaweek, kamp)</span>
+        </span>
+        <input
+          type="checkbox"
+          className="toggle"
+          checked={meerdaags}
+          onChange={(e) => {
+            setMeerdaags(e.target.checked)
+            // Een meerdaags item heeft geen los tijdstip; een eendaags geen einddatum.
+            if (e.target.checked) { setTime(''); if (!end || end < date) setEnd(date) }
+            else setEnd('')
+          }}
+        />
+      </label>
 
       {children.length > 0 && (
         <div className="field">

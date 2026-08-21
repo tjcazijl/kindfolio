@@ -139,6 +139,8 @@ export interface AgendaEvent {
   notes?: string
   type: EventType
   date: string // YYYY-MM-DD (ankerdatum / eerste keer)
+  /** Laatste dag als het item meerdere dagen beslaat (themaweek, kamp). */
+  end?: string
   time?: string // HH:MM (optioneel)
   freq: EventFreq
   everyN: number // elke N dagen/weken/…

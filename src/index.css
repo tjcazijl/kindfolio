@@ -123,6 +123,11 @@ body {
 .topbar-title {
   font-weight: 600;
 }
+/* Actieknop rechts in de balk. Op een telefoon valt het nauwelijks op, maar in
+   een kolom van 640px stond hij anders verdwaald naast de terug-link. */
+.topbar .icon-btn {
+  margin-left: auto;
+}
 
 /* ---- Buttons ---- */
 .btn {
@@ -2915,4 +2920,20 @@ body {
 .today-item.af .ev-ic,
 .today-item.af .today-item-meta {
   opacity: .55;
+}
+
+/* Schakelaar voor een meerdaags agenda-item. */
+.meerdaags-rij {
+  margin-bottom: 14px;
+}
+/* Meerdaags item in de agenda en op het hoofdscherm. */
+.ev-span {
+  display: inline-block;
+  font-size: 11px;
+  font-weight: 700;
+  background: var(--green-soft, #e5eee8);
+  color: var(--green);
+  border-radius: 99px;
+  padding: 2px 7px;
+  white-space: nowrap;
 }

@@ -28,6 +28,16 @@ export function EventDetail() {
   const upcoming = expandEvents([ev], todayISO(), rangeEnd)
   const shownDate = upcoming[0]?.date || ev.date
   const rep = recurrenceLabel(ev)
+  // Loopt dit item over meerdere dagen? Dan de einddag van déze keer erbij.
+  const spanEinde = (() => {
+    if (!ev.end || ev.end <= ev.date) return null
+    const dagen = Math.round(
+      (new Date(ev.end + 'T12:00:00Z').getTime() - new Date(ev.date + 'T12:00:00Z').getTime()) / 86400000,
+    )
+    const d = new Date(shownDate + 'T12:00:00Z')
+    d.setUTCDate(d.getUTCDate() + dagen)
+    return d.toISOString().slice(0, 10)
+  })()
 
   async function remove() {
     await removeEvent(ev!.id)
@@ -75,6 +85,8 @@ export function EventDetail() {
           <span className="emk">Wanneer</span>
           <span className="emv">
             {formatDateLong(shownDate)}
+            {/* Meerdaags: de hele reeks tonen, niet alleen de eerste dag. */}
+            {spanEinde ? ` t/m ${formatDateLong(spanEinde)}` : ''}
             {ev.time ? ` · ${ev.time}` : ''}
           </span>
         </div>

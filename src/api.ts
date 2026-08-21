@@ -430,6 +430,8 @@ export interface EventInput {
   notes?: string
   type?: EventType
   date?: string
+  /** Laatste dag bij een meerdaags item; leeg of gelijk aan date = eendaags. */
+  end?: string | null
   time?: string | null
   freq?: EventFreq
   everyN?: number

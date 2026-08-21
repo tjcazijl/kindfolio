@@ -150,6 +150,11 @@ export function Agenda() {
                     </span>
                   </span>
                   <span className="agenda-item-meta">
+                    {o.spanDays && (
+                      <span className="ev-span">
+                        dag {o.spanDay} van {o.spanDays}
+                      </span>
+                    )}
                     {ev.time && <span className="ev-time">{ev.time}</span>}
                     {kids.length > 0 && (
                       <span className="ev-kids">

@@ -286,8 +286,13 @@ export function Home() {
                 <span className={`ev-ic sm ${ev.type}`}>{meta.icon}</span>
                 <span className="today-main">
                   <span className="today-item-title">{ev.title}</span>
-                  {(ev.time || kids.length > 0) && (
+                  {(ev.time || kids.length > 0 || o.spanDays) && (
                     <span className="today-item-meta">
+                      {o.spanDays && (
+                        <span className="ev-span">
+                          dag {o.spanDay} van {o.spanDays}
+                        </span>
+                      )}
                       {ev.time && <span className="ev-time">{ev.time}</span>}
                       {kids.length > 0 && (
                         <span className="ev-kids">

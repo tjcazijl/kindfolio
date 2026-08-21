@@ -285,6 +285,9 @@ for (const sql of [
   // Onthoudt welke memo's de AI al bekeken heeft, zodat een tweede ronde
   // alleen het nieuwe werk doet.
   'ALTER TABLE memos ADD COLUMN kd_scanned INTEGER DEFAULT 0',
+  // Meerdaagse agenda-items: een themaweek of een kamp loopt van date t/m
+  // end_date. Staat los van until_date, dat het einde van een herhaling is.
+  'ALTER TABLE events ADD COLUMN end_date TEXT',
 ]) {
   try {
     db.exec(sql)
@@ -614,6 +617,7 @@ const mapComment = (r) => ({
   authorEmail: r.author_email, text: r.text || '', createdAt: r.created_at,
 })
 const mapEvent = (r, childIds, focusIds) => ({
+  end: r.end_date || undefined,
   id: r.id, title: r.title, notes: r.notes || '',
   type: r.type || 'uitje', date: r.date, time: r.time || undefined,
   freq: r.freq || 'none', everyN: r.every_n || 1,
@@ -1723,6 +1727,12 @@ function validChildIds(list, accountId) {
   )
 }
 // Zet de opgegeven weekdagen om naar een opgeschoonde, comma-gescheiden string.
+/** Einddatum van een meerdaags item; leeg of vóór de start = eendaags. */
+function cleanEndDate(start, end) {
+  const e = typeof end === 'string' ? end.trim() : ''
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(e)) return null
+  return e > start ? e : null
+}
 function cleanWeekdays(freq, list) {
   if (freq !== 'weekly' || !Array.isArray(list)) return null
   const days = [...new Set(list.filter((d) => WEEKDAYS.has(d)))]
@@ -1752,10 +1762,11 @@ add('POST', /^\/api\/events$/, async (req, res) => {
     created_at: now(),
     updated_at: now(),
   }
+  ev.end_date = cleanEndDate(ev.date, body.end)
   db.prepare(
-    'INSERT INTO events (id,account_id,title,notes,type,date,time,freq,every_n,weekdays,until_date,sort_order,subjects,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)',
+    'INSERT INTO events (id,account_id,title,notes,type,date,end_date,time,freq,every_n,weekdays,until_date,sort_order,subjects,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)',
   ).run(
-    ev.id, req.accountId, ev.title, ev.notes, ev.type, ev.date, ev.time,
+    ev.id, req.accountId, ev.title, ev.notes, ev.type, ev.date, ev.end_date, ev.time,
     ev.freq, ev.every_n, ev.weekdays, ev.until_date, ev.sort_order, ev.subjects, ev.created_at, ev.updated_at,
   )
   const childIds = validChildIds(body.childIds, req.accountId)
@@ -1790,9 +1801,11 @@ add('PATCH', /^\/api\/events\/([^/]+)$/, async (req, res, m) => {
   const sortOrder =
     body.sortOrder !== undefined && Number.isFinite(body.sortOrder) ? body.sortOrder : existing.sort_order
   const subjects = body.subjects !== undefined ? cleanSubjects(body.subjects) : existing.subjects
+  // Einddatum opnieuw toetsen aan de (mogelijk gewijzigde) begindatum.
+  const endDate = cleanEndDate(date, body.end !== undefined ? body.end : existing.end_date)
   db.prepare(
-    'UPDATE events SET title=?,notes=?,type=?,date=?,time=?,freq=?,every_n=?,weekdays=?,until_date=?,sort_order=?,subjects=?,updated_at=? WHERE id=?',
-  ).run(title, notes, type, date, time, freq, everyN, weekdays, until, sortOrder, subjects, now(), m[1])
+    'UPDATE events SET title=?,notes=?,type=?,date=?,end_date=?,time=?,freq=?,every_n=?,weekdays=?,until_date=?,sort_order=?,subjects=?,updated_at=? WHERE id=?',
+  ).run(title, notes, type, date, endDate, time, freq, everyN, weekdays, until, sortOrder, subjects, now(), m[1])
   let childIds
   if (Array.isArray(body.childIds)) {
     childIds = validChildIds(body.childIds, req.accountId)
@@ -1811,7 +1824,7 @@ add('PATCH', /^\/api\/events\/([^/]+)$/, async (req, res, m) => {
   sendJson(
     res, 200,
     mapEvent(
-      { ...existing, title, notes, type, date, time, freq, every_n: everyN, weekdays, until_date: until, sort_order: sortOrder, subjects },
+      { ...existing, title, notes, type, date, end_date: endDate, time, freq, every_n: everyN, weekdays, until_date: until, sort_order: sortOrder, subjects },
       childIds,
       focusIds,
     ),

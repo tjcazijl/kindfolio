@@ -808,12 +808,33 @@ export function MemoEditor() {
         {(() => {
           // Gelezen/afgeronde boeken niet aanbieden — behalve wat je net hebt
           // afgevinkt, zodat de volgorde van afvinken en noteren niet uitmaakt.
-          const pickable = resources.filter(
+          // Daarna filteren op de gekozen kinderen en vakgebieden: bij een volle
+          // boekenkast is de hele lijst tonen onwerkbaar. Wat al aan deze memo
+          // hangt blijft altijd staan, anders kun je het niet meer loskoppelen.
+          const voorKind = (r: (typeof resources)[number]) =>
+            r.childIds.length === 0 ||
+            relevantChildIds.length === 0 ||
+            r.childIds.some((id) => relevantChildIds.includes(id))
+          const voorVak = (r: (typeof resources)[number]) =>
+            subjects.length === 0 ||
+            r.subjects.length === 0 ||
+            r.subjects.some((v) => subjects.includes(v))
+          const pickable = resources
+            .filter(
+              (r) =>
+                !isFinished(r.status) ||
+                isRecentlyFinished(r) ||
+                resourceIds.includes(r.id),
+            )
+            .filter((r) => resourceIds.includes(r.id) || (voorKind(r) && voorVak(r)))
+            .sort((a, b) => a.title.localeCompare(b.title, 'nl'))
+          // Hoeveel er nu buiten beeld blijven, zodat niemand denkt dat er iets weg is.
+          const verborgen = resources.filter(
             (r) =>
-              !isFinished(r.status) ||
-              isRecentlyFinished(r) ||
-              resourceIds.includes(r.id),
-          )
+              (!isFinished(r.status) || isRecentlyFinished(r)) &&
+              !resourceIds.includes(r.id) &&
+              !(voorKind(r) && voorVak(r)),
+          ).length
           return pickable.length > 0 ? (
             <>
               <div className="chips">
@@ -841,6 +862,8 @@ export function MemoEditor() {
                 Tik aan welke je bij deze memo gebruikte.
                 {pickable.some((r) => isFinished(r.status)) &&
                   ' Boeken met ✓ heb je net afgerond.'}
+                {verborgen > 0 &&
+                  ` ${verborgen} andere ${verborgen === 1 ? 'staat' : 'staan'} er niet bij, omdat ${verborgen === 1 ? 'die' : 'die'} bij een ander kind of vakgebied hoort.`}
               </p>
             </>
           ) : (

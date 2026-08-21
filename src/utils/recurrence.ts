@@ -21,6 +21,10 @@ function ts(iso: string): number {
   return Date.UTC(y, (m || 1) - 1, d || 1, 12)
 }
 const DAY = 86400000
+/** Aantal hele dagen tussen twee datums (b - a). */
+function daysBetween(aISO: string, bISO: string): number {
+  return Math.round((ts(bISO) - ts(aISO)) / DAY)
+}
 function addDaysISO(iso: string, days: number): string {
   return new Date(ts(iso) + days * DAY).toISOString().slice(0, 10)
 }
@@ -69,6 +73,11 @@ function matchesOn(ev: AgendaEvent, iso: string): boolean {
 export interface Occurrence {
   event: AgendaEvent
   date: string // YYYY-MM-DD van deze keer
+  // Alleen bij een meerdaags item: de omvang van deze keer.
+  spanStart?: string
+  spanEnd?: string
+  spanDay?: number // 1-gebaseerd: de hoeveelste dag
+  spanDays?: number // totaal aantal dagen
 }
 
 /**
@@ -83,16 +92,33 @@ export function expandEvents(
 ): Occurrence[] {
   const out: Occurrence[] = []
   for (const ev of events) {
-    const from = ev.date > rangeStart ? ev.date : rangeStart
+    // Meerdaags item: hoeveel dagen na de startdag loopt het door?
+    const spanDagen = ev.end && ev.end > ev.date ? daysBetween(ev.date, ev.end) : 0
+    /** Zet één startdag om in een regel per dag dat het item loopt. */
+    const zetNeer = (start: string) => {
+      for (let i = 0; i <= spanDagen; i++) {
+        const dag = i === 0 ? start : addDaysISO(start, i)
+        if (dag < rangeStart || dag > rangeEnd) continue
+        out.push({
+          event: ev,
+          date: dag,
+          ...(spanDagen > 0
+            ? { spanStart: start, spanEnd: addDaysISO(start, spanDagen), spanDay: i + 1, spanDays: spanDagen + 1 }
+            : {}),
+        })
+      }
+    }
+    // Een meerdaags item kan al vóór het venster begonnen zijn en er nog in lopen.
+    const from = ev.date > rangeStart ? ev.date : addDaysISO(rangeStart, -spanDagen)
     const hardEnd = ev.until && ev.until < rangeEnd ? ev.until : rangeEnd
-    if (from > hardEnd) continue
     if (ev.freq === 'none') {
-      if (ev.date >= rangeStart && ev.date <= rangeEnd) out.push({ event: ev, date: ev.date })
+      zetNeer(ev.date)
       continue
     }
+    if (from > hardEnd) continue
     // Dag voor dag door het (begrensde) venster — simpel en correct.
     for (let iso = from; iso <= hardEnd; iso = addDaysISO(iso, 1)) {
-      if (matchesOn(ev, iso)) out.push({ event: ev, date: iso })
+      if (iso >= ev.date && matchesOn(ev, iso)) zetNeer(iso)
     }
   }
   out.sort(
