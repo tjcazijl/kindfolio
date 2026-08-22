@@ -1,9 +1,9 @@
-import { useMemo, useState } from 'react'
+import { Fragment, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useData } from '../store'
 import { ChildForm } from '../components/ChildForm'
 import { childAge, formatDateNumeric, todayISO } from '../utils/dates'
-import { expandEvents } from '../utils/recurrence'
+import { expandEvents, type Occurrence } from '../utils/recurrence'
 import { EVENT_META } from '../utils/events'
 import { vraagOverstap } from '../utils/kerndoelen'
 import {
@@ -46,6 +46,21 @@ export function Home() {
     for (const m of memos) map[m.childId] = (map[m.childId] || 0) + 1
     return map
   }, [memos])
+
+  /** Voorgevulde memo bij een activiteit; na opslaan kom je hier weer terug. */
+  function maakMemo(o: Occurrence) {
+    navigate('/memo/nieuw', {
+      state: {
+        eventPrefill: {
+          title: o.event.title,
+          date: o.date,
+          childIds: o.event.childIds,
+          subjects: o.event.subjects,
+          terugNaar: '/',
+        },
+      },
+    })
+  }
 
   // Wat staat er vandaag gepland? (ook voor het bolletje op het agenda-icoon)
   const vandaag = useMemo(() => {
@@ -255,18 +270,27 @@ export function Home() {
               Agenda ›
             </button>
           </div>
-          {vandaag.map((o) => {
+          {[...vandaag]
+            .sort((a, b) => {
+              // Afgevinkt zakt naar onderen; daarbinnen blijft de volgorde staan.
+              const af = (o: (typeof vandaag)[number]) =>
+                eventDone.has(`${o.event.id}|${o.date}`) ? 1 : 0
+              return af(a) - af(b)
+            })
+            .map((o, i, rij) => {
             const ev = o.event
+            const afgevinkt = eventDone.has(`${ev.id}|${o.date}`)
+            // Kopje boven het eerste voltooide item.
+            const eersteVoltooid =
+              afgevinkt && (i === 0 || !eventDone.has(`${rij[i - 1].event.id}|${rij[i - 1].date}`))
             const meta = EVENT_META[ev.type]
             const kids = ev.childIds
               .map((id) => children.find((c) => c.id === id))
               .filter(Boolean)
-            const afgevinkt = eventDone.has(`${ev.id}|${o.date}`)
             return (
-              <div
-                key={`${ev.id}-${o.date}`}
-                className={`today-item${afgevinkt ? ' af' : ''}`}
-              >
+              <Fragment key={`${ev.id}-${o.date}`}>
+              {eersteVoltooid && <div className="today-scheiding">Voltooid</div>}
+              <div className={`today-item${afgevinkt ? ' af' : ''}`}>
                 {canEdit && (
                   <button
                     type="button"
@@ -309,9 +333,20 @@ export function Home() {
                     </span>
                   )}
                 </span>
-                  <span className="chev">›</span>
                 </button>
+                {canEdit && (
+                  <button
+                    type="button"
+                    className="today-memo"
+                    aria-label={`Notitie maken bij ${ev.title}`}
+                    title="Notitie maken"
+                    onClick={() => maakMemo(o)}
+                  >
+                    📝
+                  </button>
+                )}
               </div>
+              </Fragment>
             )
           })}
         </section>

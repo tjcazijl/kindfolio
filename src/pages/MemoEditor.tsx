@@ -53,7 +53,14 @@ export function MemoEditor() {
   // Voorgevulde waarden wanneer je vanuit een agenda-item een memo maakt.
   const location = useLocation()
   const prefill = (location.state as any)?.eventPrefill as
-    | { title?: string; date?: string; childIds?: string[]; subjects?: string[] }
+    | {
+        title?: string
+        date?: string
+        childIds?: string[]
+        subjects?: string[]
+        /** Waar je heen wilt na opslaan of annuleren; leeg = de gewone route. */
+        terugNaar?: string
+      }
     | undefined
 
   // Bij een nieuwe memo kun je één of meerdere kinderen kiezen.
@@ -382,10 +389,14 @@ export function MemoEditor() {
         }
       }
       stagedPhotos.current.clear()
+      // Kwam je van het hoofdscherm? Dan ga je daar weer heen, zodat je de
+      // activiteiten van vandaag achter elkaar kunt afwerken.
       navigate(
-        isNew
-          ? `/kind/${selectedChildIds[0]}`
-          : `/kind/${childId}/memo/${memoId}`,
+        prefill?.terugNaar
+          ? prefill.terugNaar
+          : isNew
+            ? `/kind/${selectedChildIds[0]}`
+            : `/kind/${childId}/memo/${memoId}`,
       )
     } catch (err: any) {
       alert(err?.message || 'Opslaan mislukt')
@@ -399,7 +410,9 @@ export function MemoEditor() {
       await Promise.all([...stagedPhotos.current].map((id) => deletePhoto(id)))
     }
     navigate(
-      isNew
+      prefill?.terugNaar
+        ? prefill.terugNaar
+        : isNew
         ? childId
           ? `/kind/${childId}`
           : '/'
