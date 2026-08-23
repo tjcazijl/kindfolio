@@ -18,7 +18,7 @@ import { useLiveSpeech } from '../hooks/useLiveSpeech'
 import { formatDateLong, todayISO } from '../utils/dates'
 import { effectiveSubcats } from '../utils/subjects'
 import { MOODS } from '../utils/mood'
-import { RESOURCE_META, isInGebruik } from '../utils/resources'
+import { RESOURCE_META, isInGebruik, isNogTeLezen } from '../utils/resources'
 import type { MoodKey } from '../types'
 
 export function MemoEditor() {
@@ -87,6 +87,7 @@ export function MemoEditor() {
   // In bewerkmodus: extra kinderen om een kopie van deze memo voor te maken.
   const [addChildIds, setAddChildIds] = useState<string[]>([])
   // Gekoppelde leermiddelen.
+  const [teLezenOpen, setTeLezenOpen] = useState(false)
   const [resourceIds, setResourceIds] = useState<string[]>(
     existing?.resourceIds || [],
   )
@@ -833,8 +834,25 @@ export function MemoEditor() {
             r.subjects.some((v) => subjects.includes(v))
           const past = (r: (typeof resources)[number]) =>
             isInGebruik(r) && voorKind(r) && voorVak(r)
+          // Boeken die nog te lezen zijn staan er niet standaard bij, maar zijn
+          // wel op te vragen — anders kun je een boek dat je vandaag begint niet
+          // koppelen zonder eerst de status om te zetten.
+          const teLezen = resources
+            .filter(
+              (r) =>
+                isNogTeLezen(r) &&
+                !resourceIds.includes(r.id) &&
+                voorKind(r) &&
+                voorVak(r),
+            )
+            .sort((a, b) => a.title.localeCompare(b.title, 'nl'))
           const pickable = resources
-            .filter((r) => resourceIds.includes(r.id) || past(r))
+            .filter(
+              (r) =>
+                resourceIds.includes(r.id) ||
+                past(r) ||
+                (teLezenOpen && isNogTeLezen(r) && voorKind(r) && voorVak(r)),
+            )
             .sort((a, b) => a.title.localeCompare(b.title, 'nl'))
           // Hoeveel er buiten beeld blijven door de gekozen kinderen of
           // vakgebieden, zodat niemand denkt dat er iets weg is. Boeken die af
@@ -859,9 +877,21 @@ export function MemoEditor() {
                   )
                 })}
               </div>
+              {teLezen.length > 0 && !teLezenOpen && (
+                <button
+                  type="button"
+                  className="link-btn"
+                  onClick={() => setTeLezenOpen(true)}
+                >
+                  {teLezen.length === 1
+                    ? '+ 1 boek dat nog te lezen is'
+                    : `+ ${teLezen.length} boeken die nog te lezen zijn`}
+                </button>
+              )}
               <p className="hint">
-                Tik aan welke je bij deze memo gebruikte. Boeken die je hebt
-                uitgelezen of afgerond staan er niet meer bij.
+                Tik aan welke je bij deze memo gebruikte. Je ziet de boeken waar
+                nu in gelezen wordt; uitgelezen en afgeronde boeken staan er niet
+                meer bij.
                 {verborgen > 0 &&
                   ` ${verborgen} andere ${verborgen === 1 ? 'staat' : 'staan'} er niet bij, omdat ${verborgen === 1 ? 'die' : 'die'} bij een ander kind of vakgebied hoort.`}
               </p>

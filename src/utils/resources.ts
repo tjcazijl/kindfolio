@@ -59,7 +59,16 @@ export function isFinished(status?: ResourceStatus): boolean {
 export function isInGebruik(r: Resource): boolean {
   if (!hasStatus(r.type)) return true
   if (!r.status) return true // boek zonder status: niet verbergen
+  // Een leesboek dat nog te lezen is, is nog niet begonnen. Dat hoort niet in
+  // de standaardlijst bij een memo: een verlanglijst van dertig boeken maakt
+  // het kiezen juist weer onmogelijk.
+  if (r.type === 'leesboek') return r.status === 'bezig'
   return !isFinished(r.status)
+}
+
+/** Nog te lezen: apart op te vragen, zodat je er wel bij kunt. */
+export function isNogTeLezen(r: Resource): boolean {
+  return r.type === 'leesboek' && r.status === 'te_lezen'
 }
 
 
