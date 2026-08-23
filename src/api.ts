@@ -147,7 +147,8 @@ export interface AppState {
     id: string
     ownerEmail: string
     email: string
-    role: 'owner' | 'editor' | 'commenter'
+    role: 'owner' | 'editor' | 'writer' | 'commenter'
+    userId?: string
     isAdmin?: boolean
     subjects: string[]
     aiEnabled: boolean
@@ -269,7 +270,7 @@ export const addComment = (
 export const deleteComment = (id: string) =>
   req<{ ok: boolean }>(`/comments/${id}`, { method: 'DELETE' })
 
-export type ShareRole = 'editor' | 'commenter'
+export type ShareRole = 'editor' | 'writer' | 'commenter'
 export interface Share {
   email: string
   role: ShareRole

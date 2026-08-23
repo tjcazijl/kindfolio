@@ -22,6 +22,7 @@ export function Home() {
     loading,
     error,
     canEdit,
+    canWrite,
     role,
     ownerEmail,
     addChild,
@@ -118,7 +119,7 @@ export function Home() {
             <span className="icon-cal">📅</span>
             {hasAgendaToday && <span className="icon-badge" />}
           </button>
-          {canEdit && children.length > 0 && (
+          {canWrite && children.length > 0 && (
             <button
               className="icon-btn"
               onClick={() => setAdding(true)}
@@ -207,7 +208,7 @@ export function Home() {
 
       {!loading && children.length === 0 && !adding && (
         <div className="empty">
-          {canEdit ? (
+          {canWrite ? (
             <>
               <p>Nog geen kinderen toegevoegd.</p>
               <button className="btn primary" onClick={() => setAdding(true)}>
@@ -244,7 +245,7 @@ export function Home() {
         })}
       </div>
 
-      {canEdit &&
+      {canWrite &&
         (adding ? (
           <ChildForm
             submitLabel="Opslaan"
@@ -291,7 +292,7 @@ export function Home() {
               <Fragment key={`${ev.id}-${o.date}`}>
               {eersteVoltooid && <div className="today-scheiding">Voltooid</div>}
               <div className={`today-item${afgevinkt ? ' af' : ''}`}>
-                {canEdit && (
+                {canWrite && (
                   <button
                     type="button"
                     className={`today-vink${afgevinkt ? ' on' : ''}`}
@@ -334,7 +335,7 @@ export function Home() {
                   )}
                 </span>
                 </button>
-                {canEdit && (
+                {canWrite && (
                   <button
                     type="button"
                     className="today-memo"

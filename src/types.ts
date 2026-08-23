@@ -73,6 +73,7 @@ export interface Memo {
   subjects: string[]
   photoIds: string[]
   resourceIds: string[] // gekoppelde leermiddelen
+  authorId?: string // wie de memo schreef
   draft?: boolean
   mood?: MoodKey // reactie van het kind ("Hoe ging het?")
   likeCount?: number
@@ -177,7 +178,7 @@ export interface Comment {
 
 export interface AccountAccess {
   id: string
-  role: 'owner' | 'commenter'
+  role: 'owner' | 'editor' | 'writer' | 'commenter'
   ownerEmail: string
 }
 

@@ -106,7 +106,9 @@ export function Settings() {
       setInviteMsg(
         inviteRole === 'editor'
           ? `${email} is uitgenodigd als gezinslid.`
-          : `${email} is uitgenodigd als meelezer.`,
+          : inviteRole === 'writer'
+            ? `${email} is uitgenodigd als meeschrijver.`
+            : `${email} is uitgenodigd als meelezer.`,
       )
       setInviteEmail('')
       setShares(await fetchShares())
@@ -172,6 +174,7 @@ export function Settings() {
         </section>
       )}
 
+      {canEdit && (
       <section className="card-section">
         <h2>AI-samenvatting</h2>
         <p className="hint">
@@ -211,7 +214,9 @@ export function Settings() {
           </label>
         )}
       </section>
+      )}
 
+      {canEdit && (
       <section className="card-section">
         <h2>Kerndoelen</h2>
         <p className="hint">
@@ -293,6 +298,7 @@ export function Settings() {
           </>
         )}
       </section>
+      )}
 
       {canEdit && (
         <section className="card-section">
@@ -325,10 +331,10 @@ export function Settings() {
           <h2>Delen &amp; samenwerken</h2>
           <p className="hint">
             Nodig iemand uit via hun e-mailadres. Een <strong>gezinslid</strong>{' '}
-            (bijv. een medeouder of een ouder kind) kan samen met jou kinderen,
-            memo's en samenvattingen toevoegen en bewerken. Een{' '}
-            <strong>meelezer</strong> (bijv. een lerares) kan alles lezen en erop
-            reageren, maar niets bewerken.
+            (bijv. een medeouder) kan alles wat jij kunt. Een{' '}
+            <strong>meeschrijver</strong> (bijv. je kind zelf) schrijft memo's
+            maar komt niet aan je instellingen. Een <strong>meelezer</strong>{' '}
+            (bijv. een lerares) leest mee en reageert.
           </p>
           <form onSubmit={sendInvite} className="invite-form">
             <input
@@ -349,12 +355,26 @@ export function Settings() {
               </button>
               <button
                 type="button"
+                className={`seg-btn ${inviteRole === 'writer' ? 'on' : ''}`}
+                onClick={() => setInviteRole('writer')}
+              >
+                Meeschrijver
+              </button>
+              <button
+                type="button"
                 className={`seg-btn ${inviteRole === 'editor' ? 'on' : ''}`}
                 onClick={() => setInviteRole('editor')}
               >
                 Gezinslid
               </button>
             </div>
+            <p className="hint rol-uitleg">
+              {inviteRole === 'commenter'
+                ? 'Leest mee en kan reageren. Verandert niets.'
+                : inviteRole === 'writer'
+                  ? 'Schrijft memo’s met foto’s, vult aandachtspunten in en vinkt de agenda af. Komt niet aan je instellingen, je kinderen of het AI-tegoed, en kan alleen zijn eigen memo’s aanpassen. Bedoeld voor je kinderen zelf.'
+                  : 'Mag alles wat jij mag, behalve uitnodigen en het account wissen.'}
+            </p>
             <button
               className="btn primary full"
               disabled={inviteBusy}
@@ -371,7 +391,11 @@ export function Settings() {
                   <span>
                     {s.email}
                     <span className="role-badge">
-                      {s.role === 'editor' ? 'gezinslid' : 'meelezer'}
+                      {s.role === 'editor'
+                        ? 'gezinslid'
+                        : s.role === 'writer'
+                          ? 'meeschrijver'
+                          : 'meelezer'}
                     </span>
                     {s.status === 'pending' && (
                       <span className="badge-unverified">uitgenodigd</span>
@@ -432,9 +456,11 @@ export function Settings() {
           je apparaten. Je kunt een kopie van de tekstgegevens downloaden
           (zonder foto's).
         </p>
-        <button className="btn outline full" onClick={downloadBackup}>
-          ⬇ Tekstgegevens downloaden (JSON)
-        </button>
+        {canEdit && (
+          <button className="btn outline full" onClick={downloadBackup}>
+            ⬇ Tekstgegevens downloaden (JSON)
+          </button>
+        )}
         {canEdit && (
           <>
             <button

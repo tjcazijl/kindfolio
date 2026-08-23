@@ -25,7 +25,7 @@ export function FocusPoints() {
     addFocus,
     editFocus,
     removeFocus,
-    canEdit,
+    canWrite,
     subjects: accountSubjects,
   } = useData()
 
@@ -201,8 +201,8 @@ export function FocusPoints() {
           >
             <button
               className="fp-check"
-              onClick={() => canEdit && toggleDone(f)}
-              disabled={!canEdit}
+              onClick={() => canWrite && toggleDone(f)}
+              disabled={!canWrite}
               aria-label={f.status === 'done' ? 'Terugzetten' : 'Onder de knie'}
             >
               {f.status === 'done' ? '✓' : ''}
@@ -221,7 +221,7 @@ export function FocusPoints() {
                   {formatDateNumeric(isoFromTs(f.createdAt))}
                 </span>
               </div>
-              {canEdit && (
+              {canWrite && (
                 <div className="fp-actions">
                   {f.status === 'later' && (
                     <button className="link-btn" onClick={() => move(f, 'open')}>
@@ -241,7 +241,7 @@ export function FocusPoints() {
             </div>
             {/* Bij een afgerond punt alleen nog de doorklik naar wat er
                 gepland stond, zodat je dat kunt aanpassen of weghalen. */}
-            {canEdit && (f.status !== 'done' || planned.has(f.id)) && (
+            {canWrite && (f.status !== 'done' || planned.has(f.id)) && (
               <button
                 className={`fp-agenda${planned.has(f.id) ? ' on' : ''}`}
                 onClick={() => goToAgenda(f)}
@@ -263,7 +263,7 @@ export function FocusPoints() {
         ))}
       </div>
 
-      {canEdit &&
+      {canWrite &&
         (adding ? (
           <form className="fp-add" onSubmit={submit}>
             <input

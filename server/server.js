@@ -285,6 +285,9 @@ for (const sql of [
   // Onthoudt welke memo's de AI al bekeken heeft, zodat een tweede ronde
   // alleen het nieuwe werk doet.
   'ALTER TABLE memos ADD COLUMN kd_scanned INTEGER DEFAULT 0',
+  // Wie de memo schreef. Nodig om een meeschrijver alleen zijn eigen memo's te
+  // laten verwijderen, en handig als een gezin samen bijhoudt.
+  'ALTER TABLE memos ADD COLUMN author_id TEXT',
   // Meerdaagse agenda-items: een themaweek of een kamp loopt van date t/m
   // end_date. Staat los van until_date, dat het einde van een herhaling is.
   'ALTER TABLE events ADD COLUMN end_date TEXT',
@@ -490,7 +493,7 @@ function accountSettings(accId) {
   }
 }
 const mapMemo = (r, resourceIds, likedBy) => ({
-  id: r.id, childId: r.child_id, date: r.date, text: r.text || '',
+  id: r.id, childId: r.child_id, authorId: r.author_id || undefined, date: r.date, text: r.text || '',
   subjects: r.subjects ? JSON.parse(r.subjects) : [],
   photoIds: r.photo_ids ? JSON.parse(r.photo_ids) : [],
   resourceIds: resourceIds || [],
@@ -713,6 +716,23 @@ function requireOwner(req, res) {
 // Inhoud wijzigen mag de eigenaar én medeouders (editor); meelezers niet.
 function requireEditor(req, res) {
   if (req.role !== 'owner' && req.role !== 'editor') {
+    sendJson(res, 403, {
+      error:
+        req.role === 'writer'
+          ? 'Dit kan alleen een gezinslid of de eigenaar doen.'
+          : 'Je hebt alleen leesrechten voor dit portfolio.',
+    })
+    return false
+  }
+  return true
+}
+/**
+ * Meeschrijver: mag vastleggen wat er gebeurd is — memo's, foto's,
+ * aandachtspunten, afvinken — maar niet aan de inrichting van het portfolio
+ * komen en niets doen wat AI-tegoed kost.
+ */
+function requireWriter(req, res) {
+  if (req.role !== 'owner' && req.role !== 'editor' && req.role !== 'writer') {
     sendJson(res, 403, { error: 'Je hebt alleen leesrechten voor dit portfolio.' })
     return false
   }
@@ -1239,6 +1259,8 @@ add('GET', /^\/api\/state$/, (req, res) => {
       ownerEmail: userEmail(acc),
       email: userEmail(req.userId),
       role: req.role,
+      // Nodig om te bepalen welke memo's van jou zijn (meeschrijver).
+      userId: req.userId,
       isAdmin: isAdminUser(req.userId),
       ...settings,
     },
@@ -1833,7 +1855,7 @@ add('PATCH', /^\/api\/events\/([^/]+)$/, async (req, res, m) => {
 
 const DATUM_RE = /^\d{4}-\d{2}-\d{2}$/
 add('POST', /^\/api\/events\/([^/]+)\/done$/, async (req, res, m) => {
-  if (!requireEditor(req, res)) return
+  if (!requireWriter(req, res)) return
   const ev = db.prepare('SELECT id FROM events WHERE id = ? AND account_id = ?').get(m[1], req.accountId)
   if (!ev) return sendJson(res, 404, { error: 'niet gevonden' })
   const body = await readJson(req)
@@ -1881,7 +1903,7 @@ function copyPhotos(ids, accountId) {
 }
 
 add('POST', /^\/api\/memos$/, async (req, res) => {
-  if (!requireEditor(req, res)) return
+  if (!requireWriter(req, res)) return
   const body = await readJson(req)
   // Eén of meerdere kinderen: childIds heeft voorrang, anders losse childId.
   const childIds = Array.isArray(body.childIds) && body.childIds.length
@@ -1912,10 +1934,11 @@ add('POST', /^\/api\/memos$/, async (req, res) => {
     const memo = {
       id: uid(), child_id: cid, date, text, subjects,
       photo_ids: JSON.stringify(photoIds), draft, mood,
+      author_id: req.userId,
       created_at: now(), updated_at: now(),
     }
-    db.prepare('INSERT INTO memos (id,account_id,child_id,date,text,subjects,photo_ids,draft,mood,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?)')
-      .run(memo.id, req.accountId, memo.child_id, memo.date, memo.text, memo.subjects, memo.photo_ids, memo.draft, memo.mood, memo.created_at, memo.updated_at)
+    db.prepare('INSERT INTO memos (id,account_id,child_id,date,text,subjects,photo_ids,draft,mood,author_id,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)')
+      .run(memo.id, req.accountId, memo.child_id, memo.date, memo.text, memo.subjects, memo.photo_ids, memo.draft, memo.mood, memo.author_id, memo.created_at, memo.updated_at)
     // Aandachtspunt + "voor later" uit de reflectie vastleggen voor dit kind.
     syncMemoFocus(memo.id, cid, req.accountId, body)
     // Gekoppelde leermiddelen (zelfde voor elk gekozen kind).
@@ -1932,8 +1955,11 @@ add('POST', /^\/api\/memos$/, async (req, res) => {
 })
 
 add('PATCH', /^\/api\/memos\/([^/]+)$/, async (req, res, m) => {
-  if (!requireEditor(req, res)) return
+  if (!requireWriter(req, res)) return
   const existing = db.prepare('SELECT * FROM memos WHERE id = ? AND account_id = ?').get(m[1], req.accountId)
+  if (existing && !magMemoBewerken(req, existing)) {
+    return sendJson(res, 403, { error: 'Je kunt alleen je eigen memo’s aanpassen.' })
+  }
   if (!existing) return sendJson(res, 404, { error: 'niet gevonden' })
   const body = await readJson(req)
   const date = body.date != null ? body.date : existing.date
@@ -1961,8 +1987,11 @@ add('PATCH', /^\/api\/memos\/([^/]+)$/, async (req, res, m) => {
 })
 
 add('DELETE', /^\/api\/memos\/([^/]+)$/, (req, res, m) => {
-  if (!requireEditor(req, res)) return
-  const existing = db.prepare('SELECT photo_ids FROM memos WHERE id = ? AND account_id = ?').get(m[1], req.accountId)
+  if (!requireWriter(req, res)) return
+  const existing = db.prepare('SELECT photo_ids, author_id FROM memos WHERE id = ? AND account_id = ?').get(m[1], req.accountId)
+  if (existing && !magMemoBewerken(req, existing)) {
+    return sendJson(res, 403, { error: 'Je kunt alleen je eigen memo’s verwijderen.' })
+  }
   if (existing) {
     deletePhotoFiles(existing.photo_ids ? JSON.parse(existing.photo_ids) : [])
     db.prepare('DELETE FROM memos WHERE id = ?').run(m[1])
@@ -1988,6 +2017,17 @@ add('POST', /^\/api\/memos\/([^/]+)\/like$/, (req, res, m) => {
 })
 
 // Namen van iedereen die deze memo leuk vindt (oudste eerst).
+/**
+ * Mag deze gebruiker deze memo aanpassen of weghalen? Een meeschrijver alleen
+ * de memo's die hij zelf schreef; een gezinslid en de eigenaar alles. Memo's
+ * van vóór de auteurskolom hebben geen auteur — die blijven voor een
+ * meeschrijver op slot, want we weten niet van wie ze zijn.
+ */
+function magMemoBewerken(req, memo) {
+  if (req.role === 'owner' || req.role === 'editor') return true
+  return !!memo.author_id && memo.author_id === req.userId
+}
+
 function memoLikers(memoId) {
   return db
     .prepare(
@@ -2000,7 +2040,7 @@ function memoLikers(memoId) {
 
 // --- Aandachtspunten (focus points) ---
 add('POST', /^\/api\/focus$/, async (req, res) => {
-  if (!requireEditor(req, res)) return
+  if (!requireWriter(req, res)) return
   const body = await readJson(req)
   const child = db.prepare('SELECT id FROM children WHERE id = ? AND account_id = ?').get(body.childId, req.accountId)
   if (!child) return sendJson(res, 404, { error: 'kind niet gevonden' })
@@ -2020,7 +2060,7 @@ add('POST', /^\/api\/focus$/, async (req, res) => {
 })
 
 add('PATCH', /^\/api\/focus\/([^/]+)$/, async (req, res, m) => {
-  if (!requireEditor(req, res)) return
+  if (!requireWriter(req, res)) return
   const existing = db.prepare('SELECT * FROM focus_points WHERE id = ? AND account_id = ?').get(m[1], req.accountId)
   if (!existing) return sendJson(res, 404, { error: 'niet gevonden' })
   const body = await readJson(req)
@@ -2032,7 +2072,7 @@ add('PATCH', /^\/api\/focus\/([^/]+)$/, async (req, res, m) => {
 })
 
 add('DELETE', /^\/api\/focus\/([^/]+)$/, (req, res, m) => {
-  if (!requireEditor(req, res)) return
+  if (!requireWriter(req, res)) return
   const fp = db.prepare('SELECT id FROM focus_points WHERE id = ? AND account_id = ?').get(m[1], req.accountId)
   if (!fp) return sendJson(res, 404, { error: 'niet gevonden' })
   db.prepare('DELETE FROM event_focus WHERE focus_id = ?').run(m[1])
@@ -2269,7 +2309,7 @@ const ALLOWED_IMAGE_MIME = new Set([
   'image/jpeg', 'image/png', 'image/webp', 'image/gif', 'image/heic', 'image/heif',
 ])
 add('POST', /^\/api\/photos$/, async (req, res) => {
-  if (!requireEditor(req, res)) return
+  if (!requireWriter(req, res)) return
   if (!rateLimit('upload:' + req.userId, 300, 10 * 60 * 1000)) {
     return sendJson(res, 429, { error: 'Te veel uploads achter elkaar. Probeer het zo weer.' })
   }
@@ -2309,7 +2349,7 @@ add('GET', /^\/api\/photos\/([^/]+)$/, (req, res, m) => {
 })
 
 add('DELETE', /^\/api\/photos\/([^/]+)$/, (req, res, m) => {
-  if (!requireEditor(req, res)) return
+  if (!requireWriter(req, res)) return
   const row = db.prepare('SELECT id FROM photos WHERE id = ? AND account_id = ?').get(m[1], req.accountId)
   if (row) deletePhotoFiles([m[1]])
   sendJson(res, 200, { ok: true })
@@ -3342,8 +3382,9 @@ add('POST', /^\/api\/invite$/, async (req, res) => {
   if (email === userEmail(req.userId)) {
     return sendJson(res, 400, { error: 'Je kunt jezelf niet uitnodigen.' })
   }
-  // 'editor' = medeouder (mag bewerken), anders 'commenter' = meelezer (read-only).
-  const role = body.role === 'editor' ? 'editor' : 'commenter'
+  // gezinslid (editor) · meeschrijver (writer) · meelezer (commenter)
+  const role =
+    body.role === 'editor' ? 'editor' : body.role === 'writer' ? 'writer' : 'commenter'
   const owner = userEmail(req.userId)
   const existingUser = db.prepare('SELECT id FROM users WHERE email = ?').get(email)
   if (existingUser) {

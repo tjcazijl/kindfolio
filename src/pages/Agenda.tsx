@@ -8,7 +8,7 @@ import { todayISO, toISODate, formatDateShort } from '../utils/dates'
 
 export function Agenda() {
   const navigate = useNavigate()
-  const { events, children, focusPoints, canEdit, reload } = useData()
+  const { events, children, focusPoints, canEdit, canWrite, reload } = useData()
 
   const today = todayISO()
   const tomorrow = useMemo(() => {
@@ -194,7 +194,7 @@ export function Agenda() {
                   📌
                 </button>
               )}
-              {canEdit && (
+              {canWrite && (
                 <button
                   className="agenda-memo-btn"
                   aria-label="Notitie maken"

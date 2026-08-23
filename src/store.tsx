@@ -82,8 +82,13 @@ interface DataContextValue {
   authRequired: boolean
   accountEmail: string | null
   isAdmin: boolean
-  role: 'owner' | 'editor' | 'commenter'
+  role: 'owner' | 'editor' | 'writer' | 'commenter'
+  /** Mag de inrichting aanpassen: instellingen, kinderen, leermiddelen, AI. */
   canEdit: boolean
+  /** Mag vastleggen: memo's, foto's, aandachtspunten, afvinken. */
+  canWrite: boolean
+  /** Eigen gebruiker, om te zien welke memo's van jou zijn. */
+  userId: string | null
   isOwner: boolean
   ownerEmail: string | null
   accountId: string | null
@@ -175,7 +180,10 @@ export function DataProvider({ children }: { children: ReactNode }) {
   const [authRequired, setAuthRequired] = useState(false)
   const [accountEmail, setAccountEmail] = useState<string | null>(null)
   const [isAdmin, setIsAdmin] = useState(false)
-  const [role, setRole] = useState<'owner' | 'editor' | 'commenter'>('owner')
+  const [role, setRole] = useState<'owner' | 'editor' | 'writer' | 'commenter'>(
+    'owner',
+  )
+  const [userId, setUserId] = useState<string | null>(null)
   const [ownerEmail, setOwnerEmail] = useState<string | null>(null)
   const [accountId, setAccountId] = useState<string | null>(null)
   const [accounts, setAccounts] = useState<AccountAccess[]>([])
@@ -208,6 +216,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
       setAccountEmail(state.account?.email ?? null)
       setIsAdmin(!!state.account?.isAdmin)
       setRole(state.account?.role ?? 'owner')
+      setUserId(state.account?.userId ?? null)
       setOwnerEmail(state.account?.ownerEmail ?? null)
       setAccountId(state.account?.id ?? null)
       setSubjects(state.account?.subjects ?? [])
@@ -297,6 +306,8 @@ export function DataProvider({ children }: { children: ReactNode }) {
     isAdmin,
     role,
     canEdit: role === 'owner' || role === 'editor',
+    canWrite: role === 'owner' || role === 'editor' || role === 'writer',
+    userId,
     isOwner: role === 'owner',
     ownerEmail,
     accountId,

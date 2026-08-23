@@ -39,6 +39,7 @@ export function ChildTimeline() {
     loading,
     updateChild,
     canEdit,
+    canWrite,
     subjects: accountSubjects,
     subcategories: accountSubcats,
     kerndoelenEnabled,
@@ -178,7 +179,7 @@ export function ChildTimeline() {
           </div>
         </div>
 
-        {canEdit ? (
+        {canWrite ? (
           <div className="child-actions">
             <button
               className="child-act primary"
@@ -303,7 +304,7 @@ export function ChildTimeline() {
               </span>
             </div>
             {dayMemos.map((m) => (
-              <MemoCard key={m.id} memo={m} child={child} canEdit={canEdit} />
+              <MemoCard key={m.id} memo={m} child={child} canEdit={canWrite} />
             ))}
           </div>
         ))}

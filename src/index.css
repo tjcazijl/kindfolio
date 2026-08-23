@@ -3012,3 +3012,9 @@ body {
   width: 70px;
   flex: none;
 }
+
+/* Uitleg onder de rolkeuze bij het uitnodigen. */
+.rol-uitleg {
+  margin-top: 6px;
+  min-height: 2.6em;
+}

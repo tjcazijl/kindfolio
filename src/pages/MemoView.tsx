@@ -10,7 +10,7 @@ import { RESOURCE_META, normalizeUrl, displayUrl } from '../utils/resources'
 export function MemoView() {
   const { childId, memoId } = useParams()
   const navigate = useNavigate()
-  const { memos, resources, loading, canEdit } = useData()
+  const { memos, resources, loading, canWrite, userId, role } = useData()
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null)
 
   const memo = memos.find((m) => m.id === memoId)
@@ -90,7 +90,7 @@ export function MemoView() {
         </div>
       )}
 
-      {canEdit && (
+      {canWrite && (role !== 'writer' || memo.authorId === userId) && (
         <button
           className="btn primary full big edit-cta"
           onClick={() => navigate(`/kind/${childId}/memo/${memoId}/bewerken`)}
