@@ -17,7 +17,7 @@ import { formatDateMonth } from '../utils/dates'
  * paar honderd memo's stuk voor stuk langslopen doet niemand.
  */
 export function KerndoelenOverzicht() {
-  const { children, kerndoelen, kerndoelenAi, canEdit } = useData()
+  const { children, kerndoelen, kerndoelLinks, kerndoelenAi, canEdit } = useData()
   const navigate = useNavigate()
   const [open, setOpen] = useState<string>(children[0]?.id || '')
 
@@ -25,32 +25,61 @@ export function KerndoelenOverzicht() {
   const kind = children.find((c) => c.id === open) || children[0]
   if (!kind) return <p className="empty-note">Voeg eerst een kind toe.</p>
 
+  // Eén regel per kind: hoeveel kerndoelen zijn er in totaal geraakt. Zo zie je
+  // in één oogopslag hoe iedereen ervoor staat, zonder per kind te klikken.
+  const standen = children.map((c) => {
+    const set = c.kerndoelenSet
+    const doelen = (kerndoelen[set] || []).filter((k) => !k.school)
+    const geraakt = new Set(
+      kerndoelLinks
+        .filter((l) => l.childId === c.id && l.set === set && l.status === 'ok')
+        .map((l) => l.nr),
+    )
+    const open = new Set(
+      kerndoelLinks
+        .filter((l) => l.childId === c.id && l.set === set && l.status === 'open')
+        .map((l) => l.nr),
+    )
+    return { kind: c, set, geraakt: geraakt.size, totaal: doelen.length, open: open.size }
+  })
+
   return (
     <>
       {children.length > 1 && (
-        <div className="chips" style={{ marginBottom: 12 }}>
-          {children.map((c) => (
+        <section className="card-section">
+          <h2>Hoe ver is iedereen?</h2>
+          {standen.map((s) => (
             <button
-              key={c.id}
+              key={s.kind.id}
               type="button"
-              className={`chip child-chip ${c.id === kind.id ? 'on' : ''}`}
-              onClick={() => setOpen(c.id)}
+              className={`kd-kindregel${s.kind.id === kind.id ? ' on' : ''}`}
+              onClick={() => setOpen(s.kind.id)}
             >
-              <span
-                className="avatar xs"
-                style={{
-                  background: c.id === kind.id ? '#fff' : c.color,
-                  color: c.id === kind.id ? c.color : '#fff',
-                }}
-              >
-                {c.name.charAt(0).toUpperCase()}
+              <span className="avatar xs" style={{ background: s.kind.color }}>
+                {s.kind.name.charAt(0).toUpperCase()}
               </span>
-              {c.name}
+              <span className="kd-kindregel-nm">
+                {s.kind.name}
+                <span className={`kd-set ${s.set}`}>{SET_KORT[s.set]}</span>
+              </span>
+              <span className={`kd-bar ${s.set}`}>
+                <i style={{ width: `${s.totaal ? (s.geraakt / s.totaal) * 100 : 0}%` }} />
+              </span>
+              <span className="kd-kindregel-n">
+                {s.geraakt}/{s.totaal}
+              </span>
+              {s.open > 0 && (
+                <span className="kd-kindregel-open" title="voorstellen om na te kijken">
+                  {s.open} ✨
+                </span>
+              )}
             </button>
           ))}
-        </div>
+          <p className="hint">
+            Tik op een kind voor de verdeling per leergebied.
+          </p>
+        </section>
       )}
-
       <KindOverzicht key={kind.id} kind={kind} />
 
       {kerndoelenAi && canEdit && (

@@ -2964,3 +2964,51 @@ body {
 .today-item.af .today-memo {
   opacity: 0.55;
 }
+
+/* Eén regel per kind met de totale kerndoelenstand. */
+.kd-kindregel {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 10px 12px;
+  margin-bottom: 6px;
+  border: 1.5px solid var(--line);
+  border-radius: 12px;
+  background: #fff;
+  font: inherit;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.kd-kindregel.on {
+  border-color: var(--green);
+}
+.kd-kindregel-nm {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex: 1;
+  min-width: 0;
+  font-weight: 600;
+  font-size: 15px;
+}
+.kd-kindregel-n {
+  font-size: 13px;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.kd-kindregel-open {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--kd-ai);
+  background: var(--kd-ai-bg);
+  border-radius: 99px;
+  padding: 2px 7px;
+  white-space: nowrap;
+}
+.kd-kindregel .kd-bar {
+  width: 70px;
+  flex: none;
+}

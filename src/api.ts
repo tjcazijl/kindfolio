@@ -624,6 +624,7 @@ export interface SummaryParams {
   includePhotos: boolean // foto's naar de AI sturen
   withPhotos?: boolean // foto's zichtbaar bij de samenvatting bewaren
   withBooks?: boolean // gelezen boeken uit de periode onderaan toevoegen
+  withKerndoelen?: boolean // kerndoelen + stand onderaan toevoegen
   subject?: string
   ai?: boolean
 }

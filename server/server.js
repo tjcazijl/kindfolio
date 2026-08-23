@@ -2671,6 +2671,55 @@ ${memoText}`
     }
   }
 
+  // Kerndoelen onderaan de samenvatting: wat er in deze periode langskwam, en
+  // hoe het kind ervoor staat. Alleen wat de ouder bevestigd heeft telt mee —
+  // een AI-voorstel dat nog niet nagekeken is hoort niet in een verslag.
+  if (body.withKerndoelen && accountSettings(req.accountId).kerndoelenEnabled) {
+    const set = KD_SETS.has(child.kerndoelen_set) ? child.kerndoelen_set : 'po'
+    const lijst = KERNDOELEN[set] || []
+    const bevestigd = db
+      .prepare(
+        `SELECT kd_nr, carrier_type, carrier_id FROM kerndoel_links
+         WHERE account_id = ? AND child_id = ? AND kd_set = ? AND status = 'ok'`,
+      )
+      .all(req.accountId, child.id, set)
+    if (bevestigd.length) {
+      // In deze periode: alleen wat aan een memo binnen het bereik hangt.
+      const inPeriode = new Map()
+      for (const l of bevestigd) {
+        if (l.carrier_type !== 'memo') continue
+        const mm = db.prepare('SELECT date FROM memos WHERE id = ?').get(l.carrier_id)
+        if (!mm || mm.date < start || mm.date > end) continue
+        inPeriode.set(l.kd_nr, (inPeriode.get(l.kd_nr) || 0) + 1)
+      }
+      const geraakt = new Set(bevestigd.map((l) => l.kd_nr))
+      text += `\n\n## Kerndoelen\n`
+      text += `*${set === 'vo' ? 'Onderbouw voortgezet onderwijs' : 'Primair onderwijs'} — SLO. Alleen wat wij zelf bevestigd hebben.*\n`
+      if (inPeriode.size) {
+        text += `\n**In deze periode**\n`
+        for (const nr of [...inPeriode.keys()].sort((a, b) => a - b)) {
+          const k = lijst.find((x) => x.nr === nr)
+          if (!k) continue
+          const n = inPeriode.get(nr)
+          // Zonder "De leerling" ervoor, maar wel met een hoofdletter en zonder punt.
+          const kort = k.t.replace(/^De leerling /, '').replace(/\.$/, '')
+          text += `- ${nr} · ${kort.charAt(0).toUpperCase()}${kort.slice(1)} (${n} memo${n > 1 ? "'s" : ''})\n`
+        }
+      }
+      // Stand per leergebied over alles wat er ooit is vastgelegd.
+      const perLg = new Map()
+      for (const k of lijst) {
+        if (k.school) continue
+        const r = perLg.get(k.lg) || { geraakt: 0, totaal: 0 }
+        r.totaal++
+        if (geraakt.has(k.nr)) r.geraakt++
+        perLg.set(k.lg, r)
+      }
+      text += `\n**Stand tot nu toe**\n`
+      for (const [lg, r] of perLg) text += `- ${lg}: ${r.geraakt} van ${r.totaal}\n`
+    }
+  }
+
   // Foto's zichtbaar meenemen in de samenvatting (en dus in de PDF).
   const visiblePhotos = body.withPhotos
     ? memos.flatMap((mm) => mm.photoIds).slice(0, 60)

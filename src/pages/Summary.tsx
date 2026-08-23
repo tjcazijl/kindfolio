@@ -71,6 +71,7 @@ export function Summary() {
   const [subject, setSubject] = useState<string>('')
   const [withPhotos, setWithPhotos] = useState(false)
   const [withBooks, setWithBooks] = useState(false)
+  const [withKerndoelen, setWithKerndoelen] = useState(false)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [expandedId, setExpandedId] = useState<string | null>(null)
@@ -196,6 +197,7 @@ export function Summary() {
         includePhotos: false,
         withPhotos,
         withBooks,
+        withKerndoelen,
         subject: subject || undefined,
         ai: aiEnabled,
       })
@@ -479,6 +481,16 @@ export function Summary() {
             />
             📚 Gelezen boeken uit deze periode onderaan toevoegen
           </label>
+          {kerndoelenEnabled && (
+            <label className="checkbox-row">
+              <input
+                type="checkbox"
+                checked={withKerndoelen}
+                onChange={(e) => setWithKerndoelen(e.target.checked)}
+              />
+              🎯 Kerndoelen en de stand per leergebied onderaan toevoegen
+            </label>
+          )}
           <button
             className="btn primary full big"
             disabled={
