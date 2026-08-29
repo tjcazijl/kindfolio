@@ -4,13 +4,20 @@ import { useData } from '../store'
 import { PhotoThumb } from '../components/PhotoThumb'
 import { Lightbox } from '../components/Lightbox'
 import { Comments } from '../components/Comments'
+import { documentUrl } from '../api'
+
+/** "1,4 MB" of "820 kB" — leesbaar in plaats van een berg bytes. */
+function docGrootte(bytes: number): string {
+  if (bytes >= 1024 * 1024) return `${(bytes / 1024 / 1024).toFixed(1).replace('.', ',')} MB`
+  return `${Math.max(1, Math.round(bytes / 1024))} kB`
+}
 import { formatDateLong } from '../utils/dates'
 import { RESOURCE_META, normalizeUrl, displayUrl } from '../utils/resources'
 
 export function MemoView() {
   const { childId, memoId } = useParams()
   const navigate = useNavigate()
-  const { memos, resources, loading, canWrite, userId, role } = useData()
+  const { memos, resources, documents, loading, canWrite, userId, role } = useData()
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null)
 
   const memo = memos.find((m) => m.id === memoId)
@@ -90,12 +97,53 @@ export function MemoView() {
         </div>
       )}
 
+      {memo.documentIds.length > 0 && (
+        <div className="field">
+          <span className="field-label">Bijlagen</span>
+          <ul className="doc-lijst">
+            {memo.documentIds.map((id) => {
+              const d = documents.find((x) => x.id === id)
+              return (
+                <li key={id} className="doc-rij">
+                  <a className="doc-naam" href={documentUrl(id)} target="_blank" rel="noreferrer">
+                    📄 {d ? d.name : 'Document'}
+                  </a>
+                  {d && <span className="doc-grootte">{docGrootte(d.size)}</span>}
+                </li>
+              )
+            })}
+          </ul>
+        </div>
+      )}
+
       {canWrite && (role !== 'writer' || memo.authorId === userId) && (
         <button
           className="btn primary full big edit-cta"
           onClick={() => navigate(`/kind/${childId}/memo/${memoId}/bewerken`)}
         >
           ✏️ Bewerken
+        </button>
+      )}
+      {canWrite && (
+        <button
+          className="btn outline full white-bg"
+          onClick={() =>
+            // Als nieuwe memo openen met dezelfde inhoud, op de datum van vandaag.
+            navigate('/memo/nieuw', {
+              state: {
+                eventPrefill: {
+                  kopieVan: memo.id,
+                  childIds: [memo.childId],
+                  subjects: memo.subjects,
+                  tekst: memo.text,
+                  resourceIds: memo.resourceIds,
+                  mood: memo.mood,
+                },
+              },
+            })
+          }
+        >
+          ⧉ Kopiëren naar een nieuwe memo
         </button>
       )}
 

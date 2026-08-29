@@ -1,4 +1,50 @@
-import type { Resource, ResourceType, ResourceStatus } from '../types'
+import type {
+  Resource,
+  ResourceType,
+  ResourceStatus,
+  ResourceMode,
+} from '../types'
+
+/**
+ * Hoe een leesboek tot je komt. De drie statussen blijven hetzelfde; alleen de
+ * woorden veranderen mee, zodat "geluisterd" er staat als het een luisterboek
+ * is in plaats van "gelezen".
+ */
+export const MODE_META: Record<ResourceMode, { label: string; icon: string }> = {
+  lezen: { label: 'Zelf lezen', icon: '📖' },
+  voorlezen: { label: 'Voorlezen', icon: '🗣️' },
+  luisteren: { label: 'Luisterboek', icon: '🎧' },
+}
+export const MODE_ORDER: ResourceMode[] = ['lezen', 'voorlezen', 'luisteren']
+
+// Statuslabels per manier. Alleen leesboeken kennen een manier.
+const STATUS_PER_MODE: Record<ResourceMode, Record<string, string>> = {
+  lezen: { te_lezen: 'Te lezen', bezig: 'Aan het lezen', gelezen: 'Gelezen' },
+  voorlezen: {
+    te_lezen: 'Voor te lezen',
+    bezig: 'Aan het voorlezen',
+    gelezen: 'Voorgelezen',
+  },
+  luisteren: {
+    te_lezen: 'Te luisteren',
+    bezig: 'Aan het luisteren',
+    gelezen: 'Geluisterd',
+  },
+}
+
+/** Het label van een status, aangepast aan de manier van een leesboek. */
+export function statusLabel(r: {
+  type: ResourceType
+  status?: ResourceStatus
+  mode?: ResourceMode
+}): string {
+  if (!r.status) return ''
+  if (r.type === 'leesboek') {
+    const perMode = STATUS_PER_MODE[r.mode || 'lezen']
+    if (perMode && perMode[r.status]) return perMode[r.status]
+  }
+  return STATUS_META[r.status].label
+}
 
 export const RESOURCE_META: Record<
   ResourceType,

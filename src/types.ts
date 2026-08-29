@@ -72,6 +72,7 @@ export interface Memo {
   text: string
   subjects: string[]
   photoIds: string[]
+  documentIds: string[] // bijlagen: pdf, word, powerpoint
   resourceIds: string[] // gekoppelde leermiddelen
   authorId?: string // wie de memo schreef
   draft?: boolean
@@ -90,6 +91,9 @@ export type ResourceType =
   | 'video'
   | 'app'
   | 'overig'
+/** Hoe een leesboek tot je komt: zelf lezen, voorgelezen of geluisterd. */
+export type ResourceMode = 'lezen' | 'voorlezen' | 'luisteren'
+
 export type ResourceStatus =
   | 'te_lezen'
   | 'bezig'
@@ -105,6 +109,7 @@ export interface Resource {
   url?: string
   subjects: string[]
   status?: ResourceStatus // alleen bij boeken
+  mode?: ResourceMode // alleen bij leesboeken
   readDate?: string // YYYY-MM-DD, wanneer gelezen/afgerond
   notes?: string
   childIds: string[] // leeg = gezinsbreed
@@ -124,6 +129,15 @@ export interface FocusPoint {
   linkKind?: 'attention' | 'later'
   createdAt: number
   updatedAt: number
+}
+
+/** Een bijlage bij een memo. */
+export interface DocumentFile {
+  id: string
+  name: string
+  mime: string
+  size: number
+  createdAt: number
 }
 
 export interface Photo {

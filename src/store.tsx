@@ -11,6 +11,7 @@ import type {
   AgendaEvent,
   Child,
   Comment,
+  DocumentFile,
   FocusPoint,
   Kerndoel,
   KerndoelCarrier,
@@ -77,6 +78,7 @@ interface DataContextValue {
   periods: Period[]
   /** Afgevinkte agendadagen, als "eventId|datum". */
   eventDone: Set<string>
+  documents: DocumentFile[]
   loading: boolean
   error: string | null
   authRequired: boolean
@@ -175,6 +177,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
   const [resources, setResources] = useState<Resource[]>([])
   const [periods, setPeriods] = useState<Period[]>([])
   const [eventDone, setEventDone] = useState<Set<string>>(new Set())
+  const [documents, setDocuments] = useState<DocumentFile[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [authRequired, setAuthRequired] = useState(false)
@@ -213,6 +216,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
       setResources(state.resources || [])
       setPeriods(state.periods || [])
       setEventDone(new Set(state.eventDone || []))
+      setDocuments(state.documents || [])
       setAccountEmail(state.account?.email ?? null)
       setIsAdmin(!!state.account?.isAdmin)
       setRole(state.account?.role ?? 'owner')
@@ -299,6 +303,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
     resources,
     periods,
     eventDone,
+    documents,
     loading,
     error,
     authRequired,

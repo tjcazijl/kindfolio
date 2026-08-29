@@ -3,6 +3,9 @@ import { useLocation, useNavigate, useParams } from 'react-router-dom'
 import { useData } from '../store'
 import {
   deletePhoto,
+  deleteDocument,
+  documentUrl,
+  uploadDocument,
   describePhotos,
   fetchPhotoBlob,
   rotateImageBlob,
@@ -21,6 +24,12 @@ import { MOODS } from '../utils/mood'
 import { RESOURCE_META, isInGebruik, isNogTeLezen } from '../utils/resources'
 import type { MoodKey } from '../types'
 
+/** "1,4 MB" of "820 kB" — leesbaar in plaats van een berg bytes. */
+function docGrootte(bytes: number): string {
+  if (bytes >= 1024 * 1024) return `${(bytes / 1024 / 1024).toFixed(1).replace('.', ',')} MB`
+  return `${Math.max(1, Math.round(bytes / 1024))} kB`
+}
+
 export function MemoEditor() {
   const { childId, memoId } = useParams()
   const navigate = useNavigate()
@@ -34,6 +43,7 @@ export function MemoEditor() {
     subcategories,
     focusPoints,
     resources,
+    documents,
     saveSettings,
     updateChild,
     photoAiEnabled,
@@ -60,6 +70,11 @@ export function MemoEditor() {
         subjects?: string[]
         /** Waar je heen wilt na opslaan of annuleren; leeg = de gewone route. */
         terugNaar?: string
+        // Bij het kopiëren van een bestaande memo: de inhoud die mee mag.
+        kopieVan?: string
+        tekst?: string
+        resourceIds?: string[]
+        mood?: MoodKey
       }
     | undefined
 
@@ -75,7 +90,7 @@ export function MemoEditor() {
   )
   const [date, setDate] = useState(existing?.date || prefill?.date || todayISO())
   const [text, setText] = useState(
-    existing?.text || (prefill?.title ? `${prefill.title}: ` : ''),
+    existing?.text || prefill?.tekst || (prefill?.title ? `${prefill.title}: ` : ''),
   )
   const [subjects, setSubjects] = useState<string[]>(
     existing?.subjects || prefill?.subjects || [],
@@ -89,8 +104,15 @@ export function MemoEditor() {
   // Gekoppelde leermiddelen.
   const [teLezenOpen, setTeLezenOpen] = useState(false)
   const [resourceIds, setResourceIds] = useState<string[]>(
-    existing?.resourceIds || [],
+    existing?.resourceIds || prefill?.resourceIds || [],
   )
+  // Bijlagen: een werkstuk, presentatie of uitgewerkt blad bij deze memo.
+  const [documentIds, setDocumentIds] = useState<string[]>(
+    existing?.documentIds || [],
+  )
+  const [docBezig, setDocBezig] = useState(false)
+  const [docFout, setDocFout] = useState<string | null>(null)
+  const docInput = useRef<HTMLInputElement>(null)
   // Kerndoelen: alleen de bevestigde. AI-voorstellen worden in de Terugblik
   // nagekeken, niet hier — dat zou het schrijven van een memo in de weg zitten.
   const [kerndoelen, setKerndoelenKeuze] = useState<KerndoelKeuze[]>(() =>
@@ -99,7 +121,7 @@ export function MemoEditor() {
       .map((l) => ({ childId: l.childId, set: l.set, nr: l.nr })),
   )
   // Reflectie ("Hoe ging het?") — standaard dichtgeklapt tenzij al ingevuld.
-  const [mood, setMood] = useState<MoodKey | undefined>(existing?.mood)
+  const [mood, setMood] = useState<MoodKey | undefined>(existing?.mood || prefill?.mood)
   const [attentionFor, setAttentionFor] = useState<string[] | null>(null)
   const [followupFor, setFollowupFor] = useState<string[] | null>(null)
   const [attentionText, setAttentionText] = useState(existingAttention?.text || '')
@@ -352,6 +374,7 @@ export function MemoEditor() {
           text: text.trim(),
           subjects,
           photoIds,
+          documentIds,
           resourceIds,
           draft: asDraft,
           ...reflection,
@@ -364,6 +387,7 @@ export function MemoEditor() {
           text: text.trim(),
           subjects,
           photoIds,
+          documentIds,
           resourceIds,
           draft: asDraft,
           ...reflection,
@@ -513,8 +537,17 @@ export function MemoEditor() {
         <button className="link-btn" onClick={cancel}>
           ‹ Annuleren
         </button>
-        <span className="topbar-title">{isNew ? 'Nieuwe memo' : 'Memo'}</span>
+        <span className="topbar-title">
+          {isNew ? (prefill?.kopieVan ? 'Kopie van een memo' : 'Nieuwe memo') : 'Memo'}
+        </span>
       </div>
+
+      {prefill?.kopieVan && (
+        <div className="banner">
+          Dit is een kopie. De tekst en de koppelingen zijn overgenomen, de datum
+          staat op vandaag. Foto's gaan niet mee.
+        </div>
+      )}
 
       {isNew && children.length > 0 && (
         <div className="field">
@@ -647,6 +680,80 @@ export function MemoEditor() {
             🖼️ Uit bibliotheek
           </button>
         </div>
+      </div>
+
+      <div className="field">
+        <span className="field-label">
+          Bijlagen <span className="fl-opt">(optioneel)</span>
+        </span>
+        {documentIds.length > 0 && (
+          <ul className="doc-lijst">
+            {documentIds.map((id) => {
+              const d = documents.find((x) => x.id === id)
+              return (
+                <li key={id} className="doc-rij">
+                  <a
+                    className="doc-naam"
+                    href={documentUrl(id)}
+                    target="_blank"
+                    rel="noreferrer"
+                  >
+                    📄 {d ? d.name : 'Document'}
+                  </a>
+                  {d && <span className="doc-grootte">{docGrootte(d.size)}</span>}
+                  <button
+                    type="button"
+                    className="doc-weg"
+                    aria-label="Bijlage weghalen"
+                    onClick={async () => {
+                      setDocumentIds((prev) => prev.filter((x) => x !== id))
+                      // Nog niet opgeslagen? Dan het bestand meteen opruimen.
+                      if (!existing?.documentIds?.includes(id)) {
+                        try { await deleteDocument(id) } catch {}
+                      }
+                    }}
+                  >
+                    ✕
+                  </button>
+                </li>
+              )
+            })}
+          </ul>
+        )}
+        <input
+          ref={docInput}
+          type="file"
+          accept=".pdf,.doc,.docx,.ppt,.pptx,.xls,.xlsx,.odt,.odp,.ods,.txt"
+          style={{ display: 'none' }}
+          onChange={async (e) => {
+            const file = e.target.files?.[0]
+            e.target.value = ''
+            if (!file) return
+            setDocFout(null)
+            setDocBezig(true)
+            try {
+              const d = await uploadDocument(file)
+              setDocumentIds((prev) => [...prev, d.id])
+              await reload()
+            } catch (err: any) {
+              setDocFout(err?.message || 'Uploaden mislukt')
+            } finally {
+              setDocBezig(false)
+            }
+          }}
+        />
+        <button
+          type="button"
+          className="btn outline full"
+          disabled={docBezig}
+          onClick={() => docInput.current?.click()}
+        >
+          {docBezig ? '⏳ Uploaden…' : '📎 Document toevoegen'}
+        </button>
+        {docFout && <p className="hint fout">{docFout}</p>}
+        <p className="hint">
+          PDF, Word, PowerPoint, Excel of tekst. Maximaal 15 MB per bestand.
+        </p>
       </div>
 
       <div className="field">

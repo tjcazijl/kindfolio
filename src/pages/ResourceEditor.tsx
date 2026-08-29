@@ -1,11 +1,13 @@
 import { useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { useData } from '../store'
-import type { ResourceStatus, ResourceType } from '../types'
+import type { ResourceMode, ResourceStatus, ResourceType } from '../types'
 import {
   RESOURCE_ORDER,
   RESOURCE_META,
-  STATUS_META,
+  MODE_META,
+  MODE_ORDER,
+  statusLabel,
   statusesForType,
   hasStatus,
   isBook,
@@ -37,6 +39,7 @@ export function ResourceEditor() {
   const [author, setAuthor] = useState(existing?.author || '')
   const [url, setUrl] = useState(existing?.url || '')
   const [status, setStatus] = useState<ResourceStatus | undefined>(existing?.status)
+  const [mode, setMode] = useState<ResourceMode>(existing?.mode || 'lezen')
   const [readDate, setReadDate] = useState(existing?.readDate || '')
   const [subjects, setSubjects] = useState<string[]>(existing?.subjects || [])
   const [notes, setNotes] = useState(existing?.notes || '')
@@ -84,6 +87,7 @@ export function ResourceEditor() {
         url: isBook(type) ? '' : url.trim(),
         subjects,
         status: hasStatus(type) ? status ?? null : null,
+        mode: type === 'leesboek' ? mode : null,
         readDate:
           hasStatus(type) && isFinished(status)
             ? readDate || todayISO()
@@ -173,6 +177,23 @@ export function ResourceEditor() {
               onChange={(e) => setAuthor(e.target.value)}
             />
           </label>
+          {type === 'leesboek' && (
+            <div className="field">
+              <span className="field-label">Hoe lezen jullie het?</span>
+              <div className="seg">
+                {MODE_ORDER.map((mo) => (
+                  <button
+                    key={mo}
+                    type="button"
+                    className={`seg-btn ${mode === mo ? 'on' : ''}`}
+                    onClick={() => setMode(mo)}
+                  >
+                    {MODE_META[mo].icon} {MODE_META[mo].label}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
           {statusOptions.length > 0 && (
             <div className="field">
               <span className="field-label">Status</span>
@@ -184,7 +205,7 @@ export function ResourceEditor() {
                     className={`seg-btn ${status === s ? 'on' : ''}`}
                     onClick={() => setStatus(s)}
                   >
-                    {STATUS_META[s].label}
+                    {statusLabel({ type, status: s, mode })}
                   </button>
                 ))}
               </div>
@@ -193,7 +214,13 @@ export function ResourceEditor() {
           {isFinished(status) && (
             <label className="field">
               <span className="field-label">
-                {type === 'leerboek' ? 'Afgerond op' : 'Gelezen op'}{' '}
+                {type === 'leerboek'
+                  ? 'Afgerond op'
+                  : mode === 'luisteren'
+                    ? 'Geluisterd op'
+                    : mode === 'voorlezen'
+                      ? 'Voorgelezen op'
+                      : 'Gelezen op'}{' '}
                 <span className="fl-opt">(optioneel)</span>
               </span>
               <input

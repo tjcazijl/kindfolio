@@ -6,6 +6,8 @@ import {
   RESOURCE_META,
   RESOURCE_ORDER,
   STATUS_META,
+  statusLabel,
+  MODE_META,
   statusesForType,
   isBook,
   isFinished,
@@ -110,15 +112,20 @@ export function Resources() {
                   className={`status-btn ${r.status === s ? 'on' : ''}`}
                   onClick={() => setStatus(r, s)}
                 >
-                  {STATUS_META[s].label}
+                  {statusLabel({ type: r.type, status: s, mode: r.mode })}
                 </button>
               ))}
             </div>
           )}
+          {r.type === 'leesboek' && r.mode && r.mode !== 'lezen' && (
+            <span className="res-mode" title={MODE_META[r.mode].label}>
+              {MODE_META[r.mode].icon} {MODE_META[r.mode].label}
+            </span>
+          )}
           {isBook(r.type) && r.status && !canEdit && (
             <div className="badges">
               <span className={`badge ${STATUS_META[r.status].cls}`}>
-                {STATUS_META[r.status].label}
+                {statusLabel(r)}
               </span>
             </div>
           )}

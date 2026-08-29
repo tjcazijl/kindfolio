@@ -105,6 +105,13 @@ db.exec(`
   CREATE TABLE IF NOT EXISTS photos (
     id TEXT PRIMARY KEY, account_id TEXT, mime TEXT, created_at INTEGER
   );
+  -- Documenten bij een memo: een werkstuk, een presentatie, een uitgewerkt blad.
+  -- Net als foto's versleuteld op schijf; de naam bewaren we apart omdat je die
+  -- terug wilt zien bij het downloaden.
+  CREATE TABLE IF NOT EXISTS documents (
+    id TEXT PRIMARY KEY, account_id TEXT, name TEXT, mime TEXT,
+    size INTEGER, created_at INTEGER
+  );
   CREATE TABLE IF NOT EXISTS summaries (
     id TEXT PRIMARY KEY, account_id TEXT, child_id TEXT NOT NULL,
     period TEXT, period_label TEXT, start TEXT, end TEXT,
@@ -288,6 +295,9 @@ for (const sql of [
   // Wie de memo schreef. Nodig om een meeschrijver alleen zijn eigen memo's te
   // laten verwijderen, en handig als een gezin samen bijhoudt.
   'ALTER TABLE memos ADD COLUMN author_id TEXT',
+  // Leesboek: zelf lezen, voorgelezen of geluisterd.
+  "ALTER TABLE resources ADD COLUMN mode TEXT",
+  'ALTER TABLE memos ADD COLUMN document_ids TEXT',
   // Meerdaagse agenda-items: een themaweek of een kamp loopt van date t/m
   // end_date. Staat los van until_date, dat het einde van een herhaling is.
   'ALTER TABLE events ADD COLUMN end_date TEXT',
@@ -496,6 +506,7 @@ const mapMemo = (r, resourceIds, likedBy) => ({
   id: r.id, childId: r.child_id, authorId: r.author_id || undefined, date: r.date, text: r.text || '',
   subjects: r.subjects ? JSON.parse(r.subjects) : [],
   photoIds: r.photo_ids ? JSON.parse(r.photo_ids) : [],
+  documentIds: r.document_ids ? JSON.parse(r.document_ids) : [],
   resourceIds: resourceIds || [],
   draft: !!r.draft,
   mood: r.mood || undefined,
@@ -522,8 +533,10 @@ const RESOURCE_STATUS_BY_TYPE = {
   leesboek: new Set(['te_lezen', 'bezig', 'gelezen']),
   leerboek: new Set(['in_gebruik', 'afgerond']),
 }
+const RESOURCE_MODES = new Set(['lezen', 'voorlezen', 'luisteren'])
 const mapResource = (r, childIds) => ({
   id: r.id, type: r.type || 'overig', title: r.title,
+  mode: r.mode || undefined,
   author: r.author || undefined, url: r.url || undefined,
   subjects: r.subjects ? JSON.parse(r.subjects) : r.subject ? [r.subject] : [],
   status: r.status || undefined,
@@ -613,6 +626,7 @@ const mapSummary = (r) => ({
   id: r.id, childId: r.child_id, period: r.period, periodLabel: r.period_label,
   start: r.start, end: r.end, text: r.text || '',
   photoIds: r.photo_ids ? JSON.parse(r.photo_ids) : [],
+  documentIds: r.document_ids ? JSON.parse(r.document_ids) : [],
   createdAt: r.created_at,
 })
 const mapComment = (r) => ({
@@ -1217,6 +1231,10 @@ add('GET', /^\/api\/state$/, (req, res) => {
     .prepare('SELECT * FROM resources WHERE account_id = ? ORDER BY created_at DESC')
     .all(acc)
     .map((r) => mapResource(r, resLinks[r.id] || []))
+  const documents = db
+    .prepare('SELECT id, name, mime, size, created_at FROM documents WHERE account_id = ?')
+    .all(acc)
+    .map((r) => ({ id: r.id, name: r.name, mime: r.mime, size: r.size, createdAt: r.created_at }))
   const eventDone = db
     .prepare('SELECT event_id, date FROM event_done WHERE account_id = ?')
     .all(acc)
@@ -1251,6 +1269,7 @@ add('GET', /^\/api\/state$/, (req, res) => {
     focusPoints,
     resources,
     eventDone,
+    documents,
     periods,
     kerndoelen,
     kerndoelLinks,
@@ -1926,6 +1945,12 @@ add('POST', /^\/api\/memos$/, async (req, res) => {
   // Bij toevoegen aan een extra kind vanuit een bestaande memo krijgen álle
   // nieuwe memo's eigen foto-kopieën (de originele memo houdt de bestanden).
   const copyAll = !!body.copyAllPhotos
+  // Documenten hangen aan één memo; bij meerdere kinderen krijgt de eerste ze.
+  const docIds = Array.isArray(body.documentIds)
+    ? body.documentIds.filter((id) =>
+        db.prepare('SELECT 1 FROM documents WHERE id = ? AND account_id = ?').get(id, req.accountId),
+      )
+    : []
 
   const created = []
   childIds.forEach((cid, i) => {
@@ -1933,12 +1958,14 @@ add('POST', /^\/api\/memos$/, async (req, res) => {
     const photoIds = i === 0 && !copyAll ? basePhotos : copyPhotos(basePhotos, req.accountId)
     const memo = {
       id: uid(), child_id: cid, date, text, subjects,
-      photo_ids: JSON.stringify(photoIds), draft, mood,
+      photo_ids: JSON.stringify(photoIds),
+      document_ids: JSON.stringify(i === 0 ? docIds : []),
+      draft, mood,
       author_id: req.userId,
       created_at: now(), updated_at: now(),
     }
-    db.prepare('INSERT INTO memos (id,account_id,child_id,date,text,subjects,photo_ids,draft,mood,author_id,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)')
-      .run(memo.id, req.accountId, memo.child_id, memo.date, memo.text, memo.subjects, memo.photo_ids, memo.draft, memo.mood, memo.author_id, memo.created_at, memo.updated_at)
+    db.prepare('INSERT INTO memos (id,account_id,child_id,date,text,subjects,photo_ids,document_ids,draft,mood,author_id,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)')
+      .run(memo.id, req.accountId, memo.child_id, memo.date, memo.text, memo.subjects, memo.photo_ids, memo.document_ids, memo.draft, memo.mood, memo.author_id, memo.created_at, memo.updated_at)
     // Aandachtspunt + "voor later" uit de reflectie vastleggen voor dit kind.
     syncMemoFocus(memo.id, cid, req.accountId, body)
     // Gekoppelde leermiddelen (zelfde voor elk gekozen kind).
@@ -1970,11 +1997,19 @@ add('PATCH', /^\/api\/memos\/([^/]+)$/, async (req, res, m) => {
   const after = body.photoIds != null ? body.photoIds : before
   const removed = before.filter((p) => !after.includes(p))
   if (removed.length) deletePhotoFiles(removed)
+  // Documenten: losgekoppelde bestanden ook echt opruimen.
+  const docVoor = existing.document_ids ? JSON.parse(existing.document_ids) : []
+  const docNa = Array.isArray(body.documentIds) ? body.documentIds : docVoor
+  for (const id of docVoor.filter((d) => !docNa.includes(d))) {
+    try { fs.unlinkSync(path.join(DOC_DIR, id)) } catch {}
+    db.prepare('DELETE FROM documents WHERE id = ? AND account_id = ?').run(id, req.accountId)
+  }
+  const documentIds = JSON.stringify(docNa)
   const draft = body.draft !== undefined ? (body.draft ? 1 : 0) : existing.draft
   const mood = body.mood !== undefined ? validMood(body.mood) : existing.mood
   const updated_at = now()
-  db.prepare('UPDATE memos SET date=?, text=?, subjects=?, photo_ids=?, draft=?, mood=?, updated_at=? WHERE id=?')
-    .run(date, text, subjects, photoIds, draft, mood, updated_at, m[1])
+  db.prepare('UPDATE memos SET date=?, text=?, subjects=?, photo_ids=?, document_ids=?, draft=?, mood=?, updated_at=? WHERE id=?')
+    .run(date, text, subjects, photoIds, documentIds, draft, mood, updated_at, m[1])
   // Reflectie (aandachtspunt / voor later) bijwerken voor het kind van deze memo.
   syncMemoFocus(m[1], existing.child_id, req.accountId, body)
   let resourceIds
@@ -1983,17 +2018,21 @@ add('PATCH', /^\/api\/memos\/([^/]+)$/, async (req, res, m) => {
   } else {
     resourceIds = db.prepare('SELECT resource_id FROM memo_resources WHERE memo_id = ?').all(m[1]).map((x) => x.resource_id)
   }
-  sendJson(res, 200, mapMemo({ ...existing, date, text, subjects, photo_ids: photoIds, draft, mood, updated_at }, resourceIds))
+  sendJson(res, 200, mapMemo({ ...existing, date, text, subjects, photo_ids: photoIds, document_ids: documentIds, draft, mood, updated_at }, resourceIds))
 })
 
 add('DELETE', /^\/api\/memos\/([^/]+)$/, (req, res, m) => {
   if (!requireWriter(req, res)) return
-  const existing = db.prepare('SELECT photo_ids, author_id FROM memos WHERE id = ? AND account_id = ?').get(m[1], req.accountId)
+  const existing = db.prepare('SELECT photo_ids, document_ids, author_id FROM memos WHERE id = ? AND account_id = ?').get(m[1], req.accountId)
   if (existing && !magMemoBewerken(req, existing)) {
     return sendJson(res, 403, { error: 'Je kunt alleen je eigen memo’s verwijderen.' })
   }
   if (existing) {
     deletePhotoFiles(existing.photo_ids ? JSON.parse(existing.photo_ids) : [])
+    for (const id of existing.document_ids ? JSON.parse(existing.document_ids) : []) {
+      try { fs.unlinkSync(path.join(DOC_DIR, id)) } catch {}
+      db.prepare('DELETE FROM documents WHERE id = ?').run(id)
+    }
     db.prepare('DELETE FROM memos WHERE id = ?').run(m[1])
     db.prepare('DELETE FROM memo_likes WHERE memo_id = ?').run(m[1])
     db.prepare('DELETE FROM memo_resources WHERE memo_id = ?').run(m[1])
@@ -2103,13 +2142,15 @@ add('POST', /^\/api\/resources$/, async (req, res) => {
     url: (body.url || '').trim().slice(0, 1000) || null,
     subjects: cleanSubjects(body.subjects),
     status,
+    // Manier van lezen hoort alleen bij een leesboek.
+    mode: type === 'leesboek' && RESOURCE_MODES.has(body.mode) ? body.mode : null,
     read_date: FINISHED_STATUS.has(status) && body.readDate ? String(body.readDate).slice(0, 10) : null,
     notes: (body.notes || '').trim().slice(0, 2000) || null,
     created_at: now(), updated_at: now(),
   }
   db.prepare(
-    'INSERT INTO resources (id,account_id,type,title,author,url,subjects,status,read_date,notes,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)',
-  ).run(r.id, req.accountId, r.type, r.title, r.author, r.url, r.subjects, r.status, r.read_date, r.notes, r.created_at, r.updated_at)
+    'INSERT INTO resources (id,account_id,type,title,author,url,subjects,status,mode,read_date,notes,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)',
+  ).run(r.id, req.accountId, r.type, r.title, r.author, r.url, r.subjects, r.status, r.mode, r.read_date, r.notes, r.created_at, r.updated_at)
   const childIds = validChildIds(body.childIds, req.accountId)
   for (const cid of childIds)
     db.prepare('INSERT OR IGNORE INTO resource_children (resource_id,child_id) VALUES (?,?)').run(r.id, cid)
@@ -2139,9 +2180,12 @@ add('PATCH', /^\/api\/resources\/([^/]+)$/, async (req, res, m) => {
     readDate = FINISHED_STATUS.has(status) ? existing.read_date : null
   }
   const notes = body.notes !== undefined ? (body.notes || '').trim().slice(0, 2000) || null : existing.notes
+  // Manier van lezen: alleen zinvol bij een leesboek, dus bij een ander type wissen.
+  const gekozenMode = body.mode !== undefined ? body.mode : existing.mode
+  const mode = type === 'leesboek' && RESOURCE_MODES.has(gekozenMode) ? gekozenMode : null
   db.prepare(
-    'UPDATE resources SET type=?,title=?,author=?,url=?,subjects=?,status=?,read_date=?,notes=?,updated_at=? WHERE id=?',
-  ).run(type, title, author, url, subjects, status, readDate, notes, now(), m[1])
+    'UPDATE resources SET type=?,title=?,author=?,url=?,subjects=?,status=?,mode=?,read_date=?,notes=?,updated_at=? WHERE id=?',
+  ).run(type, title, author, url, subjects, status, mode, readDate, notes, now(), m[1])
   let childIds
   if (Array.isArray(body.childIds)) {
     childIds = validChildIds(body.childIds, req.accountId)
@@ -2151,7 +2195,7 @@ add('PATCH', /^\/api\/resources\/([^/]+)$/, async (req, res, m) => {
   } else {
     childIds = db.prepare('SELECT child_id FROM resource_children WHERE resource_id = ?').all(m[1]).map((x) => x.child_id)
   }
-  sendJson(res, 200, mapResource({ ...existing, type, title, author, url, subjects, status, read_date: readDate, notes }, childIds))
+  sendJson(res, 200, mapResource({ ...existing, type, title, author, url, subjects, status, mode, read_date: readDate, notes }, childIds))
 })
 
 add('DELETE', /^\/api\/resources\/([^/]+)$/, (req, res, m) => {
@@ -2352,6 +2396,112 @@ add('DELETE', /^\/api\/photos\/([^/]+)$/, (req, res, m) => {
   if (!requireWriter(req, res)) return
   const row = db.prepare('SELECT id FROM photos WHERE id = ? AND account_id = ?').get(m[1], req.accountId)
   if (row) deletePhotoFiles([m[1]])
+  sendJson(res, 200, { ok: true })
+})
+
+// ---- Documenten bij een memo ----
+// Een werkstuk, een presentatie, een uitgewerkt blad. Versleuteld op schijf,
+// net als foto's. Bewust een korte lijst met toegestane soorten: alles wat een
+// browser als pagina zou kunnen uitvoeren blijft erbuiten, en we serveren nooit
+// inline maar altijd als download.
+const MAX_DOC_BYTES = 15 * 1024 * 1024
+const DOC_DIR = path.join(DATA_DIR, 'documents')
+fs.mkdirSync(DOC_DIR, { recursive: true })
+const ALLOWED_DOC_MIME = new Map([
+  ['application/pdf', '.pdf'],
+  ['application/msword', '.doc'],
+  ['application/vnd.openxmlformats-officedocument.wordprocessingml.document', '.docx'],
+  ['application/vnd.ms-powerpoint', '.ppt'],
+  ['application/vnd.openxmlformats-officedocument.presentationml.presentation', '.pptx'],
+  ['application/vnd.ms-excel', '.xls'],
+  ['application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', '.xlsx'],
+  ['application/vnd.oasis.opendocument.text', '.odt'],
+  ['application/vnd.oasis.opendocument.presentation', '.odp'],
+  ['application/vnd.oasis.opendocument.spreadsheet', '.ods'],
+  ['text/plain', '.txt'],
+])
+
+/** Bestandsnaam opschonen: geen paden, geen rare tekens, niet eindeloos lang. */
+function docNaam(naam, mime) {
+  const schoon = String(naam || '')
+    .replace(/[\\/]/g, ' ')
+    .replace(/[^\p{L}\p{N} ._()-]/gu, '')
+    .trim()
+    .slice(0, 120)
+  if (schoon && /\.[a-z0-9]{1,5}$/i.test(schoon)) return schoon
+  return (schoon || 'document') + (ALLOWED_DOC_MIME.get(mime) || '')
+}
+
+add('POST', /^\/api\/documents$/, async (req, res) => {
+  if (!requireWriter(req, res)) return
+  if (!rateLimit('docupload:' + req.userId, 100, 10 * 60 * 1000)) {
+    return sendJson(res, 429, { error: 'Te veel uploads achter elkaar. Probeer het zo weer.' })
+  }
+  const mime = (req.headers['content-type'] || '').split(';')[0].trim().toLowerCase()
+  if (!ALLOWED_DOC_MIME.has(mime)) {
+    return sendJson(res, 400, {
+      error: 'Dit bestandstype kan niet. Kies een PDF, Word-, PowerPoint- of Excel-bestand.',
+    })
+  }
+  // Vooraf op de aangekondigde lengte toetsen: readBody verbreekt de verbinding
+  // zodra de grens overschreden wordt, en dan komt een nette foutmelding niet
+  // meer aan. Zo krijgt de gebruiker wél te lezen wat er mis is.
+  const aangekondigd = Number(req.headers['content-length'] || 0)
+  if (aangekondigd > MAX_DOC_BYTES) {
+    return sendJson(res, 413, {
+      error: `Dit bestand is ${(aangekondigd / 1024 / 1024).toFixed(1).replace('.', ',')} MB. Maximaal 15 MB per bestand.`,
+    })
+  }
+  let buf
+  try {
+    buf = await readBody(req, MAX_DOC_BYTES)
+  } catch {
+    return sendJson(res, 413, { error: 'Het bestand is te groot (maximaal 15 MB).' })
+  }
+  if (!buf.length) return sendJson(res, 400, { error: 'Leeg bestand.' })
+  const naam = docNaam(req.headers['x-bestandsnaam'], mime)
+  const id = uid()
+  fs.writeFileSync(path.join(DOC_DIR, id), encryptPhoto(buf))
+  db.prepare('INSERT INTO documents (id,account_id,name,mime,size,created_at) VALUES (?,?,?,?,?,?)')
+    .run(id, req.accountId, naam, mime, buf.length, now())
+  sendJson(res, 201, { id, name: naam, mime, size: buf.length })
+})
+
+add('GET', /^\/api\/documents\/([^/]+)$/, (req, res, m) => {
+  const row = db.prepare('SELECT * FROM documents WHERE id = ? AND account_id = ?').get(m[1], req.accountId)
+  const file = path.join(DOC_DIR, m[1])
+  if (!row || !fs.existsSync(file)) {
+    res.writeHead(404)
+    return res.end()
+  }
+  let data
+  try {
+    data = decryptPhoto(fs.readFileSync(file))
+  } catch (e) {
+    console.error('[document] ontsleutelen mislukt:', m[1], (e && e.message) || e)
+    res.writeHead(500)
+    return res.end()
+  }
+  // Altijd als download, nooit inline: zo kan een bestand nooit als pagina op
+  // ons eigen domein worden uitgevoerd.
+  const veiligeNaam = String(row.name || 'document').replace(/["\r\n]/g, '')
+  res.writeHead(200, {
+    'Content-Type': 'application/octet-stream',
+    'Content-Length': data.length,
+    'Content-Disposition': `attachment; filename*=UTF-8''${encodeURIComponent(veiligeNaam)}`,
+    'X-Content-Type-Options': 'nosniff',
+    'Cache-Control': 'private, max-age=31536000, immutable',
+  })
+  res.end(data)
+})
+
+add('DELETE', /^\/api\/documents\/([^/]+)$/, (req, res, m) => {
+  if (!requireWriter(req, res)) return
+  const row = db.prepare('SELECT id FROM documents WHERE id = ? AND account_id = ?').get(m[1], req.accountId)
+  if (row) {
+    try { fs.unlinkSync(path.join(DOC_DIR, m[1])) } catch {}
+    db.prepare('DELETE FROM documents WHERE id = ?').run(m[1])
+  }
   sendJson(res, 200, { ok: true })
 })
 

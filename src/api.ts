@@ -3,6 +3,7 @@ import type {
   AgendaEvent,
   Child,
   Comment,
+  DocumentFile,
   EventFreq,
   EventType,
   FocusPoint,
@@ -15,6 +16,7 @@ import type {
   MoodKey,
   Period,
   Resource,
+  ResourceMode,
   ResourceStatus,
   ResourceType,
   Summary,
@@ -139,6 +141,7 @@ export interface AppState {
   resources: Resource[]
   /** Afgevinkte agendadagen als "eventId|jjjj-mm-dd". */
   eventDone: string[]
+  documents: DocumentFile[]
   periods: Period[]
   // Alleen aanwezig als de kerndoelen aanstaan.
   kerndoelen?: Record<KerndoelSet, Kerndoel[]>
@@ -251,6 +254,36 @@ export const describePhotos = (
     method: 'POST',
     body: JSON.stringify({ childId, photoIds, subjects }),
   })
+
+/** Uploadt één document (max 15 MB). De naam gaat mee in een header. */
+export const MAX_DOC_MB = 15
+export async function uploadDocument(file: File): Promise<DocumentFile> {
+  // Hier al afvangen, zodat er geen minuut geüpload wordt voor niets.
+  if (file.size > MAX_DOC_MB * 1024 * 1024) {
+    const mb = (file.size / 1024 / 1024).toFixed(1).replace('.', ',')
+    throw new Error(`Dit bestand is ${mb} MB. Maximaal ${MAX_DOC_MB} MB per bestand.`)
+  }
+  const res = await fetch('/api/documents', {
+    method: 'POST',
+    credentials: 'same-origin',
+    headers: {
+      'Content-Type': file.type || 'application/octet-stream',
+      'X-Bestandsnaam': encodeURIComponent(file.name).replace(/%20/g, ' '),
+      ...(getActiveAccount() ? { 'X-Account-Id': getActiveAccount() } : {}),
+    },
+    body: file,
+  })
+  if (!res.ok) {
+    let msg = 'Uploaden mislukt'
+    try { const b = await res.json(); if (b?.error) msg = b.error } catch {}
+    throw new Error(msg)
+  }
+  const d = await res.json()
+  return { ...d, createdAt: Date.now() }
+}
+export const documentUrl = (id: string) => `/api/documents/${id}`
+export const deleteDocument = (id: string) =>
+  req<{ ok: boolean }>(`/documents/${id}`, { method: 'DELETE' })
 
 export const fetchState = () => req<AppState>('/state')
 
@@ -465,6 +498,7 @@ export interface MemoInput {
   text?: string
   subjects?: string[]
   photoIds?: string[]
+  documentIds?: string[]
   resourceIds?: string[]
   draft?: boolean
   // Bij toevoegen aan extra kinderen: elk krijgt eigen foto-kopieën.
@@ -500,6 +534,7 @@ export interface ResourceInput {
   url?: string
   subjects?: string[]
   status?: ResourceStatus | null
+  mode?: ResourceMode | null
   readDate?: string | null
   notes?: string
   childIds?: string[]
