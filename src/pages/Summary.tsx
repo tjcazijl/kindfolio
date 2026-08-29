@@ -429,7 +429,7 @@ export function Summary() {
 
       {aiEnabled && aiOp && (
         <div className="banner warn">
-          Er zijn deze maand al {ai?.aiLimit} AI-verzoeken gedaan vanuit dit
+          Er zijn in de afgelopen 30 dagen al {ai?.aiLimit} AI-verzoeken gedaan vanuit dit
           portfolio. Die grens zit er alleen om fouten af te vangen — kom je er
           in gewoon gebruik tegenaan, mail dan even naar{' '}
           <a href="mailto:info@kindfolio.nl">info@kindfolio.nl</a>. Een
@@ -441,7 +441,7 @@ export function Summary() {
       {/* Alleen waarschuwen als het bijna op is; anders is het ruis. */}
       {aiEnabled && !aiOp && ai?.aiLeft != null && ai.aiLeft <= 10 && (
         <p className="hint">
-          Nog {ai.aiLeft} AI-verzoeken deze maand.
+          Nog {ai.aiLeft} AI-verzoeken over in de komende dagen.
         </p>
       )}
 

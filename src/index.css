@@ -3099,3 +3099,33 @@ body {
   gap: 6px;
   margin: 0;
 }
+
+/* AI-verbruik in de instellingen. */
+.ai-teller {
+  margin: 4px 0 14px;
+}
+.ai-teller-kop {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+  font-size: 14.5px;
+  font-weight: 600;
+  margin-bottom: 6px;
+}
+.ai-teller-n {
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.ai-balk {
+  height: 8px;
+  border-radius: 99px;
+  background: var(--line);
+  overflow: hidden;
+}
+.ai-balk i {
+  display: block;
+  height: 100%;
+  background: var(--green);
+}

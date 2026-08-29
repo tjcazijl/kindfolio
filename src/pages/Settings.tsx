@@ -2,6 +2,8 @@ import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useData } from '../store'
 import {
+  summaryAvailable,
+  type AiStatus,
   exportUrl,
   fetchShares,
   invite,
@@ -35,6 +37,12 @@ export function Settings() {
     memos,
     removeChild,
   } = useData()
+  // Hoeveel AI-verzoeken er nog over zijn. Hier op te zoeken, in plaats van
+  // dat je het pas merkt als het bijna op is.
+  const [ai, setAi] = useState<AiStatus | null>(null)
+  useEffect(() => {
+    if (canEdit) summaryAvailable().then(setAi).catch(() => {})
+  }, [canEdit])
   const [confirmStage, setConfirmStage] = useState<0 | 1 | 2>(0)
   const [dangerOpen, setDangerOpen] = useState(false)
   const [typed, setTyped] = useState('')
@@ -182,6 +190,26 @@ export function Settings() {
           Anthropic). Staat dit uit, dan toont het tabblad Samenvatting gewoon
           alle memo's onder elkaar — zonder AI.
         </p>
+        {ai && ai.aiLimit != null && (
+          <div className="ai-teller">
+            <div className="ai-teller-kop">
+              <span>Gebruikt in de afgelopen 30 dagen</span>
+              <span className="ai-teller-n">
+                {ai.aiUsed} van {ai.aiLimit}
+              </span>
+            </div>
+            <div className="ai-balk">
+              <i style={{ width: `${Math.min(100, (ai.aiUsed / ai.aiLimit) * 100)}%` }} />
+            </div>
+            <p className="hint">
+              Samenvattingen, de foto-schrijfhulp en de kerndoelvoorstellen tellen
+              hier samen in mee. Dit is een voortschrijdend venster: een verzoek
+              van vandaag telt tot over dertig dagen mee. De grens vangt fouten
+              af — loop je er in gewoon gebruik tegenaan, mail dan even naar{' '}
+              <a href="mailto:info@kindfolio.nl">info@kindfolio.nl</a>.
+            </p>
+          </div>
+        )}
         {canEdit && (
           <label className="toggle-row">
             <span>AI-samenvattingen gebruiken</span>

@@ -157,7 +157,7 @@ export function KerndoelScan() {
               </div>
               {scan.aiLeft != null && (
                 <div className="kd-regel">
-                  <span className="kd-regel-t">Deze maand nog beschikbaar</span>
+                  <span className="kd-regel-t">Nog beschikbaar</span>
                   <span className="kd-regel-n">{scan.aiLeft}</span>
                 </div>
               )}
@@ -180,7 +180,7 @@ export function KerndoelScan() {
               </button>
               {scan.aiLeft != null && scan.aiLeft < kosten && (
                 <p className="hint">
-                  Hier zijn meer verzoeken voor nodig dan je deze maand nog hebt.
+                  Hier zijn meer verzoeken voor nodig dan je nu nog over hebt.
                   Mail even naar <a href="mailto:info@kindfolio.nl">info@kindfolio.nl</a>,
                   dan zetten we de grens omhoog.
                 </p>

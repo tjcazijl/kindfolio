@@ -2690,7 +2690,7 @@ function formatDateLong(iso) {
 const AI_MONTH_LIMIT = Number(process.env.PORTFOLIO_AI_LIMIT || 50)
 const AI_WINDOW_MS = 30 * 24 * 60 * 60 * 1000
 const AI_LIMIT_MESSAGE =
-  `Er zijn deze maand al ${AI_MONTH_LIMIT} AI-verzoeken gedaan vanuit dit portfolio. ` +
+  `Er zijn in de afgelopen 30 dagen al ${AI_MONTH_LIMIT} AI-verzoeken gedaan vanuit dit portfolio. ` +
   'Die grens zit er alleen om fouten af te vangen — kom je er in gewoon gebruik tegenaan, ' +
   'mail dan even naar info@kindfolio.nl, dan zetten we hem omhoog. ' +
   'Een samenvatting zónder AI kun je gewoon blijven maken: zet AI uit bij Instellingen.'
