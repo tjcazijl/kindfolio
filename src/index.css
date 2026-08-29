@@ -3081,3 +3081,21 @@ body {
 .hint.fout {
   color: var(--clay, #c2553b);
 }
+
+/* Voor welke kinderen tellen de aangevinkte kerndoelen mee. */
+.kd-voorwie {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px 8px;
+  margin-bottom: 10px;
+}
+.kd-voorwie-lb {
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--muted);
+}
+.kd-voorwie .chips {
+  gap: 6px;
+  margin: 0;
+}

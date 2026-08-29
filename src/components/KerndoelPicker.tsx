@@ -25,10 +25,19 @@ export function KerndoelPicker({ childIds, value, onChange }: Props) {
   const { children, kerndoelen } = useData()
   const [open, setOpen] = useState<string | null>(null)
 
-  const betrokken = useMemo(
+  const mogelijk = useMemo(
     () => (childIds.length ? children.filter((c) => childIds.includes(c.id)) : children),
     [children, childIds],
   )
+  // Voor wie gelden de kerndoelen die je hier aanvinkt? Bij een gezinsbreed
+  // leermiddel zijn dat niet vanzelf alle kinderen: een prentenboek van de
+  // oudste hoeft niet mee te tellen bij een kind van twee.
+  const [voorWie, setVoorWie] = useState<string[] | null>(null)
+  const betrokken = useMemo(() => {
+    if (!voorWie) return mogelijk
+    const gekozen = mogelijk.filter((c) => voorWie.includes(c.id))
+    return gekozen.length ? gekozen : mogelijk
+  }, [mogelijk, voorWie])
 
   // Per set de kinderen die daarmee werken; bepaalt welke lijsten we tonen.
   const perSet = useMemo(() => {
@@ -62,7 +71,49 @@ export function KerndoelPicker({ childIds, value, onChange }: Props) {
     }))
   }, [kerndoelen, perSet])
 
-  if (!kerndoelen || betrokken.length === 0) return null
+  if (!kerndoelen || mogelijk.length === 0) return null
+
+  /** Rij met kindchips; alleen zinvol als er meer dan één kind in beeld is. */
+  const kindKeuze =
+    mogelijk.length < 2 ? null : (
+      <div className="kd-voorwie">
+        <span className="kd-voorwie-lb">Voor wie telt dit mee?</span>
+        <div className="chips">
+          {mogelijk.map((c) => {
+            const aan = betrokken.some((b) => b.id === c.id)
+            return (
+              <button
+                key={c.id}
+                type="button"
+                className={`chip child-chip sm ${aan ? 'on' : ''}`}
+                disabled={aan && betrokken.length === 1}
+                onClick={() => {
+                  // Op de vórige stand rekenen, niet op de afgeleide lijst:
+                  // twee tikken snel na elkaar zouden elkaar anders overschrijven.
+                  setVoorWie((prev) => {
+                    const nu = prev ?? mogelijk.map((x) => x.id)
+                    const next = nu.includes(c.id)
+                      ? nu.filter((x) => x !== c.id)
+                      : [...nu, c.id]
+                    return next.length ? next : nu
+                  })
+                  // Wat al aanstond voor een kind dat eraf gaat, weer weghalen.
+                  if (aan) onChange(value.filter((v) => v.childId !== c.id))
+                }}
+              >
+                <span
+                  className="avatar xs"
+                  style={{ background: aan ? '#fff' : c.color, color: aan ? c.color : '#fff' }}
+                >
+                  {c.name.charAt(0).toUpperCase()}
+                </span>
+                {c.name}
+              </button>
+            )
+          })}
+        </div>
+      </div>
+    )
 
   const heeft = (set: KerndoelSet, nr: number, kids: { id: string }[]) =>
     kids.length > 0 &&
@@ -92,6 +143,7 @@ export function KerndoelPicker({ childIds, value, onChange }: Props) {
 
   return (
     <div className="kd-picker">
+      {kindKeuze}
       {gekozen.length > 0 && (
         <div className="kd-gekozen">
           {gekozen.map((g) => {
